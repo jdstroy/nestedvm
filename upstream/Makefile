@@ -273,7 +273,7 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 	cd build && \
 		rm -f busybox && \
 		ln -s busybox-$(version_busybox) busybox
-	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(filter-out -Werror,$(MIPS_CFLAGS)) -DNESTEDVM -g"
+	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
 	touch $@
 
 tasks/build_gcclass:
@@ -311,5 +311,5 @@ tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
 			--gpc-rts=-nwebfile:tex.web     \
 			--gpc-rts=-nchangefile:tex.ch   \
 			&& \
-		mips-unknown-elf-gpc $(filter-out -Werror,$(MIPS_PCFLAGS)) tex.p $(MIPS_LDFLAGS) -o tex.mips
+		mips-unknown-elf-gpc $(MIPS_PCFLAGS) tex.p $(MIPS_LDFLAGS) -o tex.mips
 	touch $@

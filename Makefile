@@ -80,9 +80,11 @@ endif
 $(tasks)/build_libc: $(mips_object) upstream/misc/extraheaders.sh
 
 $(tasks)/%:
-	$(MAKE) -C upstream tasks/$* usr="$(usr)" MIPS_CFLAGS="$(MIPS_CFLAGS)" MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_PCFLAGS="$(MIPS_PCFLAGS)"
-
-
+	$(MAKE) -C upstream tasks/$* usr="$(usr)" \
+		MIPS_CFLAGS="$(filter-out -Werror,$(MIPS_CFLAGS))" \
+		MIPS_PCFLAGS="$(filter-out -Werror,$(MIPS_PCFLAGS))" \
+		MIPS_LDFLAGS="$(MIPS_LDFLAGS)"
+		
 upstream_clean_%:
 	$(MAKE) -C upstream clean_$* usr="$(usr)"
 
