@@ -124,7 +124,7 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 	mkdir -p $(usr)
 	mkdir -p build/gcc-obj && cd build/gcc-obj && \
 		echo | ../gcc-$(version_gcc)/configure --prefix=$(usr) $(configure_gcc_step2) && \
-		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" GCC_FOR_TARGET=$(usr)/install/bin/mips-unknown-elf-gcc && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		$(MAKE) install
 	touch $@
 
