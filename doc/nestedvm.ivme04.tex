@@ -559,26 +559,49 @@ LOOKUPSWITCH}:
     }
 \end{verbatim}}
 
+v v v v v v v
 \begin{figure}
 {\footnotesize\begin{verbatim}
 switch(pc>>>8) {
-    case 0x1: run_100();
-    case 0x2: run_200();
-    case 0x3: run_300();
+    case 0x1: run_100(); break;
+    case 0x2: run_200(); break;
+    case 0x3: run_300(); break;
 }
+*************
+{\footnotesize
+\begin{verbatim}
+    switch(pc>>>8) {
+        case 0x1: run_100();
+        case 0x2: run_200();
+        case 0x3: run_300();
+    }
+^ ^ ^ ^ ^ ^ ^
 \end{verbatim}}
 
-Javac isn't smart enough to see the pattern in the case values and
+v v v v v v v
+Javac is not smart enough to see the pattern in the case values and
 generates very suboptimal bytecode. Manually doing the shifts
 convinces javac to emit a tableswitch statement, which is
-significantly faster. This change alone nearly doubled the speed of
-the compiled binary.
+significantly faster. This change alone increased the speed of
+the compiled binary by approximately 35\%.
+*************
+This problem was surmounted by switching on a denser set of {\tt case}
+values, which is more amenable to the {\tt TABLESWITCH} structure.
+This change alone nearly doubled the speed of the compiled binary.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
 Finding the optimal method size lead to the next big performance
 increase.  It was determined through experimentation that the optimal
-number of MIPS instructions per method is 128 (considering only power
-of two options). Going above or below that lead to performance
+number of MIPS instructions per method is 64 or 128 (considering only 
+powers of two). Going above or below that lead to performance
 decreases. This is most likely due to a combination of two factors.
+*************
+The next performance improvement came from tuning the size of the
+methods invoked from the trampoline.  Trial and error led to the
+conclusion that HotSpot \cite{hotspot}, the most popular JVM, performs
+best when 128 MIPS instructions are mapped to each method.
+^ ^ ^ ^ ^ ^ ^
 
 \epsfig{file=chart5,width=3in}
 
@@ -607,6 +630,13 @@ of a {\tt switch} statement at any of the {\tt case}s.  In order to
 eliminate unnecessary case statements we needed to identify all
 possible jump targets.  Jump targets can come from three sources:
 
+Putting more than 256 instructions in each method lead to a severe
+performance penalty. Apparently Hotspot does not handle very large methods
+well. In some tests the simple moving from 256 to 512 instructions per
+method decreased performance by a factor of 10.
+
+Put chart here
+
 The next big optimization was eliminating unnecessary case
 statements. Having case statements before each instruction prevents
 JIT compilers from being able to optimize across instruction
@@ -616,29 +646,55 @@ identified. The sources for possible jump targets come from 3 places.
 
 \begin{itemize}
 
+v v v v v v v
 \item The .text segment - Every instruction in the text segment is
       scanned for jump targets. Every branch instruction (BEQ, JAL,
       etc) has its destination added to the list of possible branch
       targets. In addition, functions that set the link register have
-      theirpc+8 added to the list (the address that would've been put
+      theirpc+8 added to the list (the address that would have been put
       to the link register). Finally, combinations of LUI (Load Upper
       Immediate) of ADDIU (Add Immediate Unsigned) are scanned for
       possible addresses in the text segment. This combination of
+*************
+\item {\bf The {\tt .text} segment}
+
+      Every instruction in the text segment is scanned, and every
+      branch instruction's destination is added to the list of
+      possible branch targets.  In addition, any function that sets
+      the link register is added to the list \footnote{actually {\tt addr+8}}.
+      Finally, combinations of {\tt LUI} (Load Upper Immediate) and
+      {\tt ADDIU} (Add Immediate Unsigned) are scanned for possible
+      addresses in the {\tt .text} segment since this combination of
+^ ^ ^ ^ ^ ^ ^
       instructions is often used to load a 32-bit word into a
       register.
 
+v v v v v v v
 \item The .data segment - When GCC generates switch() statements it
       often uses a jump table stored in the .data
-      segment. Unfortunately gcc doesn't identify these jump tables in
+      segment. Unfortunately gcc does not identify these jump tables in
       any way. Therefore, the entire .data segment is conservatively
       scanned for possible addresses in the .text segment.
+*************
+\item {\bf The {\tt .data} segment}
+
+      When compiling {\tt switch} statements, compilers often use a
+      jump table stored in the {\tt .data} segment.  Unfortunately
+      they typically do not identify these jump tables in any way.
+      Therefore, the entire {\tt .data} segment is conservatively
+      scanned for possible addresses in the {\tt .text} segment.
+^ ^ ^ ^ ^ ^ ^
       
+v v v v v v v
 \item The symbol table - This is mainly used as a backup. Scanning the
       .text and .data segments should identify any possible jump
       targets but adding every function in the symbol table in the ELF
-      binary doesn't hurt. This will also catch functions that are
+      binary does not hurt. This will also catch functions that are
       never called directly from the MIPS binary (for example,
       functions called with the call() method in the runtime).
+*************
+\item {\bf The symbol table}
+^ ^ ^ ^ ^ ^ ^
 
       This is mainly used as a backup.  Scanning the {\tt .text} and
       {\tt .data} segments should identify any possible jump targets;
@@ -698,8 +754,13 @@ This mode has several advantages:
 
 \begin{itemize}
       
+v v v v v v v
 \item There are little tricks that can be done in JVM bytecode that
-      can't be done in Java source code.
+      cannot be done in Java source code.
+*************
+\item There are quite a few interesting bytecode sequences that cannot
+      be generated as a result of compiling Java source code.
+^ ^ ^ ^ ^ ^ ^
 
 \item Directly generating {\tt .class} files Eliminates the
       time-consuming {\tt javac} step.
@@ -716,16 +777,20 @@ Most of the performance improvemen where made where in the handling of
 branch instructions and in taking advantage of the JVM stack to
 eliminate unnecessary {\tt LOAD}s and {\tt STORE}s to local variables.
 
+v v v v v v v
 The first obvious optimization that generating bytecode allows for is the
-use of GOTO. Despite the fact that java doesn't have a GOTO keyword a GOTO
+use of GOTO. Despite the fact that Java does not have a GOTO keyword a GOTO
 bytecode does exist and is used heavily in the code generates by javac.
-Unfortunately the java language doesn't provide any way to take advantage of
+Unfortunately the java language does not provide any way to take advantage of
 this. As result of this, jumps within a method were implemented in the
 binary-to-source compiler by setting the PC field to the new address and
 making a trip back to the initial switch statement.  In the classfile
 compiler these jumps are implemented as GOTOs directly to the target
 instruction. This saves a costly trip back through the LOOKUPSWITCH
 statement and is a huge win for small loops within a method.
+*************
+\epsfig{file=chart7,width=3in}
+^ ^ ^ ^ ^ ^ ^
 
 The first optimization gained by direct bytecode generation came from
 the use of the JVM {\tt GOTO} instruction.  Despite the fact that the
@@ -746,20 +811,40 @@ into Java source code like this:
     }
 \end{verbatim}}
 
+v v v v v v v
 This requires a branch in the JVM regardless of whether the MIPS
 branch is actually taken. If condition is false the JVM has to jump
 over the code to set the PC and go back to the switch block. If
 condition is true the JVM has to jump to the switch block. By
 generating bytecode directly we can make the target of the JVM branch
 statement the actual bytecode of the final destination. In the case
-where the branch isn't taken the JVM doesn't need to branch at all.
+where the branch is not taken the JVM does not need to branch at all.
+*************
+This requires a branch in the JVM {\it regardless} of whether the MIPS
+branch is actually taken.  If {\tt condition} is false the JVM has to
+jump over the code to set {\tt pc} and go back to the {\tt switch}
+statemenmt; if {\tt condition} is true the JVM has to jump to the {\tt
+switch} block.  By generating bytecode directly, NestedVM is able to
+emit a JVM bytecode branching directly to the address corresponding to
+the target of the MIPS branch.  In the case where the branch is not
+taken the JVM doesn't branch at all.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
 A side affect of the above two optimizations is a solution to the
 excess constant pool entries problem. When jumps are implemented as
-GOTOs and direct branches to the target the PC field doesn't need to
+GOTOs and direct branches to the target the PC field does not need to
 be set. This eliminates many of the constant pool entries the java
 source compiler requires. The limit is still there however, and given
 a large enough binary it will still be reached.
+*************
+A side effect of the previous two optimizations is a solution to the
+excess constant pool entries problem.  When jumps are implemented as
+{\tt GOTO}s and branches are taken directly, the {\tt pc} field does
+not need to be set.  This eliminates a huge number of constant pool
+entries.  The {\tt .class} file constant pool size limit is still
+present, but it is less likely to be encountered.
+^ ^ ^ ^ ^ ^ ^
 
 Implementation of the MIPS delay slot offers another opportunity for
 bytecode-level optimization.  In order to take advantage of
@@ -852,14 +937,30 @@ could be used to improve performance:
       implements {\tt memcpy()} using {\tt System.arraycopy()}, which
       is substantially more efficient.
 
-NestedVM has two primary ways of executing code, the interpreter, and the binary translators. Both the interpreter and the output from the binary translators sit on top of a Runtime class. This class provides the public interface to both the interpreter and the translated binaries.
+NestedVM has two primary ways of executing code, the interpreter, and the
+binary translators. Both the interpreter and the output from the binary
+translators sit on top of a Runtime class. This class provides the public
+interface to both the interpreter and the translated binaries.
 
 The Runtime class does the work that the operating system usually does.
 Conceptually the Runtime class can be thought of as the operating system and
 its subclasses (translated binaries and the interpreter) the CPU. The
 Runtime fulfills 5 primary goals:
 
-The Runtime class does the work that the operating system usually does. Conceptually the Runtime class can be thought of as the operating system and it’s subclasses (translated binaries and the interpreter) the CPU. The Runtime fulfills 5 primary goals:
+v v v v v v v
+The Runtime class does the work that the operating system usually does.
+Conceptually the Runtime class can be thought of as the operating system and
+its subclasses (translated binaries and the interpreter) the CPU. The
+Runtime fulfills 5 primary goals:
+*************
+\item {\tt -fno-rename-registers} Some processors can better schedule
+      code when registers aren't reused for two different purposes. By
+      default GCC will try to use as many registers as possibly when
+      it can. This excess use of registers just confuses JIT's trying
+      to compile the output from the binary translator. All the JIT
+      compilers we tested do much better with a few frequently used
+      registers.
+^ ^ ^ ^ ^ ^ ^
 
 \item {\tt -fno-delayed-branch} The MIPS CPU has a delay slot (see
       above). Earlier versions of NestedVM didn't efficiently emulate
@@ -871,15 +972,52 @@ The Runtime class does the work that the operating system usually does. Conceptu
       provide no benefit under NestedVM either so they are avoided
       with this option.
 
-\item Provides a consistent external interface - The method of actually executing the code (currently only translated binaries and the interpreter) can be changed without any code changes to the caller because only Runtime exposes a public interface.
+v v v v v v v
+\end{itemize}
+*************
+\item Provides a consistent external interface - The method of actually
+executing the code (currently only translated binaries and the interpreter)
+can be changed without any code changes to the caller because only Runtime
+exposes a public interface.
+^ ^ ^ ^ ^ ^ ^
 
-\item Provide an easy to use interface - The interpreter and the output from the binary translators only know how to execute code. The Runtime class provides an easy to use interface to the code. It contains methods to pass arguments to the main() function, read and write from memory, and call individual functions in the binary.
+v v v v v v v
+The effects of the various optimizations presented in this chapter are
+summarized in the table below.
+*************
+\item Provide an easy to use interface - The interpreter and the output from
+the binary translators only know how to execute code. The Runtime class
+provides an easy to use interface to the code. It contains methods to pass
+arguments to the main() function, read and write from memory, and call
+individual functions in the binary.
+^ ^ ^ ^ ^ ^ ^
 
-\item Manage the process’s memory - The Runtime class contains large int[] arrays that represent the process`s entire memory space.  Subclasses read and write to these arrays as required by the instructions they are executing.  Subclasses can expend their memory space using the sbrk syscall.
+v v v v v v v
+\epsfig{file=chart4,width=3in}
+*************
+\item Manage the process's memory - The Runtime class contains large int[]
+arrays that represent the process`s entire memory space.  Subclasses read
+and write to these arrays as required by the instructions they are
+executing.  Subclasses can expend their memory space using the sbrk
+syscall.
+^ ^ ^ ^ ^ ^ ^
 
-\item Provide access to the file system and streams - Subclasses access the file system through standard UNIX syscalls (read, write,  open, etc). The Runtime manages the file descriptor table that maps UNIX file descriptors to Java RandomAccessFiles, InputStreams, OutputStreams, and sockets.
+v v v v v v v
+\epsfig{file=chart3,width=3in}
+*************
+\item Provide access to the file system and streams - Subclasses access the
+file system through standard UNIX syscalls (read, write, open, etc). The
+Runtime manages the file descriptor table that maps UNIX file descriptors
+to Java RandomAccessFiles, InputStreams, OutputStreams, and sockets.
+^ ^ ^ ^ ^ ^ ^
 
-\item Miscellaneous other syscalls - In additions to those mentioned above the Runtime class implements a variety of other syscalls (sleep, gettimeofday, getpagesize, sysconf, fcntl, etc).
+v v v v v v v
+\item Miscellaneous other syscalls - In additions to those mentioned above
+the Runtime class implements a variety of other syscalls (sleep,
+gettimeofday, getpagesize, sysconf, fcntl, etc).
+*************
+\section{The NestedVM Runtime}
+^ ^ ^ ^ ^ ^ ^
 
 In addition to binary-to-source and binary-to-binary translation,
 NestedVM also includes a MIPS binary interpreter.  All three
@@ -922,15 +1060,66 @@ The runtime fulfills four roles:
 
 \section{Future Directions}
 
-Java source code can create a copy of the translated binary by instantiating the class generated by the binary translator  or instantiating the interpreter. It can then interact with the process through the many facilities provided by the Runtime interface.  Invoking the run() method of the Runtime interface will load the given arguments into the process’s memory as invoke the binaries entry point (typically \_start() in crt0.o). This will pass control on to the main() function which will have the arguments passed to run() loaded into argv and argc.
+v v v v v v v
+Although we have only implemented it for the Java Virtual Machine, our
+technique generalizes to other safe bytecode architectures.  In
+particular we would like to demonstrate this generality by retargeting
+the translator to the Microsoft Intermediate Language \cite{msil}.
+*************
+Java source code can create a copy of the translated binary by instantiating
+the class generated by the binary translator or instantiating the
+interpreter. It can then interact with the process through the many
+facilities provided by the Runtime interface.  Invoking the run() method of
+the Runtime interface will load the given arguments into the process's
+memory as invoke the binaries entry point (typically \_start() in crt0.o).
+This will pass control on to the main() function which will have the
+arguments passed to run() loaded into argv and argc.
+^ ^ ^ ^ ^ ^ ^
 
-As the binary executes it often passes control back to the Runtime class through the MIPS {\tt SYSCALL} instruction. The interpreter and translated binaries invoke the {\tt syscall()} method of the Runtime class when the {\tt SYSCALL} instruction is executed. The Runtime class then can manipulate the process’s environment (read and write to memory, modify the file descriptor table, etc) and interact with the rest of the JVM on behalf of the process (read and write to a file or stream, etc). There is even a syscall to pause the VM and temporarily return control to the caller.
+v v v v v v v
+Additionally, we would like to explore other uses for dynamic loading
+of translated MIPS binaries by combining NestedVM (which itself is
+written in Java) and the {\tt ClassLoader.fromBytes()} mechanism.
+*************
+As the binary executes it often passes control back to the Runtime class
+through the MIPS {\tt SYSCALL} instruction. The interpreter and translated
+binaries invoke the {\tt syscall()} method of the Runtime class when the
+{\tt SYSCALL} instruction is executed. The Runtime class then can manipulate
+the process's environment (read and write to memory, modify the file
+descriptor table, etc) and interact with the rest of the JVM on behalf of
+the process (read and write to a file or stream, etc). There is even a
+syscall to pause the VM and temporarily return control to the caller.
+^ ^ ^ ^ ^ ^ ^
 
-In addition to the interfaces provided by NestedVM, users can create their own interfaces between  the MIPS and Java world. The Runtime provides a method called call() that will call a function by name in the MIPS binary. The call() method looks up the function name in the binary’s ELF symbol table and manipulating the stack and registers accordingly to execute the given function. This allows Java code to seamlessly invoke functions in the binary. 
+v v v v v v v
+*************
+In addition to the interfaces provided by NestedVM, users can create their
+own interfaces between the MIPS and Java world. The Runtime provides a
+method called call() that will call a function by name in the MIPS binary.
+The call() method looks up the function name in the binary's ELF symbol
+table and manipulating the stack and registers accordingly to execute the
+given function. This allows Java code to seamlessly invoke functions in the
+binary.
+^ ^ ^ ^ ^ ^ ^
 
 \section{Conclusion}
 
-The MIPS binaries can also invoke a special method of Runtime called callJava().When the MIPS binary invokes the {\tt CALL\_JAVA}  syscall (usually done through the {\tt \_call\_java()} function provided by the NestedVM support library) the callJava() method in Runtime is invoked with the arguments passes to the syscall.
+v v v v v v v
+The MIPS binaries can also invoke a special method of Runtime called
+callJava().When the MIPS binary invokes the {\tt CALL\_JAVA} syscall
+(usually done through the {\tt \_call\_java()} function provided by the
+NestedVM support library) the callJava() method in Runtime is invoked with
+the arguments passes to the syscall.
+*************
+We have presented a novel technique for using libraries written in
+unsafe languages within a safe virtual machine without resorting to
+native interfaces.  We have implemented this technique in NestedVM,
+which is currently used by the Ibex project\footnote{{\tt
+http://www.ibex.org}} to perform font rasterization (via {\tt
+libfreetype}), JPEG decoding (via {\tt libjpeg}), and CAB archive
+extraction (via {\tt libmspack}), three libraries for which no
+equivalent Java classes exist.
+^ ^ ^ ^ ^ ^ ^
 
 NestedVM is available under an open source license, and can be
 obtained from
@@ -959,13 +1148,27 @@ public void foo() { rt.run(); }
 
 /* C */
 void main(int argc, char **argv) {
-    \_call\_java(1,2);
+    _call_java(1,2);
 }
 
 \end{verbatim}}
 
-These two methods can even be combined. MIPS can call Java through the CALL\_JAVA syscall, which can in turn invoke a MIPS function in the binary with the call() method.
-Users preferring a simpler communication mechanism can also use Java Stream’s and file descriptors. Runtime provides a simple interface for mapping a Java Input or OutputStream to a File Descriptor.
+v v v v v v v
+These two methods can even be combined. MIPS can call Java through the
+CALL\_JAVA syscall, which can in turn invoke a MIPS function in the
+binary with the call() method. Users preferring a simpler
+communication mechanism can also use Java Stream’s and file
+descriptors. Runtime provides a simple interface for mapping a Java
+Input or OutputStream to a File Descriptor.
+*************
+These two methods can even be combined. MIPS can call Java through the
+CALL\_JAVA syscall, which can in turn invoke a MIPS function in the binary
+with the call() method.
+^ ^ ^ ^ ^ ^ ^
+
+Users preferring a simpler communication mechanism can also use Java
+Stream's and file descriptors. Runtime provides a simple interface for
+mapping a Java Input or OutputStream to a File Descriptor.
 
 %Java source code can create a copy of the translated binary by
 %instantiating the corresponding class, which extends {\tt Runtime}.
@@ -1010,7 +1213,18 @@ callJava().When the MIPS binary invokes the {\tt CALL\_JAVA} syscall
 the NestedVM support library) the callJava() method in Runtime is
 invoked with the arguments passes to the syscall.
 
-Although NestedVM perfectly emulates a MIPS R2000 CPU its performance characteristics aren't anything like an actual MIPS R2000 CPU. GCC makes several optimizations that increase performance on an actually MIPS CPU but actually decrease performance when run through the NestedVM binary translator. Fortunately, GCC provides many options to customize its code generations and eliminate these optimizations. GCC also has optimization options that aren't helpful on a real MIPS CPU but are very helpful under NestedVM
+v v v v v v v
+Although NestedVM perfectly emulates a MIPS R2000 CPU its performance
+characteristics are not anything like an actual MIPS R2000 CPU. GCC makes
+several optimizations that increase performance on an actually MIPS CPU but
+actually decrease performance when run through the NestedVM binary
+translator. Fortunately, GCC provides many options to customize its code
+generations and eliminate these optimizations. GCC also has optimization
+options that are not helpful on a real MIPS CPU but are very helpful under
+NestedVM
+*************
+{\footnotesize\begin{verbatim}
+^ ^ ^ ^ ^ ^ ^
 
 // Java
 private Runtime rt = new MyBinary() {
@@ -1025,23 +1239,96 @@ void main(int argc, char **argv) {
     _call_java(1,2);
 }
 
+v v v v v v v
+\end{verbatim}}
+*************
 \item {\tt -falign-functions}
-Normally a function's location in memory has no effect on its execution speed. However, in the NestedVM binary translator, the .text segment is split up on power of two boundaries. If a function is unlucky enough to start near the end of one of these boundaries a performance critical part of the function could end up spanning two methods. There is a significant amount of overhead in switching between two methods so this must be avoided at all costs. By telling GCC to align all functions to the boundary that the .text segment is split on the chances of a critical part of a function spanning two methods is significantly reduced.
+Normally a function's location in memory has no effect on its execution
+speed. However, in the NestedVM binary translator, the .text segment is
+split up on power of two boundaries. If a function is unlucky enough to
+start near the end of one of these boundaries a performance critical part of
+the function could end up spanning two methods. There is a significant
+amount of overhead in switching between two methods so this must be avoided
+at all costs. By telling GCC to align all functions to the boundary that the
+.text segment is split on the chances of a critical part of a function
+spanning two methods is significantly reduced.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
+These two methods can even be combined. MIPS can call Java through the
+CALL\_JAVA syscall, which can in turn invoke a MIPS function in the binary
+with the call() method.
+*************
 \item {\tt -fno-rename-registers}
-Some processors can better schedule code when registers aren't reused for two different purposes. By default GCC will try to use as many registers as possibly when it can. This excess use of registers just confuses JIT's trying to compile the output from the binary translator. All the JIT compilers we tested do much better with a few frequently used registers.
+Some processors can better schedule code when registers are not reused for
+two different purposes. By default GCC will try to use as many registers as
+possibly when it can. This excess use of registers just confuses JIT's
+trying to compile the output from the binary translator. All the JIT
+compilers we tested do much better with a few frequently used registers.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
+Users preferring a simpler communication mechanism can also use Java
+Stream's and file descriptors. Runtime provides a simple interface for
+mapping a Java Input or OutputStream to a File Descriptor.
+*************
 \item {\tt -fno-delayed-branch}
-The MIPS CPU has a delay slot (see above). Earlier versions of NestedVM didn't efficiently emulate delay slots. This option causes GCC to avoid using delay slots for anything (a NOP is simply placed in the delay slot). This had a small performance benefit. However, recent versions of NestedVM emulate delay slots with no performance overhead so this options has little effect. Nonetheless, these delay slots provide no benefit under NestedVM either so they are avoided with this option.
+The MIPS CPU has a delay slot (see above). Earlier versions of NestedVM did
+not efficiently emulate delay slots. This option causes GCC to avoid using
+delay slots for anything (a NOP is simply placed in the delay slot). This
+had a small performance benefit. However, recent versions of NestedVM
+emulate delay slots with no performance overhead so this options has little
+effect. Nonetheless, these delay slots provide no benefit under NestedVM
+either so they are avoided with this option.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
+%Java source code can create a copy of the translated binary by
+%instantiating the corresponding class, which extends {\tt Runtime}.
+%Invoking the {\tt main()} method on this class is equivalent to
+%calling the {\tt main()} function within the binary; the {\tt String}
+%arguments to this function are copied into the binary's memory space
+%and made available as {\tt **argv} and {\tt argc}.
+*************
 \item {\tt -fno-schedule-insns}
-Load operations in the MIPS ISA also have a delay slot. The results of a load operation are not available for use until one instruction later. Several other instructions also have similar delay slots. GCC tries to do useful work wile waiting for the results of one of these operations by default. However, this, like register renaming, tends to confuse JIT compilers. This option prevents GCC from going out of its way to take advantage of these delay slots and makes the code generated by NestedVM easier for JIT compilers to handle.
+Load operations in the MIPS ISA also have a delay slot. The results of a
+load operation are not available for use until one instruction later.
+Several other instructions also have similar delay slots. GCC tries to do
+useful work wile waiting for the results of one of these operations by
+default. However, this, like register renaming, tends to confuse JIT
+compilers. This option prevents GCC from going out of its way to take
+advantage of these delay slots and makes the code generated by NestedVM
+easier for JIT compilers to handle.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
+%The translated binary communicates with the rest of the VM by
+%executing MIPS {\tt SYSCALL} instructions, which are translated into
+%invocations of the {\tt syscall()} method.  This calls back to the
+%native Java world, which can manipulate the binary's environment by
+%reading and writing to its memory space, checking its exit status,
+%pausing the VM, and restarting the VM.
+*************
 \item {\tt -mmemcpy}
-GCC sometimes has to copy somewhat large areas of memory. The most common example of this is assigning one struct to another. Memory copying can be done far more efficiently in Java than under NestedVM. Calls to the memcpy libc function are treated specially by the binary translator. They are turned into calls to a memcpy method in Runtime. The {\tt -mmemcpy} option causes GCC to invoke libc's memcpy() function when it needs to copy a region of memory rather than generating its own memcpy code. This call in then turned into a call to this Java memcpy function which is significantly faster than the MIPS implementation.
+GCC sometimes has to copy somewhat large areas of memory. The most common
+example of this is assigning one struct to another. Memory copying can be
+done far more efficiently in Java than under NestedVM. Calls to the memcpy
+libc function are treated specially by the binary translator. They are
+turned into calls to a memcpy method in Runtime. The {\tt -mmemcpy} option
+causes GCC to invoke libc's memcpy() function when it needs to copy a region
+of memory rather than generating its own memcpy code. This call in then
+turned into a call to this Java memcpy function which is significantly
+faster than the MIPS implementation.
+^ ^ ^ ^ ^ ^ ^
 
+v v v v v v v
+*************
 \item {\tt -ffunction-sections -fdata-sections}
-These two options are used in conjunction with the {\tt --gc-section} linker option. These three options cause the linker to aggressively discard unused functions and data sections. In some cases this leads to significantly smaller binaries.
+These two options are used in conjunction with the {\tt --gc-section} linker
+option. These three options cause the linker to aggressively discard unused
+functions and data sections. In some cases this leads to significantly
+smaller binaries.
+^ ^ ^ ^ ^ ^ ^
 
 %\subsection{Virtualization}
 
@@ -1049,7 +1336,11 @@ These two options are used in conjunction with the {\tt --gc-section} linker opt
 %libc} syscalls, providing a complete interface to the filesystem,
 %network socket library, time of day, (Brian: what else goes here?).
 
-World domination.
+v v v v v v v
+%\begin{itemize}
+*************
+\begin{itemize}
+^ ^ ^ ^ ^ ^ ^
 
 \item Better use of local variables in binary-to-binary compiler -- need to
 do data flow analysis to find how how and when registers are used and avoid
