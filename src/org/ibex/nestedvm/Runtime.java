@@ -9,6 +9,8 @@ import java.io.*;
 import java.util.Arrays;
 
 public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
+    public static final String VERSION = "1.0";
+    
     /** True to write useful diagnostic information to stderr when things go wrong */
     final static boolean STDERR_DIAG = true;
     
@@ -1420,6 +1422,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         } catch(UnsupportedEncodingException e) {
             return null; // should never happen
         }
+    }
+    
+    static byte[] getNullTerminatedBytes(String s) {
+        byte[] buf1 = getBytes(s);
+        byte[] buf2 = new byte[buf1.length+1];
+        System.arraycopy(buf1,0,buf2,0,buf1.length);
+        return buf2;
     }
     
     final static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }

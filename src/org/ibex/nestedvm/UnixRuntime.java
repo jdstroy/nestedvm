@@ -628,7 +628,286 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public FStat _fstat() { return new FStat(); }
     }
     
-    public int sys_opensocket(int cstring, int port) throws FaultException, ErrnoException {
+    private int sys_socket(int domain, int type, int proto) {
+        if(domain != AF_INET || (type != SOCK_STREAM && type != SOCK_DGRAM)) return -EPROTONOSUPPORT;
+        return addFD(new SocketFD(type == SOCK_STREAM ? SocketFD.TYPE_STREAM : SocketFD.TYPE_DGRAM));
+    }
+    
+    private SocketFD getSocketFD(int fdn) throws ErrnoException {
+        if(fdn < 0 || fdn >= OPEN_MAX) throw new ErrnoException(EBADFD);
+        if(fds[fdn] == null) throw new ErrnoException(EBADFD);
+        if(!(fds[fdn] instanceof SocketFD)) throw new ErrnoException(ENOTSOCK);
+        
+        return (SocketFD) fds[fdn];
+    }
+    
+    private int sys_connect(int fdn, int addr, int namelen) throws ErrnoException, FaultException {
+        SocketFD fd = getSocketFD(fdn);
+        
+        if(fd.type() == SocketFD.TYPE_STREAM && fd.o != null) return -EISCONN;
+        int word1 = memRead(addr);
+        if( ((word1 >>> 16)&0xff) != AF_INET) return -EAFNOSUPPORT;
+        int port = word1 & 0xffff;
+        byte[] ip = new byte[4];
+        copyin(addr+4,ip,4);
+        
+        InetAddress inetAddr;
+        try {
+            inetAddr = InetAddress.getByAddress(ip);
+        } catch(UnknownHostException e) {
+            return -EADDRNOTAVAIL;
+        }
+        
+        try {
+            switch(fd.type()) {
+                case SocketFD.TYPE_STREAM: {
+                    Socket s = new Socket(inetAddr,port);
+                    fd.o = s;
+                    fd.setOptions();
+                    fd.is = s.getInputStream();
+                    fd.os = s.getOutputStream();
+                    break;
+                }
+                case SocketFD.TYPE_DGRAM: {
+                    DatagramSocket s = (DatagramSocket) fd.o;
+                    if(s == null) s = new DatagramSocket();
+                    s.connect(inetAddr,port);
+                    break;
+                }
+                default:
+                    throw new Error("should never happen");
+            }
+        } catch(IOException e) {
+            return -ECONNREFUSED;
+        }
+        
+        return 0;
+    }
+    
+    private int sys_resolve_hostname(int chostname, int addr, int sizeAddr) throws FaultException {
+        String hostname = cstring(chostname);
+        int size = memRead(sizeAddr);
+        InetAddress[] inetAddrs;
+        try {
+            inetAddrs = InetAddress.getAllByName(hostname);
+        } catch(UnknownHostException e) {
+            return HOST_NOT_FOUND;
+        }
+        int count = min(size/4,inetAddrs.length);
+        for(int i=0;i<count;i++,addr+=4) {
+            byte[] b = inetAddrs[i].getAddress();
+            copyout(b,addr,4);
+        }
+        memWrite(sizeAddr,count*4);
+        return 0;
+    }
+    
+    private int sys_setsockopt(int fdn, int level, int name, int valaddr, int len) throws ReadFaultException, ErrnoException {
+        SocketFD fd = getSocketFD(fdn);
+        switch(level) {
+            case SOL_SOCKET:
+                switch(name) {
+                    case SO_REUSEADDR:
+                    case SO_KEEPALIVE: {
+                        if(len != 4) return -EINVAL;
+                        int val = memRead(valaddr);
+                        if(val != 0) fd.options |= name;
+                        else fd.options &= ~name;
+                        fd.setOptions();
+                        return 0;
+                    }
+                    default:
+                        if(STDERR_DIAG) System.err.println("Unknown setsockopt name passed: " + name);
+                        return -ENOPROTOOPT;
+                }
+            default:
+                if(STDERR_DIAG) System.err.println("Unknown setsockopt leve passed: " + level);
+                return -ENOPROTOOPT;
+        }                   
+    }
+    
+    private int sys_getsockopt(int fdn, int level, int name, int valaddr, int lenaddr) throws ErrnoException, FaultException {
+        SocketFD fd = getSocketFD(fdn);
+        switch(level) {
+            case SOL_SOCKET:
+                switch(name) {
+                    case SO_REUSEADDR:
+                    case SO_KEEPALIVE: {
+                        int len = memRead(lenaddr);
+                        if(len < 4) return -EINVAL;
+                        int val = (fd.options & name) != 0 ? 1 : 0;
+                        memWrite(valaddr,val);
+                        memWrite(lenaddr,4);
+                        return 0;
+                    }
+                    default:
+                        if(STDERR_DIAG) System.err.println("Unknown setsockopt name passed: " + name);
+                        return -ENOPROTOOPT;
+                }
+            default:
+                if(STDERR_DIAG) System.err.println("Unknown setsockopt leve passed: " + level);
+                return -ENOPROTOOPT;
+        } 
+    }
+    
+    private int sys_bind(int fdn, int addr, int namelen) throws FaultException, ErrnoException {
+        SocketFD fd = getSocketFD(fdn);
+        
+        if(fd.type() == SocketFD.TYPE_STREAM && fd.o != null) return -EISCONN;
+        int word1 = memRead(addr);
+        if( ((word1 >>> 16)&0xff) != AF_INET) return -EAFNOSUPPORT;
+        int port = word1 & 0xffff;
+        InetAddress inetAddr = null;
+        if(memRead(addr+4) != 0) {
+            byte[] ip = new byte[4];
+            copyin(addr+4,ip,4);
+        
+            try {
+                inetAddr = InetAddress.getByAddress(ip);
+            } catch(UnknownHostException e) {
+                return -EADDRNOTAVAIL;
+            }
+        }
+        
+        switch(fd.type()) {
+            case SocketFD.TYPE_STREAM: {
+                fd.bindAddr = inetAddr;
+                fd.bindPort = port;
+                return 0;
+            }
+            case SocketFD.TYPE_DGRAM: {
+                DatagramSocket s = (DatagramSocket) fd.o;
+                if(s != null) s.close();
+                try {
+                    fd.o = inetAddr != null ? new DatagramSocket(port,inetAddr) : new DatagramSocket(port);
+                } catch(IOException e) {
+                    return -EADDRINUSE;
+                }
+                return 0;
+            }
+            default:
+                throw new Error("should never happen");
+        }
+    }
+    
+    private int sys_listen(int fdn, int backlog) throws ErrnoException {
+        SocketFD fd = getSocketFD(fdn);
+        if(fd.type() != SocketFD.TYPE_STREAM) return -EOPNOTSUPP;
+        if(fd.o != null) return -EISCONN;
+        if(fd.bindPort < 0) return -EOPNOTSUPP;
+        
+        try {
+            fd.o = new ServerSocket(fd.bindPort,backlog,fd.bindAddr);
+            fd.flags |= SocketFD.LISTEN;
+            return 0;
+        } catch(IOException e) {
+            return -EADDRINUSE;
+        }
+        
+    }
+    
+    private int sys_accept(int fdn, int addr, int lenaddr) throws ErrnoException, FaultException {
+        SocketFD fd = getSocketFD(fdn);
+        if(fd.type() != SocketFD.TYPE_STREAM) return -EOPNOTSUPP;
+        if(!fd.listen()) return -EOPNOTSUPP;
+
+        int size = memRead(lenaddr);
+        
+        ServerSocket s = (ServerSocket) fd.o;
+        Socket client;
+        try {
+            client = s.accept();
+        } catch(IOException e) {
+            return -EIO;
+        }
+        
+        if(size >= 8) {
+            memWrite(addr,(6 << 24) | (AF_INET << 16) | client.getPort());
+            byte[] b = client.getInetAddress().getAddress();
+            copyout(b,addr+4,4);
+            memWrite(lenaddr,8);
+        }
+        
+        SocketFD clientFD = new SocketFD(SocketFD.TYPE_STREAM);
+        clientFD.o = client;
+        try {
+            clientFD.is = client.getInputStream();
+            clientFD.os = client.getOutputStream();
+        } catch(IOException e) {
+            return -EIO;
+        }
+        int n = addFD(clientFD);
+        if(n == -1) { clientFD.close(); return -ENFILE; }
+        return n;
+    }
+    
+    private int sys_shutdown(int fdn, int how) throws ErrnoException {
+        SocketFD fd = getSocketFD(fdn);
+        if(fd.type() != SocketFD.TYPE_STREAM || fd.listen()) return -EOPNOTSUPP;
+        if(fd.o == null) return -ENOTCONN;
+        
+        Socket s = (Socket) fd.o;
+        
+        try {
+            if(how == SHUT_RD || how == SHUT_RDWR) s.shutdownInput();
+            if(how == SHUT_WR || how == SHUT_RDWR) s.shutdownOutput();
+        } catch(IOException e) {
+            return -EIO;
+        }
+        
+        return 0;
+    }
+    
+    private static String hostName() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch(UnknownHostException e) {
+            return "darkstar";
+        }
+    }
+    
+    private int sys_sysctl(int nameaddr, int namelen, int oldp, int oldlenaddr, int newp, int newlen) throws FaultException {
+        if(newp != 0) return -EPERM;
+        if(namelen == 0) return -ENOENT;
+        if(oldp == 0) return 0;
+        
+        Object o = null;
+        switch(memRead(nameaddr)) {
+            case CTL_KERN:
+                if(namelen != 2) break;
+                switch(memRead(nameaddr+4)) {
+                    case KERN_OSTYPE: o = "NestedVM"; break;
+                    case KERN_HOSTNAME: o = hostName(); break;
+                    case KERN_OSRELEASE: o = VERSION; break;
+                    case KERN_VERSION: o = "NestedVM Kernel Version " + VERSION; break;
+                }
+                break;
+            case CTL_HW:
+                if(namelen != 2) break;
+                switch(memRead(nameaddr+4)) {
+                    case HW_MACHINE: o = "NestedVM Virtual Machine"; break;
+                }
+                break;
+        }
+        if(o == null) return -ENOENT;
+        int len = memRead(oldlenaddr);
+        if(o instanceof String) {
+            byte[] b = getNullTerminatedBytes((String)o);
+            if(len < b.length) return -ENOMEM;
+            len = b.length;
+            copyout(b,oldp,len);
+            memWrite(oldlenaddr,len);
+        } else if(o instanceof Integer) {
+            if(len < 4) return -ENOMEM;
+            memWrite(oldp,((Integer)o).intValue());
+        } else {
+            throw new Error("should never happen");
+        }
+        return 0;
+    }
+        
+    
+    /*public int sys_opensocket(int cstring, int port) throws FaultException, ErrnoException {
         String hostname = cstring(cstring);
         try {
             FD fd = new SocketFD(new Socket(hostname,port));
