@@ -59,6 +59,7 @@ tasks/download_%:
 	touch $@
 
 tasks/extract_%: tasks/download_%
+	@[ -e $@ ] && echo "$@ already exists... something isn't right"
 	mkdir -p build
 	cd build && \
 		gzip -dc  ../download/$*-$(version_$*).tar.gz | $(TAR) -xf - && \
@@ -67,6 +68,7 @@ tasks/extract_%: tasks/download_%
 	touch $@
 
 tasks/extract_darcs_%:
+	@[ -e $@ ] && echo "$@ already exists... something isn't right"
 	mkdir -p build
 	if [ -z "$(darcs_$*)" ]; then echo "No darcs url for $*" >&2; false; fi
 	if [ -d "$(root)/_darcs" ]; then \
@@ -125,15 +127,8 @@ clean_%:
 tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/download_gcc-g77
 	touch $@
 
-tasks/extract_%: tasks/download_%
-	mkdir -p build
-	cd build && \
-		gzip -dc  ../download/$*-$(version_$*).tar.gz | $(TAR) -xf - && \
-		rm -f $* && \
-		ln -s $*-$(version_$*) $*
-	touch $@
-
 tasks/extract_gcc: tasks/download_gcc
+	@[ -e $@ ] && echo "$@ already exists... something isn't right"
 	mkdir -p build
 	cd build && gzip -dc ../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf -
 	cd build && gzip -dc ../download/gcc-g++-$(version_gcc).tar.gz | $(TAR) -xf -
@@ -141,6 +136,7 @@ tasks/extract_gcc: tasks/download_gcc
 	touch $@
 
 tasks/patch_%: tasks/extract_%
+	@[ -e $@ ] && echo "$@ already exists... something isn't right"
 	cd build/$*-$(version_$*) &&  \
 	for p in $(patches_$*) end; do \
 		[ "$$p" = "end" ] || $(PATCH) -p0 < ../../patches/$$p || exit 1; \
@@ -164,6 +160,7 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 	touch $@
 
 tasks/extract_gpc: tasks/download_gcc tasks/download_gpc
+	@[ -e $@ ] && echo "$@ already exists... something isn't right"
 	mkdir -p build/gpc.extract
 	cd build/gpc.extract && \
 		gzip -dc ../../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf - && \
