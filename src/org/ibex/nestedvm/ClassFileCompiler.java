@@ -6,7 +6,7 @@ import org.ibex.nestedvm.util.*;
 import org.ibex.classgen.*;
 
 // FEATURE: Use IINC where possible
-// FEATURE: Use BCEL to do peephole optimization
+// FEATURE: Some kind of peephole optimization
 // FEATURE: Special mode to support single-precision only - regs are floats not ints
 
 /* FEATURE: Span large binaries across several classfiles
@@ -156,9 +156,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         int start = tramp.size();
         tramp.add(ALOAD_0);
         tramp.add(GETFIELD,new FieldRef(me,"state",Type.INT));
-        tramp.add(LDC,Runtime.RUNNING);
+        int stateCheck = tramp.add(IFNE);
         
-        int stateCheck = tramp.add(IF_ICMPNE);
         tramp.add(ALOAD_0);
         tramp.add(ALOAD_0);
         tramp.add(GETFIELD,new FieldRef(me,"pc",Type.INT));
@@ -666,6 +665,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 mg.add(LDC,pc);
                 setPC();
                 
+                // FEATURE: This is actually broken, but it happens to work for our code
+                // a func could theoretically jump back to here from a future point
                 restoreChangedRegs();
                 
                 preSetReg(R+V0);
@@ -682,9 +683,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 
                 mg.add(ALOAD_0);
                 mg.add(GETFIELD,new FieldRef(me,"state",Type.INT));
-                // FEATURE: Set Runtime.RUNNING to 0 and just use IFEQ here 
-                mg.add(LDC,Runtime.RUNNING);
-                b1 = mg.add(IF_ICMPEQ);
+                b1 = mg.add(IFEQ);
                 preSetPC();
                 mg.add(LDC,pc+4);
                 setPC();
@@ -1675,11 +1674,17 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     private static final int FCSR = 66;
     private static final int REG_COUNT=67;
         
-    // FEATURE: Clean this up
     private int[] regLocalMapping = new int[REG_COUNT];  
     private int[] regLocalReadCount = new int[REG_COUNT];
     private int[] regLocalWriteCount = new int[REG_COUNT];
     private int nextAvailLocal; 
+    private int loadsStart;
+    private static final int MAX_LOCALS = 4;
+    private static final int LOAD_LENGTH = 3;
+    
+    private boolean doLocal(int reg) {
+        return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29;
+    }
     
     private int getLocalForReg(int reg) {
         if(regLocalMapping[reg] != 0) return regLocalMapping[reg];
@@ -1688,8 +1693,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         return regLocalMapping[reg];
     }
     
-    
-    private int loadsStart;
     private void fixupRegsStart() {
         for(int i=0;i<REG_COUNT;i++)
             regLocalMapping[i] = regLocalReadCount[i] = regLocalWriteCount[i] = 0;
@@ -1713,12 +1716,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 mg.add(PUTFIELD,new FieldRef(me,regField(i),Type.INT));
             }
         }
-    }
-        
-    private static final int MAX_LOCALS = 4;
-    private static final int LOAD_LENGTH = 3;
-    private boolean doLocal(int reg) {
-        return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29;
     }
         
     private void restoreChangedRegs() {
@@ -1756,7 +1753,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     }
     
     private int pushRegZ(int reg) {
-        if(reg == R+0) return mg.add(LDC,0);
+        if(reg == R+0) return mg.add(ICONST_0);
         else return pushReg(reg);
     }
     

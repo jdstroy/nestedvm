@@ -326,6 +326,7 @@ public class ELF {
         public byte type;
         public byte binding;
         public byte other;
+        public short shndx;
         public SHeader sheader;
         
         public final static int STT_FUNC = 2;
@@ -339,8 +340,7 @@ public class ELF {
             type = (byte)(info&0xf);
             binding = (byte)(info>>4);
             other = readByte();
-            // FEATURE: This should point to some other entry or something
-            readShort();
+            shndx = readShort();
         }
     }
     

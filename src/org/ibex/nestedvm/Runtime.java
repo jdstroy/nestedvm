@@ -2,6 +2,9 @@
 // Based on org.xwt.imp.MIPS by Adam Megacz
 // Portions Copyright 2003 Adam Megacz
 
+// FEATURE: Add a patch to gcc that enabled -Wall -Werror by default
+// FIXME: Get a hotel for IVME :)
+
 package org.ibex.nestedvm;
 
 import org.ibex.nestedvm.util.*;
@@ -46,10 +49,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** When the process started */
     private long startTime;
     
-    /**  Text/Data loaded in memory  */
-    public final static int STOPPED = 0;
     /** Program is executing instructions */
-    public final static int RUNNING = 1;
+    public final static int RUNNING = 0; // Horrible things will happen if this isn't 0
+    /**  Text/Data loaded in memory  */
+    public final static int STOPPED = 1;
     /** Prgram has been started but is paused */
     public final static int PAUSED = 2;
     /** Program is executing a callJava() method */
@@ -1236,7 +1239,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } public int mode() { return 0600; } }; }
     }
     
-    // FEATURE: TextInputStream: This is pretty inefficient but it is only used for reading from the console on win32
+    // This is pretty inefficient but it is only used for reading from the console on win32
     static class TextInputStream extends InputStream {
         private int pushedBack = -1;
         private final InputStream parent;

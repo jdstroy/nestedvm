@@ -6,19 +6,26 @@ import org.ibex.nestedvm.util.*;
 
 // FEATURE: This need a lot of work to support binaries spanned across many classes
 public class RuntimeCompiler {  
-    // FEATURE: Do we need to periodicly create a new classloader to allow old clases to be GCed?
-    private static SingleClassLoader singleClassLoader = new SingleClassLoader();
-    // FEATURE: Is it ok if this overflows?
-    private static long nextID = 1;
-    private static synchronized String uniqueID() { return Long.toString(nextID++); }
+    private static SingleClassLoader singleClassLoader;
+    private static int nextID;
     
-    public static Class compile(Seekable data) throws IOException, Compiler.Exn {
-        String className = "nextedvm.runtimecompiled_" + uniqueID();
+    public static Class compile(Seekable data) throws IOException, Compiler.Exn { return compile(data,null); }
+    public static Class compile(Seekable data, String extraoptions) throws IOException, Compiler.Exn {
+        int id;
+        synchronized(RuntimeCompiler.class) {
+            if(nextID == 32 || singleClassLoader == null) {
+                singleClassLoader = new SingleClassLoader();
+                nextID = 0;
+            }
+            id = nextID++;
+        }
+        String className = "nextedvm.runtimecompiled_" + id;
         System.err.println("RuntimeCompiler: Building " + className);
+        String options = "nosupportcall";
+        if(extraoptions != null) options += "," + extraoptions;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ClassFileCompiler c = new ClassFileCompiler(data,className,baos);
-        // FEATURE: make this Optional, pass options on compile arguments
-        c.parseOptions("unixruntime,nosupportcall,maxinsnpermethod=512");
+        c.parseOptions(options);
         c.go();
         baos.close();
         byte[] bytecode = baos.toByteArray();

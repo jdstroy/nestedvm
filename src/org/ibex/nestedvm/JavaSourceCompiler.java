@@ -217,7 +217,7 @@ public class JavaSourceCompiler extends Compiler {
     private void endMethod() { endMethod(endOfMethod); }
     private void endMethod(int lastAddr) {
         if(startOfMethod == 0) return;
-        // FEATURE: We should be able to use if(!unreachable) here (i think)
+        // We should be able to use if(!unreachable) here (i think)
         // This isn't strictly necessary; its just here to work around unreachable code errors
         p("case " + toHex(lastAddr) + ":");
         indent++;
