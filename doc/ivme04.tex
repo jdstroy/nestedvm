@@ -31,19 +31,22 @@ Complete Translation of Unsafe Native Code to Safe Bytecode
 
 \maketitle
 
-{\it This document was typeset using D. E. Knuth's original \TeX 89
-     Pascal source code, which was both compiled and executed entirely
-     within a Java Virtual Machine.  No native code was utilized.}
+{\it This document was typeset using D. E. Knuth's original \TeX 89,
+     which was both compiled and executed entirely within a Java
+     Virtual Machine without the use of native code.}
 
 \begin{abstract}
 
-Most existing techniques for using code written in an unsafe language
-within a safe virtual machine involve transformations from one source
-code language (such as C, Pascal, or Fortran) to another (such as
-Java) and then to virtual machine bytecodes.  We present an
-alternative approach which can translate MIPS binaries produced by any
-compiler into safe virtual machine bytecodes.  This approach offers
-four key advantages over existing techniques:
+FIXME: mention unsigned arithmetic, threading, memory model.
+
+Existing techniques for using code written in an unsafe language
+within a safe virtual machine generally involve transformations from
+one source code language (such as C, Pascal, or Fortran) to another
+(such as Java) which is the compiled into virtual machine bytecodes.
+
+We present an alternative approach which translate MIPS binaries
+produced by any compiler into safe virtual machine bytecodes.  This
+approach offers four key advantages over existing techniques:
 
 \begin{itemize}
 \item Language-agnostic
@@ -52,14 +55,12 @@ four key advantages over existing techniques:
 \item No build process modifications
 \end{itemize}
 
-We also present NestedVM, a complete implementation of this technique,
-which we have used to translate a number of programs.  Six examples
-are discussed in this paper: LINPACK (Fortran source), which was used
-as one of our performance tests, \TeX (Pascal source), which was used
-to typeset this document, {\tt libjpeg}, {\tt libmspack}, and FreeType
-(all C source), which are currently in production use as part of the
-Ibex Project, and {\tt gcc}, which was used to compile all of the
-aforementioned.
+We also present NestedVM, an implementation of this technique, and
+discuss six examples: LINPACK (Fortran), which was used as one of our
+performance tests, \TeX\ (Pascal), which was used to typeset this
+document, {\tt libjpeg}, {\tt libmspack}, and FreeType (all C source),
+which are currently in production use as part of the Ibex Project, and
+{\tt gcc}, which was used to compile all of the aforementioned.
 
 Performance measurements indicate a best case performance within 3x of
 native code and worst case typically within 10x, making it an
@@ -275,14 +276,31 @@ language which has been modified to emit safe bytecode.
 
 The primary occupant of this category is {\tt egcs-jvm}
 \cite{egcsjvm}, an experimental ``JVM backend'' for the GNU Compiler
-Collection ( {\tt gcc} ) \cite{gcc}.  Since {\tt gcc} employs a highlym
-odular architecture, it {\it is} possible to add RTL code generators
+Collection ( {\tt gcc} ) \cite{gcc}.  Since {\tt gcc} employs a highly
+modular architecture, it {\it is} possible to add RTL code generators
 for nonstandard processors.  However, {\tt gcc}'s parsing, RTL
 generation, and optimization layers make fundamental assumptions (such
 as the availability of pointer math) which cannot be directly
 supported; thus the compiler still fails for a substantial class of
 input programs.
 
+A Java backend for the {\tt lcc} [CITE] compiler, known as {\tt
+lcc-java} [CITE], but was not completed.  {\tt lcc-java} also lacks
+any form of system library ({\tt libc}), so very few C programs will
+run without custom modification, which would cause them to diverge
+from the upstream sources.  Finally, {\tt lcc-java}'s memory model is
+much more restricted; it uses a fixed-size array to represent all
+memory, and expands the array by allocating a new array and copying,
+which is extremely inefficient.  No attempt is made to take advantage
+of {\tt NullPointerException} checking (which costs nothing if the
+exception is not thrown since most JVMs use the MMU to detect this).
+Finally, {\tt lcc-java} targets Java source code, which places the
+vast majority of NestedVM's optimizations beyond its reach, and
+severely restricts the maximum program size {\tt lcc-java} can handle.
+
+Finally, {\tt lcc-java} maintains a separate memory area for the
+stack, which appears to limit the exchange of stack pointers and heap
+pointers.  It is unclear from the documentation how this is handled.
 
 
 \section{NestedVM}
@@ -292,20 +310,14 @@ NestedVM {\it does not} attempt to deal with source code as an input.
 This leads immediately to three advantages:
 
 \begin{itemize}
-\item {\bf Total coverage of all language features}
+\item {\bf Language Agnostic}
 
       Because NestedVM does not attempt to implement the parsing and
       code generation steps of compilation, it is freed from the
       extremely complex task of faithfully implementing languages
       which are often not fully or formally specified (such as C and
-      C++).
-
-\item {\bf No build process modifications}
-
-      NestedVM does not modify existing build processes, which can be
-      extremely complex and dependent on strange preprocessor usage as
-      well as the complex interplay between compiler switches and
-      header file locations.
+      C++), and is able to support any langage for which a
+      MIPS-targeted compiler exists.
 
 \item {\bf Bug-for-bug compiler compatability}
 
@@ -313,6 +325,13 @@ This leads immediately to three advantages:
       input}, it ensures that programs which are inadvertently
       dependent on the vagaries of a particular compiler can still be
       used.
+
+\item {\bf No build process modifications}
+
+      NestedVM does not modify existing build processes, which can be
+      extremely complex and dependent on strange preprocessor usage as
+      well as the complex interplay between compiler switches and
+      header file locations.
 
 \end{itemize}
 
@@ -346,9 +365,9 @@ scripts which persist throughout the lifetime of the project.
 
 We chose MIPS as a source format for three reasons: the availability
 of tools to compile legacy code into MIPS binaries, the close
-similarity between the MIPS ISA and the Java Virtual Machine, and the
-relatively high degree of program structure that can be inferred from
-ABI-adherent binaries.
+similarity (FIXME: explain) between the MIPS ISA and the Java Virtual
+Machine, and the relatively high degree of program structure that can
+be inferred from ABI-adherent binaries.
 
 The MIPS architecture has been around for quite some time, and is well
 supported by the GNU Compiler Collection, which is capable of
@@ -373,6 +392,17 @@ Machine:
       precision floating point unit.  These capabilities map nicely
       onto Java's arithmetic instructions.
 
+\item Although MIPS offers unsigned arithmetic and Java does not, few
+      MIPS instructions actually depend on non-two's-complement
+      handling of integer math.  Furthermore, since most high-level
+      languages such as C do not expose access to arithmetic-overflow
+      exceptions, these instructions are rarely found except in
+      hand-coded assembler.  In the few situations where these
+      instructions {\it are} encountered, the {\tt unsigned int} is
+      cast (bitwise) to a Java {\tt long}, the operation is performed,
+      and the result is cast back.  On architectures offering 64-bit
+      integer math this conversion carries no overhead.
+      
 \end{itemize}
 
 Finally, the MIPS ISA and ABI convey quite a bit of information about
@@ -519,8 +549,10 @@ Translating unsafe code for use within a JVM proceeds as follows:
       the MIPS R2000 ISA.  Typically this will involve linking against
       {\tt libc}, which translates system requests (such as {\tt
       open()}, {\tt read()}, or {\tt write()}) into appropriate
-      invocations of the MIPS {\tt SYSCALL} instruction.
-
+      invocations of the MIPS {\tt SYSCALL} instruction.  Any other
+      libraries which are not tied to a particular OS kernel can be
+      linked in (even in binary form) using standard linker commands.
+      
 \item Invoke {\tt NestedVM} on the statically linked binary.
 
 \item Compile the resulting {\tt .java} code using {\tt jikes}
@@ -857,6 +889,71 @@ summarized in the table below.
 \epsfig{file=chart4,width=3in}
 
 \epsfig{file=chart3,width=3in}
+
+\section{Experiences}
+
+\subsection{FreeType, {\tt libmspack}, and {\tt libjpeg}}
+
+The Ibex Project utilizes three libraries for which no Java-only
+equivalent exists.  The first is the FreeType font library, which
+parses, hints, and rasterizes TrueType and Postscript fonts with
+exceptional quality.  The project also needed an open source JPEG
+decompressor; surprisingly, none exist for Java.  While encoders are
+plentiful
+
+These three libraries make minimal use of the standard library and OS
+services, and are all written in very portable ANSI C code, which made
+them easy targets for initial development.
+
+\subsection{The GNU Compiler Collection}
+
+Our next target, {\tt gcc}, was chosen in order to relieve developers
+from the time-consuming and complex task of building a compiler
+themselves.  The Ibex Project requires a specially configured and
+patched version of {\tt gcc} and its ahead-of-time Java compiler ({\tt
+gcj}) which is not distributed in binary form.
+
+GCC was the first ``major'' application NestedVM was used on, and
+drove the development of most of the system library interface
+development; particularly support for {\tt fork()} and {\tt exec()},
+which require the NestedVM Runtime to perform binary-to-bytecode
+translation on the fly.
+
+GCC also makes extensive use of 64-bit integers ({\tt long long}),
+which -- for performance reasons -- are typically manipulated using
+nonobvious instruction sequences on the 32-bit MIPS architecture.
+Dealing with these operations uncovered a number of bugs in the
+translator.
+
+Despite our original goal, we have not yet been able to translate the
+{\tt C++} or Java front-ends, as the resulting binary produces a
+trampoline which exceeds the maximum size of a single method.  Future
+work will explore a multi-level trampoline to address this issue.
+
+
+
+\subsection{\TeX and LINPACK}
+
+In order to distinguish NestedVM from other single-language
+translators for the JVM, we undertook the task of translating \TeX 89
+(written in Pascal) and the Fortran source code for LINPACK into Java
+bytecodes.
+
+Although actually producing the initial MIPS binaries from the \TeX\
+source code turned out to be an exceptionally tedious and frustrating
+task, the resulting binary translated and executed perfectly on the
+first run, as did LINPACK.  Our reward for this effort was typesetting
+our presentation of NestedVM using NestedVM itself.  We have also had
+initial successes running \TeX\ in a Java Applet, and intend to
+produce a {\tt jar} for embedding \TeX\ code (``\TeX lets'') in web
+pages without the use of a post-processing tool.
+
+The LINPACK benchmark called our attention to Java's lack of an API
+for checking the ``cpu time'' of a process.  Unfortunately we had to
+substitute wall-clock time on an otherwise-quiescent machine as an
+approximation.
+
+
 
 \section{The NestedVM Runtime}
 
