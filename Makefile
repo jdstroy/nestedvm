@@ -26,7 +26,7 @@ MIPS_PC = mips-unknown-elf-gpc
 
 # Be VERY careful about changing any of these as they can break binary 
 # compatibility and create hard to find bugs
-mips_optflags = -O3 -g \
+mips_optflags = -O3 \
 	-mmemcpy \
 	-ffunction-sections -fdata-sections \
 	-falign-functions=512 \
