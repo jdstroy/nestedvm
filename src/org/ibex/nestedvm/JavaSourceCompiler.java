@@ -412,7 +412,7 @@ public class JavaSourceCompiler extends Compiler {
                         break;
                     case 12: // SYSCALL
                         p("pc = " + toHex(pc) + ";");
-                        p( "r"+V0+" = syscall(r"+V0+",r"+A0+",r"+A1+",r"+A2+",r"+A3+");");
+                        p( "r"+V0+" = syscall(r"+V0+",r"+A0+",r"+A1+",r"+A2+",r"+A3+",r"+T0+",r"+T1+");");
                         p("if (state != RUNNING) {");
                             indent++;
                             p("pc = " + toHex(pc+4) + ";");

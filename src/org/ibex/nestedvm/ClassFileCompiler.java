@@ -768,7 +768,9 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 pushRegZ(R+A1);
                 pushRegZ(R+A2);
                 pushRegZ(R+A3);
-                a(fac.createInvoke(fullClassName,"syscall",Type.INT,new Type[]{Type.INT,Type.INT,Type.INT,Type.INT,Type.INT},INVOKEVIRTUAL));
+                pushRegZ(R+T0);
+                pushRegZ(R+T1);
+                a(fac.createInvoke(fullClassName,"syscall",Type.INT,new Type[]{Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT},INVOKEVIRTUAL));
                 setReg();
                 
                 a(InstructionConstants.ALOAD_0);
