@@ -29,13 +29,14 @@ name:               \
     nop;            \
     .end name;
 
-#define SYSCALL_R(name)        \
-    .section .text._##name##_r,"ax",@progbits; \
+#define SYSCALL_R(name) SYSCALL_R2(_##name##_r,SYS_##name)
+#define SYSCALL_R2(name,number) \
+    .section .text.name,"ax",@progbits; \
     .align 2;                  \
-    .globl _##name##_r;        \
-    .ent _##name##_r;          \
-_##name##_r:                   \
-    li v0, SYS_##name;         \
+    .globl name;               \
+    .ent name;                 \
+name:                          \
+    li v0, number;             \
     move t0, a0;               \
     move a0, a1;               \
     move a1, a2;               \
@@ -52,7 +53,7 @@ $L##name##_errno:              \
     move a1, v0;               \
     j _syscall_set_errno;      \
     nop;                       \
-    .end _##name##_r;
+    .end name;
 
 
     .align   2
@@ -116,7 +117,11 @@ SYSCALL_R(dup2)
 SYSCALL_R(fork)
 SYSCALL_R(waitpid)
 SYSCALL_R(getcwd)
-SYSCALL_R(execve)
+SYSCALL_R2(__execve_r,SYS_exec)
 SYSCALL_R(fcntl)
 SYSCALL_R(rmdir)
 SYSCALL_R(sysconf)
+SYSCALL_R(readlink)
+SYSCALL_R(lstat)
+SYSCALL_R(symlink)
+SYSCALL_R(link)

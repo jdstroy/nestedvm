@@ -5,10 +5,11 @@
 
 int main() {
     fprintf(stderr,"In the main process (pid: %d), about to fork\n",getpid());
-    pid_t pid = fork();
+    pid_t pid;
     int status;
     int i;
     
+    pid = fork();
     switch(pid) {
         case -1: perror("fork"); break;
         case 0: 
@@ -34,6 +35,7 @@ int main() {
             fprintf(stderr,"2nd fork exiting\n");
             _exit(0);
         }
+        fprintf(stderr,"1st fork (pid: %d) exiting\n",getpid());
         _exit(0);
     } else  {
         waitpid(pid,NULL,0);
@@ -41,11 +43,13 @@ int main() {
     }
     fprintf(stderr,"Sleeping for a bit\n");
     sleep(10);
+    
     fprintf(stderr,"Next few pids should be sequential\n");
     for(i=0;i<10;i++) {
         if(fork() == 0) {
             fprintf(stderr,"I am a child %d\n",getpid());
-            sleep(i%4);
+            sleep(i%4 + 5);
+            fprintf(stderr,"Child %d exiting\n",getpid());
             _exit(0);
         }
     }

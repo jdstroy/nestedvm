@@ -106,7 +106,8 @@ public class FreeTypeDemo {
             }
             rt.copyout(b,stringAddr,b.length);
             long start = System.currentTimeMillis();
-            if(rt.call("render",stringAddr,size,renderAddr,OURWIDTH,OURHEIGHT,BASELINE)==0) throw new Error("render() failed");
+            if(rt.call("render",new int[]{stringAddr,size,renderAddr,OURWIDTH,OURHEIGHT,BASELINE})==0)
+                throw new Error("render() failed");
             System.out.println(name + ": Render of: " + s + " took " + (System.currentTimeMillis()-start) + " ms");
             rt.copyin(renderAddr,render,render.length);
             createImage();

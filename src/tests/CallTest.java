@@ -43,12 +43,13 @@ public class CallTest {
         
         System.out.println("== Start of CallTest ==");
         System.out.println("Back in java... calling callme()");
-        int ret = rt.call("callme",a1,a2,a3,a4,a5,a6);
+        int ret = rt.call("callme",new int[]{a1,a2,a3,a4,a5,a6});
         System.out.println("callme returned: " + ret);
         
         int addr = rt.strdup("Hello, World from java");
         rt.call("echo",addr,4);
         rt.free(addr);
+        rt.call("echo",new Object[]{"Hello, World, from the Object[] call method",new Integer(2)});
         System.out.println("== End of CallTest ==");
         
         rt.execute();

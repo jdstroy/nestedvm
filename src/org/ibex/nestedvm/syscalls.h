@@ -26,7 +26,11 @@
 #define SYS_fork 25
 #define SYS_waitpid 26
 #define SYS_getcwd 27
-#define SYS_execve 28
+#define SYS_exec 28
 #define SYS_fcntl 29
 #define SYS_rmdir 30
 #define SYS_sysconf 31
+#define SYS_readlink 32
+#define SYS_lstat 33
+#define SYS_symlink 34
+#define SYS_link 35

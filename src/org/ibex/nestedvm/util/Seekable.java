@@ -16,6 +16,18 @@ public abstract class Seekable {
         return n == -1 ? -1 : buf[0]&0xff;
     }
     
+    public int tryReadFully(byte[] buf, int off, int len) throws IOException {
+        int total = 0;
+        while(len > 0) {
+        	    int n = read(buf,off,len);
+        	    if(n == -1) break;
+        	    off += n;
+        	    len -= n;
+            total += n;
+        }
+        return total == 0 ? -1 : total;
+    }
+    
     public static class ByteArray extends Seekable {
         protected byte[] data;
         protected int pos;

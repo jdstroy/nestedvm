@@ -72,10 +72,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     FD[] fds = new FD[OPEN_MAX]; // package-private for UnixRuntime
     boolean closeOnExec[] = new boolean[OPEN_MAX];
     
+    /** Pointer to a SecurityManager for this process */
+    protected SecurityManager sm;
+    public void setSecurityManager(SecurityManager sm) { this.sm = sm; }
+    
     /** Pointer to a callback for the call_java syscall */
-    protected CallJavaCB callJavaCB;
+    private CallJavaCB callJavaCB;
     public void setCallJavaCB(CallJavaCB callJavaCB) { this.callJavaCB = callJavaCB; }
-    public CallJavaCB getCallJavaCB() { return callJavaCB; }
         
     /** Temporary buffer for read/write operations */
     private byte[] _byteBuf;
@@ -126,11 +129,11 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         int heapStart = heapStart();
         int totalMemory = totalPages * pageSize;
-        int stackSize = max(totalMemory/64,ARG_MAX+65536);
+        int stackSize = max(totalMemory/512,ARG_MAX+65536);
         int stackPages = 0;
         if(totalPages > 1) {
             stackSize = max(stackSize,pageSize);
-            stackSize = (stackSize + pageSize) & ~(pageSize-1);
+            stackSize = (stackSize + pageSize - 1) & ~(pageSize-1);
             stackPages = stackSize >>> pageShift;
             heapStart = (heapStart + pageSize) & ~(pageSize-1);
             if(stackPages + STACK_GUARD_PAGES + (heapStart >>> pageShift) >= totalPages)
@@ -146,11 +149,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         readPages = new int[totalPages][];
         writePages = new int[totalPages][];
         
-        if(totalPages == 1)
+        if(totalPages == 1) {
             readPages[0] = writePages[0] = new int[pageSize>>2];
-        else
-        	    for(int i=stackBottom >>> pageShift;i<writePages.length;i++)
+        } else {
+        	    for(int i=(stackBottom >>> pageShift);i<writePages.length;i++) {
         	    	    readPages[i] = writePages[i] = new int[pageSize>>2];
+            }
+        }
     
         addFD(new StdinFD(System.in));
         addFD(new StdoutFD(System.out));
@@ -555,33 +560,65 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         state = PAUSED;
         
-        _start();        
+        _started();        
     }
     
     /** Hook for subclasses to do their own startup */
-    protected void _start() { /* noop */ }
+    protected void _started() {  }
     
-    // FEATURE: call() that accepts an Object[] array and automatically allocates strings/arrays/etc on the stack
-    public final int call(String sym) throws CallException { return call(sym,0,0,0,0,0,0,0); }
-    public final int call(String sym, int a0) throws CallException  { return call(sym,a0,0,0,0,0,0,0); }
-    public final int call(String sym, int a0, int a1) throws CallException  { return call(sym,a0,a1,0,0,0,0,0); }
-    public final int call(String sym, int a0, int a1, int a2) throws CallException  { return call(sym,a0,a1,a2,0,0,0,0); }
-    public final int call(String sym, int a0, int a1, int a2, int a3) throws CallException  { return call(sym,a0,a1,a2,a3,0,0,0); }
-    public final int call(String sym, int a0, int a1, int a2, int a3, int a4) throws CallException  { return call(sym,a0,a1,a2,a3,a4,0,0); }
-    public final int call(String sym, int a0, int a1, int a2, int a3, int a4, int a5) throws CallException  { return call(sym,a0,a1,a2,a3,a4,a5,0); }
+    public final int call(String sym, Object[] args) throws CallException, FaultException {
+        if(state != PAUSED && state != CALLJAVA) throw new IllegalStateException("call() called in inappropriate state");
+        if(args.length > 7) throw new IllegalArgumentException("args.length > 7");
+        CPUState state = new CPUState();
+        getCPUState(state);
+        
+        int sp = state.r[SP];
+        int[] ia = new int[args.length];
+        for(int i=0;i<args.length;i++) {
+        	    Object o = args[i];
+            byte[] buf = null;
+            if(o instanceof String) {
+            	    buf = getBytes((String)o);
+            } else if(o instanceof byte[]) {
+            	    buf = (byte[]) o;
+            } else if(o instanceof Number) {
+            	    ia[i] = ((Number)o).intValue();
+            }
+            if(buf != null) {
+            	    sp -= buf.length;
+                copyout(buf,sp,buf.length);
+                ia[i] = sp;
+            }
+        }
+        int oldSP = state.r[SP];
+        if(oldSP == sp) return call(sym,ia);
+        
+        state.r[SP] = sp;
+        setCPUState(state);
+        int ret = call(sym,ia);
+        state.r[SP] = oldSP;
+        setCPUState(state);
+        return ret;
+    }
+    
+    public final int call(String sym) throws CallException { return call(sym,new int[]{}); }
+    public final int call(String sym, int a0) throws CallException  { return call(sym,new int[]{a0}); }
+    public final int call(String sym, int a0, int a1) throws CallException  { return call(sym,new int[]{a0,a1}); }
     
     /** Calls a function in the process with the given arguments */
-    public final int call(String sym, int a0, int a1, int a2, int a3, int a4, int a5, int a6) throws CallException {
+    public final int call(String sym, int[] args) throws CallException {
         int func = lookupSymbol(sym);
         if(func == -1) throw new CallException(sym + " not found");
         int helper = lookupSymbol("_call_helper");
         if(helper == -1) throw new CallException("_call_helper not found");
-        return call(helper,func,a0,a1,a2,a3,a4,a5,a6);
+        return call(helper,func,args);
     }
     
     /** Executes the code at <i>addr</i> in the process setting A0-A3 and S0-S3 to the given arguments
         and returns the contents of V1 when the the pause syscall is invoked */
-    public final int call(int addr, int a0, int a1, int a2, int a3, int s0, int s1, int s2, int s3) {
+    //public final int call(int addr, int a0, int a1, int a2, int a3, int s0, int s1, int s2, int s3) {
+    public final int call(int addr, int a0, int[] rest) throws CallException {
+        if(rest.length > 7) throw new IllegalArgumentException("rest.length > 7");
         if(state != PAUSED && state != CALLJAVA) throw new IllegalStateException("call() called in inappropriate state");
         int oldState = state;
         CPUState saved = new CPUState();        
@@ -591,13 +628,15 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         cpustate.r[SP] = cpustate.r[SP]&~15;
         cpustate.r[RA] = 0xdeadbeef;
         cpustate.r[A0] = a0;
-        cpustate.r[A1] = a1;
-        cpustate.r[A2] = a2;
-        cpustate.r[A3] = a3;
-        cpustate.r[S0] = s0;
-        cpustate.r[S1] = s1;
-        cpustate.r[S2] = s2;
-        cpustate.r[S3] = s3;
+        switch(rest.length) {            
+            case 7: cpustate.r[S3] = rest[6];
+            case 6: cpustate.r[S2] = rest[5];
+            case 5: cpustate.r[S1] = rest[4];
+            case 4: cpustate.r[S0] = rest[3];
+            case 3: cpustate.r[A3] = rest[2];
+            case 2: cpustate.r[A2] = rest[1];
+            case 1: cpustate.r[A1] = rest[0];
+        }
         cpustate.pc = addr;
         
         state = RUNNING;
@@ -607,10 +646,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         getCPUState(cpustate);
         setCPUState(saved);
 
-        if(state != PAUSED)
-            System.out.println("WARNING: Process exit()ed while servicing a call() request");
-        else
-            state = oldState;
+        if(state != PAUSED) throw new CallException("Process exit()ed while servicing a call() request");
+        state = oldState;
         
         return cpustate.r[V1];
     }
@@ -656,7 +693,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return i;
     }
 
-    // FEATURE: These should be pulled in from UsermodeConstants but fcntl.h is hard to parse
     public static final int RD_ONLY = 0;
     public static final int WR_ONLY = 1;
     public static final int RDWR = 2;
@@ -667,53 +703,57 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     public static final int O_TRUNC = 0x0400;
     public static final int O_NONBLOCK = 0x4000;
     
-    // FEATURE: Lots of duplicate code between this and UnixRuntime.HostFS.open()
-    protected FD open(String path, int flags, int mode) throws IOException {
-        final File f = new File(path);
-        // NOTE: createNewFile is a Java2 function
-        if((flags & (O_EXCL|O_CREAT)) == (O_EXCL|O_CREAT))
-            if(!f.createNewFile()) throw new ErrnoException(EEXIST);
-        if(!f.exists() && (flags&O_CREAT) == 0) return null;
-        if(f.isDirectory()) return null;
-        final Seekable.File sf = new Seekable.File(path,mode!=RD_ONLY);
-        if((flags&O_TRUNC)!=0) sf.setLength(0);
-        return new SeekableFD(sf,flags) {
-            protected FStat _fstat() { return new HostFStat(f) {
-                public int size() {
-                    try { return sf.length(); } catch(IOException e) { return 0; }
-                }
-            };}
-        };
+    FD hostFSOpen(final File f, int flags, int mode) throws ErrnoException {
+        if((flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)) != 0) {
+            System.err.println("WARNING: Unsupported flags passed to open(): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
+            throw new ErrnoException(ENOTSUP);
+        }
+        boolean write = mode!=RD_ONLY;
+
+        if(sm != null && !(write ? sm.allowWrite(f) : sm.allowRead(f))) throw new ErrnoException(EACCES);
+        
+        if((flags & (O_EXCL|O_CREAT)) == (O_EXCL|O_CREAT)) {
+            try {
+                // NOTE: createNewFile is a Java2 function
+                if(!f.createNewFile()) throw new ErrnoException(EEXIST);
+            } catch(IOException e) {
+                throw new ErrnoException(EIO);
+            }
+        } else if(!f.exists()) {
+            if((flags&O_CREAT)==0) return null;
+        } else if(f.isDirectory()) {
+            return hostFSDirFD(f);
+        }
+        
+        final Seekable.File sf;
+        try {
+            sf = new Seekable.File(f,write);
+        } catch(FileNotFoundException e) {
+            if(e.getMessage() != null && e.getMessage().indexOf("Permission denied") >= 0) throw new ErrnoException(EACCES);
+            return null;
+        } catch(IOException e) { throw new ErrnoException(EIO); }
+        
+        return new SeekableFD(sf,flags) { protected FStat _fstat() { return hostFStat(f); } };
+    }
+    
+    FStat hostFStat(File f) { return new HostFStat(f); }
+    FD hostFSDirFD(File f) { return null; }
+    
+    FD _open(String path, int flags, int mode) throws ErrnoException {
+        return hostFSOpen(new File(path),flags,mode);
     }
     
     /** The open syscall */
-    private int sys_open(int addr, int flags, int mode) {
-        if((flags & O_NONBLOCK) != 0) {
-            System.err.println("WARNING: O_NONBLOCK not supported");
-            return -EOPNOTSUPP;
-        }
-
-        try {
-            FD fd = open(cstring(addr),flags,mode);
-            if(fd == null) return -ENOENT;
-            int fdn = addFD(fd);
-            if(fdn == -1) {
-                fd.close();
-                return -ENFILE;
-            }
-            return fdn;
-        }
-        catch(ErrnoException e) { return -e.errno; }
-        catch(FileNotFoundException e) {
-            if(e.getMessage() != null && e.getMessage().indexOf("Permission denied") >= 0) return -EACCES;
-            return -ENOENT;
-        }
-        catch(IOException e) { return -EIO; }
-        catch(FaultException e) { return -EFAULT; }
+    private int sys_open(int addr, int flags, int mode) throws ErrnoException, FaultException {
+        FD fd = _open(cstring(addr),flags,mode);
+        if(fd == null) return -ENOENT;
+        int fdn = addFD(fd);
+        if(fdn == -1) { fd.close(); return -ENFILE; }
+        return fdn;
     }
 
     /** The write syscall */
-    private int sys_write(int fdn, int addr, int count) {
+    private int sys_write(int fdn, int addr, int count) throws FaultException {
         count = Math.min(count,MAX_CHUNK);
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
         if(fds[fdn] == null || !fds[fdn].writable()) return -EBADFD;
@@ -721,19 +761,15 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             byte[] buf = byteBuf(count);
             copyin(addr,buf,count);
             return fds[fdn].write(buf,0,count);
-        } catch(FaultException e) {
-            System.err.println(e);
-            return -EFAULT;
         } catch(IOException e) {
-            // FEATURE: We should support signals and send a SIGPIPE
+            // NOTE: This should really send a SIGPIPE
             if(e.getMessage().equals("Pipe closed")) return sys_exit(128+13);
-            System.err.println(e);
             return -EIO;
         }
     }
 
     /** The read syscall */
-    private int sys_read(int fdn, int addr, int count) {
+    private int sys_read(int fdn, int addr, int count) throws FaultException {
         count = Math.min(count,MAX_CHUNK);
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
         if(fds[fdn] == null || !fds[fdn].readable()) return -EBADFD;
@@ -742,11 +778,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             int n = fds[fdn].read(buf,0,count);
             copyout(buf,addr,n);
             return n;
-        } catch(FaultException e) {
-            System.err.println(e);
-            return -EFAULT;
         } catch(IOException e) {
-            System.err.println(e);
             return -EIO;
         }
     }
@@ -771,32 +803,27 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** The stat/fstat syscall helper */
-    int stat(FStat fs, int addr) {
-        try {
-            memWrite(addr+0,(fs.dev()<<16)|(fs.inode()&0xffff)); // st_dev (top 16), // st_ino (bottom 16)
-            memWrite(addr+4,((fs.type()&0xf000))|(fs.mode()&0xfff)); // st_mode
-            memWrite(addr+8,1<<16); // st_nlink (top 16) // st_uid (bottom 16)
-            memWrite(addr+12,0); // st_gid (top 16) // st_rdev (bottom 16)
-            memWrite(addr+16,fs.size()); // st_size
-            memWrite(addr+20,fs.atime()); // st_atime
-            // memWrite(addr+24,0) // st_spare1
-            memWrite(addr+28,fs.mtime()); // st_mtime
-            // memWrite(addr+32,0) // st_spare2
-            memWrite(addr+36,fs.ctime()); // st_ctime
-            // memWrite(addr+40,0) // st_spare3
-            memWrite(addr+44,fs.blksize()); // st_bklsize;
-            memWrite(addr+48,fs.blocks()); // st_blocks
-            // memWrite(addr+52,0) // st_spare4[0]
-            // memWrite(addr+56,0) // st_spare4[1]
-        } catch(FaultException e) {
-            System.err.println(e);
-            return -EFAULT;
-        }
+    int stat(FStat fs, int addr) throws FaultException {
+        memWrite(addr+0,(fs.dev()<<16)|(fs.inode()&0xffff)); // st_dev (top 16), // st_ino (bottom 16)
+        memWrite(addr+4,((fs.type()&0xf000))|(fs.mode()&0xfff)); // st_mode
+        memWrite(addr+8,1<<16); // st_nlink (top 16) // st_uid (bottom 16)
+        memWrite(addr+12,0); // st_gid (top 16) // st_rdev (bottom 16)
+        memWrite(addr+16,fs.size()); // st_size
+        memWrite(addr+20,fs.atime()); // st_atime
+        // memWrite(addr+24,0) // st_spare1
+        memWrite(addr+28,fs.mtime()); // st_mtime
+        // memWrite(addr+32,0) // st_spare2
+        memWrite(addr+36,fs.ctime()); // st_ctime
+        // memWrite(addr+40,0) // st_spare3
+        memWrite(addr+44,fs.blksize()); // st_bklsize;
+        memWrite(addr+48,fs.blocks()); // st_blocks
+        // memWrite(addr+52,0) // st_spare4[0]
+        // memWrite(addr+56,0) // st_spare4[1]
         return 0;
     }
     
     /** The fstat syscall */
-    private int sys_fstat(int fdn, int addr) {
+    private int sys_fstat(int fdn, int addr) throws FaultException {
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
         if(fds[fdn] == null) return -EBADFD;
         return stat(fds[fdn].fstat(),addr);
@@ -808,17 +835,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     long tv_usec;
     };
     */
-    private int sys_gettimeofday(int timevalAddr, int timezoneAddr) {
+    private int sys_gettimeofday(int timevalAddr, int timezoneAddr) throws FaultException {
         long now = System.currentTimeMillis();
         int tv_sec = (int)(now / 1000);
         int tv_usec = (int)((now%1000)*1000);
-        try {
-            memWrite(timevalAddr+0,tv_sec);
-            memWrite(timevalAddr+4,tv_usec);
-            return 0;
-        } catch(FaultException e) {
-            return -EFAULT;
-        }
+        memWrite(timevalAddr+0,tv_sec);
+        memWrite(timevalAddr+4,tv_usec);
+        return 0;
     }
     
     private int sys_sleep(int sec) {
@@ -904,7 +927,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         if(state != RUNNING) throw new IllegalStateException("wound up calling sys_calljava while not in RUNNING");
         if(callJavaCB != null) {
             state = CALLJAVA;
-            int ret = callJavaCB.call(a,b,c,d);
+            int ret;
+            try {
+                ret = callJavaCB.call(a,b,c,d);
+            } catch(RuntimeException e) {
+                System.err.println("Error while executing callJavaCB");
+            	    e.printStackTrace();
+                ret = 0;
+            }
             state = RUNNING;
             return ret;
         } else {
@@ -927,21 +957,18 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
 
     
-    /** Hook for subclasses to do something when the process exits (MUST set state = EXITED) */
-    protected void _exit() { state = EXITED; }
+    /** Hook for subclasses to do something when the process exits  */
+    protected void _exited() {  }
+    
     private int sys_exit(int status) {
         exitStatus = status;
         for(int i=0;i<fds.length;i++) if(fds[i] != null) closeFD(i);
-        _exit();
+        state = EXITED;
+        _exited();
         return 0;
     }
        
     private int sys_fcntl(int fdn, int cmd, int arg) {
-    	    // FEATURE: Pull these from fcntl.h
-        final int F_DUPFD = 0;
-        final int F_GETFD = 1;
-        final int F_SETFD = 2;
-        final int F_GETFL = 3;
         int i;
             
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
@@ -976,7 +1003,21 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         <i>syscall</i> should be the contents of V0 and <i>a</i>, <i>b</i>, <i>c</i>, and <i>d</i> should be 
         the contenst of A0, A1, A2, and A3. The call MAY change the state
         @see Runtime#state state */
-    protected int syscall(int syscall, int a, int b, int c, int d) {
+    protected final int syscall(int syscall, int a, int b, int c, int d) {
+        try {
+        	    return _syscall(syscall,a,b,c,d);
+        } catch(ErrnoException e) {
+            e.printStackTrace();
+        	    return -e.errno;
+        } catch(FaultException e) {
+        	    return -EFAULT;
+        } catch(RuntimeException e) {
+            e.printStackTrace();
+        	    throw new Error("Internal Error in _syscall()");
+        }
+    }
+    
+    int _syscall(int syscall, int a, int b, int c, int d) throws ErrnoException, FaultException {
         switch(syscall) {
             case SYS_null: return 0;
             case SYS_exit: return sys_exit(a);
@@ -1189,17 +1230,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         private final boolean executable; 
         public HostFStat(File f) {
             this.f = f;
-            boolean _executable = false;
-            // FEATURE: This might be too expensive
-            try {
-                FileInputStream fis = new FileInputStream(f);
-                switch(fis.read()) {
-                    case '\177': _executable = fis.read() == 'E' && fis.read() == 'L' && fis.read() == 'F'; break;
-                    case '#': _executable = fis.read() == '!';
-                }
-                fis.close();
-            } catch(IOException e) { /* ignore */ }
-            executable = _executable;
+            executable = executable();
         }
         public int dev() { return 1; }
         public int inode() { return f.getName().hashCode() & 0xffff; }
@@ -1215,6 +1246,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
         public int size() { return (int) f.length(); }
         public int mtime() { return (int)(f.lastModified()/1000); }
+        
+        boolean executable() { return false; }
     }
     
     // Exceptions
@@ -1240,7 +1273,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public CallException(String s) { super(s); }
     }
     
-    protected static class ErrnoException extends IOException {
+    protected static class ErrnoException extends Exception {
         public int errno;
         public ErrnoException(int errno) { super("Errno: " + errno); this.errno = errno; }
     }
@@ -1270,6 +1303,12 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     }
     
+    public static class SecurityManager {
+    	    public boolean allowRead(File f) { return true; }
+        public boolean allowWrite(File f) { return true; }
+        public boolean allowStat(File f) { return true; }
+    }
+    
     // Null pointer check helper function
     protected final void nullPointerCheck(int addr) throws ExecutionException {
         if(addr < 65536)
@@ -1292,7 +1331,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     }
     
-    /** Decode an packed string.. FEATURE: document this better */
+    /** Decode a packed string */
     protected static final int[] decodeData(String s, int words) {
         if(s.length() % 8 != 0) throw new IllegalArgumentException("string length must be a multiple of 8");
         if((s.length() / 8) * 7 < words*4) throw new IllegalArgumentException("string isn't big enough");
