@@ -409,7 +409,11 @@ switch(pc&0xffffff00) {
 
 \begin{figure}
 {\footnotesize\begin{verbatim}
-Brian, we're missing the code here... can you put it in?
+switch(pc>>>8) {
+    case 0x1: run_100();
+    case 0x2: run_200();
+    case 0x3: run_300();
+}
 \end{verbatim}}
 \caption{\label{tableswitch} Code which {\it is} optimized into a tableswitch}
 \end{figure}
