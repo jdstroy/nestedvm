@@ -28,7 +28,7 @@
 @x
 @d banner=='This is TeX, Version 3.14159' {printed when \TeX\ starts}
 @y
-@d banner=='This is TeX, Version 3.14159 for Java' {printed when \TeX\ starts}
+@d banner=='This is '#27'[33;1mNesTeX'#27'[0m, Version 3.14159 for '#27'[31;1mJava'#27'[0m'
 @z
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
