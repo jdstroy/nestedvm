@@ -265,8 +265,9 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             a(fac.createCheckCast(new ObjectType("java.lang.Integer")));
             a(fac.createInvoke("java.lang.Integer","intValue",Type.INT,Type.NO_ARGS,INVOKEVIRTUAL));
             a(InstructionConstants.IRETURN);
-            bh.setTarget(a(InstructionConstants.ICONST_M1));
-            a(InstructionConstants.IRETURN);     
+            bh.setTarget(a(InstructionConstants.POP));
+            a(InstructionConstants.ICONST_M1);
+            a(InstructionConstants.IRETURN);
             lookupSymbol.setMaxLocals();
             lookupSymbol.setMaxStack();
             cl.addMethod(lookupSymbol.getMethod());
