@@ -6,6 +6,7 @@ import org.ibex.classgen.util.Sort;
 import java.io.*;
 import java.util.*;
 import java.net.*;
+import java.lang.reflect.*; // For lazily linked RuntimeCompiler
 
 // FEATURE: vfork
 
@@ -19,6 +20,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private GlobalState gs;
     public void setGlobalState(GlobalState gs) {
         if(state != STOPPED) throw new IllegalStateException("can't change GlobalState when running");
+        if(gs == null) throw new NullPointerException("gs is null");
         this.gs = gs;
     }
     
@@ -360,43 +362,148 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private int sys_exec(int cpath, int cargv, int cenvp) throws ErrnoException, FaultException {
         return exec(normalizePath(cstring(cpath)),readStringArray(cargv),readStringArray(cenvp));
     }
+    
+    private final static Method runtimeCompilerCompile;
+    static {
+        Method m;
+        try {
+            m = Class.forName("org.ibex.nestedvm.RuntimeCompiler").getMethod("compile",new Class[]{Seekable.class,String.class});
+        } catch(NoSuchMethodException e) {
+            m = null;
+        } catch(ClassNotFoundException e) {
+            m = null;
+        }
+        runtimeCompilerCompile = m;
+    }
+            
+    public Class runtimeCompile(Seekable s) throws IOException {
+        if(runtimeCompilerCompile == null) {
+            if(STDERR_DIAG) System.err.println("WARNING: Exec attempted but RuntimeCompiler not found!");
+            return null;
+        }
         
-    private int exec(String normalizedPath, String[] argv, String[] envp) throws ErrnoException {
+        try {
+            return (Class) runtimeCompilerCompile.invoke(null,new Object[]{s,"unixruntime"});
+        } catch(IllegalAccessException e) {
+            e.printStackTrace();
+            return null;
+        } catch(InvocationTargetException e) {
+            Throwable t = e.getTargetException();
+            if(t instanceof IOException) throw (IOException) t;
+            if(t instanceof RuntimeException) throw (RuntimeException) t;
+            if(t instanceof Error) throw (Error) t;
+            if(STDERR_DIAG) t.printStackTrace();
+            return null;
+        }
+    }
+        
+    private int exec(String path, String[] argv, String[] envp) throws ErrnoException {
         if(argv.length == 0) argv = new String[]{""};
-
+        // HACK: Hideous hack to make a standalone busybox possible
+        if(path.equals("bin/busybox") && getClass().getName().endsWith("BusyBox"))
+            return execClass(getClass(),argv,envp);
+        
         // NOTE: For this little hack to work nestedvm.root MUST be "."
         /*try {
             System.err.println("Execing normalized path: " + normalizedPath);
             if(true) return exec(new Interpreter(normalizedPath),argv,envp);
         } catch(IOException e) { throw new Error(e); }*/
         
-        Object o = gs.exec(this,normalizedPath);
-        if(o == null) return -ENOENT;
-
-        if(o instanceof Class) {
-            Class c = (Class) o;
-            try {
-                UnixRuntime r = (UnixRuntime) c.getDeclaredConstructor(new Class[]{Boolean.TYPE}).newInstance(new Object[]{Boolean.TRUE});
-                return exec(r,argv,envp);
-            } catch(Exception e) {
-                e.printStackTrace();
-                return -ENOEXEC;
+        FStat fstat = gs.stat(this,path);
+        if(fstat == null) return -ENOENT;
+        GlobalState.CacheEnt ent = (GlobalState.CacheEnt) gs.execCache.get(path);
+        long mtime = fstat.mtime();
+        long size = fstat.size();
+        if(ent != null) {
+            //System.err.println("Found cached entry for " + path);
+            if(ent.time ==mtime && ent.size == size) {
+                if(ent.o instanceof Class)
+                    return execClass((Class) ent.o,argv,envp);
+                if(ent.o instanceof String[]) 
+                    return execScript(path,(String[]) ent.o,argv,envp);
+                throw new Error("should never happen");
             }
-        } else {
-            String[] command = (String[]) o;
-            String[] newArgv = new String[argv.length + command[1] != null ? 2 : 1];
-            int p = command[0].lastIndexOf('/');
-            newArgv[0] = p == -1 ? command[0] : command[0].substring(p+1);
-            p = 1;
-            if(command[1] != null) newArgv[p++] = command[1];
-            newArgv[p++] = "/" + normalizedPath;
-            for(int i=1;i<argv.length;i++) newArgv[p++] = argv[i];
-            return exec(command[0],newArgv,envp);
+            //System.err.println("Cache was out of date");
+            gs.execCache.remove(path);
+        }
+        
+        FD fd = gs.open(this,path,RD_ONLY,0);
+        if(fd == null) throw new ErrnoException(ENOENT);
+        Seekable s = fd.seekable();        
+        if(s == null) throw new ErrnoException(EACCES);
+        
+        byte[] buf = new byte[4096];
+        
+        try {
+            int n = s.read(buf,0,buf.length);
+            if(n == -1) throw new ErrnoException(ENOEXEC);
+            
+            switch(buf[0]) {
+                case '\177': // possible ELF
+                    if(n < 4) s.tryReadFully(buf,n,4-n);
+                    if(buf[1] != 'E' || buf[2] != 'L' || buf[3] != 'F') return -ENOEXEC;
+                    s.seek(0);
+                    Class c = runtimeCompile(s);
+                    if(c == null) throw new ErrnoException(ENOEXEC);
+                    gs.execCache.put(path,new GlobalState.CacheEnt(mtime,size,c));
+                    return execClass(c,argv,envp);
+                case '#':
+                    if(n == 1) {
+                        int n2 = s.read(buf,1,buf.length-1);
+                        if(n2 == -1) return -ENOEXEC;
+                        n += n2;
+                    }
+                    if(buf[1] != '!') return -ENOEXEC;
+                    int p = 2;
+                    n -= 2;
+                    OUTER: for(;;) {
+                        for(int i=p;i<p+n;i++) if(buf[i] == '\n') { p = i; break OUTER; }
+                            p += n;
+                        if(p == buf.length) break OUTER;
+                        n = s.read(buf,p,buf.length-p);
+                    }
+                    int arg;
+                    for(arg=2;arg<p;arg++) if(buf[arg] == ' ') break;
+                    int cmdEnd = arg;
+                    while(arg < p && buf[arg] == ' ') arg++;
+                    String[] command = new String[] {
+                        new String(buf,2,cmdEnd),
+                        arg < p ? new String(buf,arg,p-arg) : null
+                    };
+                    gs.execCache.put(path,new GlobalState.CacheEnt(mtime,size,command));
+                    return execScript(path,command,argv,envp);
+                default:
+                    return -ENOEXEC;
+            }
+        } catch(IOException e) {
+            return -EIO;
+        } finally {
+            fd.close();
+        }        
+    }
+    
+    public int execScript(String path, String[] command, String[] argv, String[] envp) throws ErrnoException {
+        String[] newArgv = new String[argv.length + command[1] != null ? 2 : 1];
+        int p = command[0].lastIndexOf('/');
+        newArgv[0] = p == -1 ? command[0] : command[0].substring(p+1);
+        p = 1;
+        if(command[1] != null) newArgv[p++] = command[1];
+        newArgv[p++] = "/" + path;
+        for(int i=1;i<argv.length;i++) newArgv[p++] = argv[i];
+        return exec(command[0],newArgv,envp);
+    }
+    
+    public int execClass(Class c,String[] argv, String[] envp) {
+        try {
+            UnixRuntime r = (UnixRuntime) c.getDeclaredConstructor(new Class[]{Boolean.TYPE}).newInstance(new Object[]{Boolean.TRUE});
+            return exec(r,argv,envp);
+        } catch(Exception e) {
+            e.printStackTrace();
+            return -ENOEXEC;
         }
     }
     
     private int exec(UnixRuntime r, String[] argv, String[] envp) {     
-        
         //System.err.println("Execing " + r);
         for(int i=0;i<OPEN_MAX;i++) if(closeOnExec[i]) closeFD(i);
         r.fds = fds;
@@ -1013,7 +1120,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;
     }
     
-    public static class GlobalState {            
+    public static final class GlobalState {
+        Hashtable execCache = new Hashtable();
+        
         final UnixRuntime[] tasks;
         int nextPID = 1;
         
@@ -1030,7 +1139,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
         
-        private static class MP implements Sort.Comparable {
+        static class MP implements Sort.Comparable {
             public MP(String path, FS fs) { this.path = path; this.fs = fs; }
             public String path;
             public FS fs;
@@ -1116,105 +1225,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { fsop(FS.MKDIR,r,path,mode,0); }
         public final void unlink(UnixRuntime r, String path) throws ErrnoException { fsop(FS.UNLINK,r,path,0,0); }
         
-        private Hashtable execCache = new Hashtable();
         private static class CacheEnt {
             public final long time;
             public final long size;
             public final Object o;
             public CacheEnt(long time, long size, Object o) { this.time = time; this.size = size; this.o = o; }
-        }
-
-        public synchronized Object exec(UnixRuntime r, String path) throws ErrnoException {
-            // HACK: Hideous hack to make a standalone busybox possible
-            if(path.equals("bin/busybox") && r.getClass().getName().endsWith("BusyBox")) return r.getClass();
-            
-            FStat fstat = stat(r,path);
-            if(fstat == null) return null;
-            long mtime = fstat.mtime();
-            long size = fstat.size();
-            CacheEnt ent = (CacheEnt) execCache.get(path);
-            if(ent != null) {
-                //System.err.println("Found cached entry for " + path);
-                if(ent.time == mtime && ent.size == size) return ent.o;
-                //System.err.println("Cache was out of date");
-                execCache.remove(path);
-            }
-            FD fd = open(r,path,RD_ONLY,0);
-            if(fd == null) return null;
-            Seekable s = fd.seekable();
-            
-            String[] command  = null;
-
-            if(s == null) throw new ErrnoException(EACCES);
-            byte[] buf = new byte[4096];
-            
-            try {
-                int n = s.read(buf,0,buf.length);
-                if(n == -1) throw new ErrnoException(ENOEXEC);
-                
-                switch(buf[0]) {
-                    case '\177': // possible ELF
-                        if(n < 4 && s.tryReadFully(buf,n,4-n) != 4-n) throw new ErrnoException(ENOEXEC);
-                        if(buf[1] != 'E' || buf[2] != 'L' || buf[3] != 'F') throw new ErrnoException(ENOEXEC);
-                        break;
-                    case '#':
-                        if(n == 1) {
-                            int n2 = s.read(buf,1,buf.length-1);
-                            if(n2 == -1) throw new ErrnoException(ENOEXEC);
-                            n += n2;
-                        }
-                        if(buf[1] != '!') throw new ErrnoException(ENOEXEC);
-                        int p = 2;
-                        n -= 2;
-                        OUTER: for(;;) {
-                            for(int i=p;i<p+n;i++) if(buf[i] == '\n') { p = i; break OUTER; }
-                            p += n;
-                            if(p == buf.length) break OUTER;
-                            n = s.read(buf,p,buf.length-p);
-                        }
-                        command = new String[2];
-                        int arg;
-                        for(arg=2;arg<p;arg++) if(buf[arg] == ' ') break;
-                        if(arg < p) {
-                            int cmdEnd = arg;
-                            while(arg < p && buf[arg] == ' ') arg++;
-                            command[0] = new String(buf,2,cmdEnd);
-                            command[1] = arg < p ? new String(buf,arg,p-arg) : null;
-                        } else {
-                            command[0] = new String(buf,2,p-2);
-                        }
-                        //System.err.println("command[0]: " + command[0] + " command[1]: " + command[1]);
-                        break;
-                    default:
-                        throw new ErrnoException(ENOEXEC);
-                }
-            } catch(IOException e) {
-                fd.close();
-                throw new ErrnoException(EIO);
-            }
-                        
-            if(command == null) {
-                // its an elf binary
-                try {
-                    s.seek(0);
-                    Class c = RuntimeCompiler.compile(s,"unixruntime");
-                    //System.err.println("Compile succeeded: " + c);
-                    ent = new CacheEnt(mtime,size,c);
-                } catch(Compiler.Exn e) {
-                    if(STDERR_DIAG) e.printStackTrace();
-                    throw new ErrnoException(ENOEXEC);
-                } catch(IOException e) {
-                    if(STDERR_DIAG) e.printStackTrace();
-                    throw new ErrnoException(EIO);
-                }
-            } else {
-                ent = new CacheEnt(mtime,size,command);
-            }
-            
-            fd.close();
-            
-            execCache.put(path,ent);
-            return ent.o;
         }
     }
     
