@@ -23,7 +23,7 @@ configure_binutils = --target=mips-unknown-elf
 
 version_newlib = 1.11.0
 url_newlib = http://mirrors.rcn.net/pub/sourceware/newlib/newlib-$(version_newlib).tar.gz
-patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-vasprintf.patch newlib-nomemcpy.patch
+patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
 url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz

@@ -193,16 +193,6 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *oact) {
     return 0;
 }
 
-int sigfillset(sigset_t *set) {
-    *set = ~((sigset_t)0);
-    return 0;
-}
-
-int sigemptyset(sigset_t *set) {
-    *set = (sigset_t) 0;
-    return 0;
-}
-
 DIR *opendir(const char *path) {
     struct stat sb;
     int fd;
@@ -344,6 +334,189 @@ struct hostent *gethostbyname(const char *hostname) {
     
     return &hostent;
 }
+
+static struct passwd pw_passwd;
+static struct group gr_group;
+static FILE *passwd_fp;
+static FILE *group_fp;
+static char pw_name[1024];
+static char pw_password[1024];
+static char pw_gecos[1024];
+static char pw_dir[1024];
+static char pw_shell[1024];
+static char gr_name[1024];
+static char gr_passwd[1024];
+static char *gr_mem[1];
+
+static int gr_parse_body(const char *buf) {
+    if(sscanf(buf,"%[^:]:%[^:]:%hu",gr_name,gr_passwd,&gr_group.gr_gid) < 3) return -1;
+    gr_group.gr_name = gr_name;
+    gr_group.gr_passwd = gr_passwd;
+    gr_group.gr_mem = gr_mem;
+    gr_mem[0] = NULL;
+    return 0;
+}
+
+static int pw_parse_body(const char *buf) {
+    int pos;
+    if(sscanf(buf,"%[^:]:%[^:]:%d:%d:%[^:]:%[^:]:%s\n",pw_name,pw_password,&pw_passwd.pw_uid,&pw_passwd.pw_gid,pw_gecos,pw_dir,pw_shell) < 7) return -1;
+    pw_passwd.pw_name = pw_name;
+    pw_passwd.pw_passwd = pw_password;
+    pw_passwd.pw_gecos = pw_gecos;
+    pw_passwd.pw_dir = pw_dir;
+    pw_passwd.pw_shell = pw_shell;
+    pw_passwd.pw_comment = "";
+    return 0;
+}
+
+struct group *getgrnam(const char *name) {
+    FILE *fp;
+    char buf[1024];
+    
+    if((fp=fopen("/etc/group","r"))==NULL) return NULL;
+    while(fgets(buf,sizeof(buf),fp)) {
+        if(buf[0] == '#') continue;
+        if(gr_parse_body(buf) < 0) {
+            fclose(fp);
+            return NULL;
+        }
+        if(strcmp(name,gr_name)==0) {
+            fclose(fp);
+            return &gr_group;
+        }
+    }
+    fclose(fp);
+    return NULL;
+}
+
+struct group *getgrgid(gid_t gid) {
+    FILE *fp;
+    char buf[1024];
+    
+    if((fp=fopen("/etc/group","r"))==NULL) return NULL;
+    while(fgets(buf,sizeof(buf),fp)) {
+        if(buf[0] == '#') continue;
+        if(gr_parse_body(buf) < 0) {
+            fclose(fp);
+            return NULL;
+        }
+        if(gid == gr_group.gr_gid) {
+            fclose(fp);
+            return &gr_group;
+        }
+    }
+    fclose(fp);
+    return NULL;
+}
+    
+struct group *getgrent() {
+    char buf[1024];
+    if(group_fp == NULL) return NULL;
+    if(fgets(buf,sizeof(buf),group_fp) == NULL) return NULL;
+    if(buf[0] == '#') return getgrent();
+    if(gr_parse_body(buf) < 0) return NULL;
+    return &gr_group;
+}
+
+void setgrent() { 
+    if(group_fp != NULL) fclose(group_fp);
+    group_fp = fopen("/etc/group","r");
+}
+
+void endgrent() {
+    if(group_fp != NULL) fclose(group_fp);
+    group_fp = NULL;
+}
+
+struct passwd *getpwnam(const char *name) {
+    FILE *fp;
+    char buf[1024];
+    
+    if((fp=fopen("/etc/passwd","r"))==NULL) return NULL;
+    while(fgets(buf,sizeof(buf),fp)) {
+        if(buf[0] == '#') continue;
+        if(pw_parse_body(buf) < 0) {
+            fclose(fp);
+            return NULL;
+        }
+        if(strcmp(name,pw_name)==0) {
+            fclose(fp);
+            return &pw_passwd;
+        }
+    }
+    fclose(fp);
+    return NULL;
+}
+
+struct passwd *getpwuid(uid_t uid) {
+    FILE *fp;
+    char buf[1024];
+    
+    if((fp=fopen("/etc/passwd","r"))==NULL) return NULL;
+    while(fgets(buf,sizeof(buf),fp)) {
+        if(buf[0] == '#') continue;
+        if(pw_parse_body(buf) < 0) {
+            fclose(fp);
+            return NULL;
+        }
+        if(uid == pw_passwd.pw_uid) {
+            fclose(fp);
+            return &pw_passwd;
+        }
+    }
+    fclose(fp);
+    return NULL;
+}
+
+struct passwd *getpwent() {
+    char buf[1024];
+    if(passwd_fp == NULL) return NULL;
+    if(fgets(buf,sizeof(buf),passwd_fp) == NULL) return NULL;
+    if(buf[0] == '#') return getpwent();
+    if(pw_parse_body(buf) < 0) return NULL;
+    return &pw_passwd;
+}
+
+void setpwent() { 
+    if(passwd_fp != NULL) fclose(passwd_fp);
+    passwd_fp = fopen("/etc/group","r");
+}
+
+void endpwent() {
+    if(passwd_fp != NULL) fclose(passwd_fp);
+    passwd_fp = NULL;
+}
+
+char *getpass(const char *prompt) {
+    static char buf[1024];
+    int len = 0;
+    fputs(prompt,stderr);
+    fflush(stdout);
+    if(fgets(buf,sizeof(buf),stdin)!=NULL) {
+        len = strlen(buf);
+        if(buf[len-1] == '\n') len--;
+    }
+    fputc('\n',stderr);
+    buf[len] = '\0';
+    return buf;
+}
+
+/* Argh... newlib's asprintf is totally broken... */
+int vasprintf(char **ret, const char *fmt, va_list ap) {
+    int n;
+    char *p;
+    *ret = malloc(128); /* just guess for now */
+    if(!*ret) return -1;
+    n = vsnprintf(*ret,128,fmt,ap);
+    if(n < 128) {
+        return n;
+    } else {
+        p = realloc(*ret,n+1);
+        if(!p) { free(*ret); return -1; }
+        return vsprintf(*ret = p,fmt,ap);
+    }
+}
+
 
 /*
  * Other People's Code 

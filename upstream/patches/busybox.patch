@@ -954,7 +954,7 @@ diff -ur ../busybox-1.00-pre9.orig/util-linux/more.c ./util-linux/more.c
 +#
 +# Login/Password Management Utilities
 +#
-+CONFIG_USE_BB_PWD_GRP=y
++# CONFIG_USE_BB_PWD_GRP=y
 +# CONFIG_ADDGROUP is not set
 +# CONFIG_DELGROUP is not set
 +# CONFIG_ADDUSER is not set

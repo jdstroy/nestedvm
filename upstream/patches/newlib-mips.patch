@@ -95,7 +95,7 @@ diff -urN ../newlib-1.11.0.orig/newlib/configure.host ./newlib/configure.host
 	sys_dir=decstation
 	;;
 +  mips-unknown-elf*)
-+        posix_dir=posix
++        posix_dir=posix; unix_dir=unix
 +        ;;
    mmix-knuth-mmixware)
 	sys_dir=mmixware
