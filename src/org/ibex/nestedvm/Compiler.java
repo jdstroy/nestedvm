@@ -7,6 +7,8 @@ import java.io.*;
 
 import org.ibex.nestedvm.util.*;
 
+// FEATURE: -d option for classfilecompiler (just like javac's -d)
+
 public abstract class Compiler implements Registers {    
     /** The ELF binary being read */
     protected ELF elf;

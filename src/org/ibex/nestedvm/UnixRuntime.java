@@ -4,6 +4,9 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 
+// FEATURE: BusyBox's ASH doesn't like \r\n at the end of lines
+// is ash just broken or are many apps like this? if so workaround in nestedvm
+
 public abstract class UnixRuntime extends Runtime {
     /** The pid of this "process" */
     private int pid;
@@ -18,7 +21,8 @@ public abstract class UnixRuntime extends Runtime {
         this.fs = fs;
     }
     
-    /** proceses current working directory */
+    /** proceses' current working directory - absolute path WITHOUT leading slash
+        "" = root, "bin" = /bin "usr/bin" = /usr/bin */
     private String cwd;
     
     /* Static stuff */
@@ -48,16 +52,15 @@ public abstract class UnixRuntime extends Runtime {
     public UnixRuntime(int pageSize, int totalPages, boolean allowEmptyPages) {
         super(pageSize,totalPages,allowEmptyPages);
         
-        HostFS root = new HostFS();
-        fs = new UnixOverlayFS(root);
+        FS root = new HostFS();
+        FS dev = new DevFS();
+        MountPointFS mounts = new MountPointFS(root);
+        mounts.add("/dev",dev);
+        fs = mounts;
         
-        String dir = root.hostCWD();
-        try {
-            chdir(dir == null ? "/" : dir);
-        } catch(FileNotFoundException e) {
-            e.printStackTrace();
-            cwd = "/";
-        }
+        // FEATURE: Do the proper mangling for non-unix hosts
+        String userdir = getSystemProperty("user.dir");
+        cwd = userdir != null && userdir.startsWith("/") && File.separatorChar == '/'  ? userdir.substring(1) : "";
     }
     
     // NOTE: getDisplayName() is a Java2 function
@@ -128,12 +131,15 @@ public abstract class UnixRuntime extends Runtime {
             case SYS_mkdir: return sys_mkdir(a,b);
             case SYS_getcwd: return sys_getcwd(a,b);
             case SYS_chdir: return sys_chdir(a);
+            case SYS_execve: return sys_execve(a,b.c);
 
             default: return super.syscall(syscall,a,b,c,d);
         }
     }
     
-    protected FD open(String path, int flags, int mode) throws IOException { return fs.open(cleanupPath(path),flags,mode); }
+    protected FD open(String path, int flags, int mode) throws IOException {
+        return fs.open(normalizePath(path),flags,mode);
+    }
 
     // FEATURE: Allow simple, broken signal delivery to other processes 
     // (check if a signal was delivered before and after syscalls)
@@ -214,6 +220,7 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
     
+    // FEATURE: Make this cleaner
     // Great ugliness lies within.....
     private int sys_fork() {
         CPUState state = getCPUState();
@@ -264,6 +271,20 @@ public abstract class UnixRuntime extends Runtime {
         
         return child_pid;        
     }
+        
+    private int sys_execve(int cstring, int argv, int envp) {
+        /*
+        try {
+            String path = cstring(cstring);
+            FStat stat = fs.stat(path);
+            
+            
+        }
+        catch(FaultException e) { return -EFAULT; }
+        catch(FileNotFoundException e) {  return -ENOENT; }
+        catch(IOException e) { return -EIO; }*/
+        throw new Error("FIXME - exec() isn't finished");
+    }
             
     private int sys_pipe(int addr) {
         PipedOutputStream writerStream = new PipedOutputStream();
@@ -302,7 +323,7 @@ public abstract class UnixRuntime extends Runtime {
     
     private int sys_stat(int cstring, int addr) {
         try {
-            String path = cleanupPath(cstring(cstring));
+            String path = normalizePath(cstring(cstring));
             return stat(fs.stat(path),addr);
         }
         catch(ErrnoException e) { return -e.errno; }
@@ -317,7 +338,7 @@ public abstract class UnixRuntime extends Runtime {
     
     private int sys_mkdir(int cstring, int mode) {
         try {
-            fs.mkdir(cleanupPath(cstring(cstring)));
+            fs.mkdir(normalizePath(cstring(cstring)));
             return 0;
         }
         catch(ErrnoException e) { return -e.errno; }
@@ -330,10 +351,10 @@ public abstract class UnixRuntime extends Runtime {
     private int sys_getcwd(int addr, int size) {
         byte[] b = getBytes(cwd);
         if(size == 0) return -EINVAL;
-        if(size < b.length+1) return -ERANGE;
-        if(!new File(cwd).exists()) return -ENOENT;
+        if(size < b.length+2) return -ERANGE;
         try {
-            copyout(b,addr,b.length);
+            memset(addr,'/',1);
+            copyout(b,addr+1,b.length);
             memset(addr+b.length+1,0,1);
             return addr;
         } catch(FaultException e) {
@@ -343,11 +364,11 @@ public abstract class UnixRuntime extends Runtime {
     
     private int sys_chdir(int addr) {
         try {
-            String path = cleanupPath(cstring(addr));
+            String path = normalizePath(cstring(addr));
             System.err.println("Chdir: " + cstring(addr) + " -> " + path + " pwd: " + cwd);
             if(fs.stat(path).type() != FStat.S_IFDIR) return -ENOTDIR;
             cwd = path;
-            System.err.println("Now: " + cwd);
+            System.err.println("Now: [" + cwd + "]");
             return 0;
         }
         catch(ErrnoException e) { return -e.errno; }
@@ -359,7 +380,7 @@ public abstract class UnixRuntime extends Runtime {
     public void chdir(String dir) throws FileNotFoundException {
         if(state >= RUNNING) throw new IllegalStateException("Can't chdir while process is running");
         try {
-            dir = cleanupPath(dir);
+            dir = normalizePath(dir);
             if(fs.stat(dir).type() != FStat.S_IFDIR) throw new FileNotFoundException();
         } catch(IOException e) {
             throw new FileNotFoundException();
@@ -368,11 +389,29 @@ public abstract class UnixRuntime extends Runtime {
     }
         
     public abstract static class FS {
-        public FD open(String path, int flags, int mode) throws IOException { throw new FileNotFoundException(); }
-        public FStat stat(String path) throws IOException { throw new FileNotFoundException(); }
-        public void mkdir(String path) throws IOException { throw new ErrnoException(ENOTDIR); }
+        protected FD _open(String path, int flags, int mode) throws IOException { return null; }
+        protected FStat _stat(String path) throws IOException { return null; }
+        protected void _mkdir(String path) throws IOException { throw new ErrnoException(EROFS); }
         
-        public static FD directoryFD(String[] files, int hashCode) throws IOException {
+        protected static final int OPEN = 1;
+        protected static final int STAT = 2;
+        protected static final int MKDIR = 3;
+        
+        protected Object op(int op, String path, int arg1, int arg2) throws IOException {
+        		switch(op) {
+        			case OPEN: return _open(path,arg1,arg2);
+        			case STAT: return _stat(path);
+        			case MKDIR: _mkdir(path); return null;
+        			default: throw new IllegalArgumentException("Unknown FS OP");
+        		}
+        }
+        
+        public final FD open(String path, int flags, int mode) throws IOException { return (FD) op(OPEN,path,flags,mode); }
+        public final FStat stat(String path) throws IOException { return (FStat) op(STAT,path,0,0); }
+        public final void mkdir(String path) throws IOException { op(MKDIR,path,0,0); }
+		
+		// FIXME: inode stuff
+        protected static FD directoryFD(String[] files, int hashCode) throws IOException {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(bos);
             for(int i=0;i<files.length;i++) {
@@ -392,20 +431,51 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
         
-    private static boolean needsCleanup(String path) {
-        if(path.indexOf("//") != -1) return true;
-        if(path.indexOf('.') != -1) {
-            if(path.length() == 1) return true;
-            if(path.equals("..")) return true;
-            if(path.startsWith("./")  || path.indexOf("/./")  != -1 || path.endsWith("/."))  return true;
-            if(path.startsWith("../") || path.indexOf("/../") != -1 || path.endsWith("/..")) return true;
+    private String normalizePath(String path) {
+        boolean absolute = path.startsWith("/");
+        int cwdl = cwd.length();
+        // NOTE: This isn't just a fast path, it handles cases the code below doesn't
+        if(!path.startsWith(".") && path.indexOf("./") == -1 && path.indexOf("//") == -1 && !path.endsWith("."))
+            return absolute ? path.substring(1) : cwdl == 0 ? path : path.length() == 0 ? cwd : cwd + "/" + path;
+        
+        char[] in = new char[path.length()+1];
+        char[] out = new char[in.length + (absolute ? -1 : cwd.length())];
+        int inp=0, outp=0;
+        
+        if(absolute) {
+            do { inp++; } while(in[inp] == '/');
+        } else if(cwdl != 0) {
+            	cwd.getChars(0,cwdl,out,0);
+            	outp = cwdl;
         }
-        return false;
+            
+        path.getChars(0,path.length(),in,0);
+        while(in[inp] != 0) {
+            if(inp != 0) {
+            	    if(in[inp] != '/') { out[outp++] = in[inp++]; continue; }
+            	    while(in[inp] == '/') inp++;
+            }
+            if(in[inp] == '\0') continue;
+            if(in[inp] != '.') { out[outp++] = '/'; out[outp++] = in[inp++]; continue; }
+            if(in[inp+1] == '\0' || in[inp+1] == '/') { inp++; continue; }
+            if(in[inp+1] == '.' && (in[inp+2] == '\0' || in[inp+2] == '/')) { // ..
+                inp += 2;
+                if(outp > 0) outp--;
+                while(outp > 0 && out[outp] != '/') outp--;
+                System.err.println("After ..: " + new String(out,0,outp));
+                continue;
+            }
+            inp++;
+            out[outp++] = '.';
+        }
+        if(outp > 0 && out[outp-1] == '/') outp--;
+        //System.err.println("normalize: " + path + " -> " + new String(out,0,outp) + " (cwd: " + cwd + ")");
+        return new String(out,0,outp);
     }
     
     // FIXME: This is probably still buggy
     // FEATURE: Remove some of the "should never happen checks"
-    protected String cleanupPath(String p) throws ErrnoException {
+    /*protected static String cleanupPath(String p) throws ErrnoException {
         if(p.length() == 0) throw new ErrnoException(ENOENT);
         if(needsCleanup(p)) {
             char[] in = p.toCharArray();
@@ -453,10 +523,79 @@ public abstract class UnixRuntime extends Runtime {
             if(!cwd.equals("/")) sb.append('/');
             return sb.append(p).toString();
         }
+    }*/
+    
+    public static class MountPointFS extends FS {
+        private static class MP {
+            public MP(String path, FS fs) { this.path = path; this.fs = fs; }
+            public String path;
+            public FS fs;
+            public int compareTo(Object o) {
+                if(!(o instanceof MP)) return 1;
+                return -path.compareTo(((MP)o).path);
+            }
+        }
+        private final MP[][] mps = new MP[128][];
+        private final FS root;
+        public MountPointFS(FS root) { this.root = root; }
+        
+        private static String fixup(String path) {
+            if(!path.startsWith("/")) throw new IllegalArgumentException("Mount point doesn't start with a /");
+            path = path.substring(1);
+            if(path.length() == 0) throw new IllegalArgumentException("Zero length mount point path");
+            return path;
+        }
+        public FS get(String path) {
+            path = fixup(path);
+            int f = path.charAt(0) & 0x7f;
+            for(int i=0;mps[f] != null && i < mps[f].length;i++)
+                if(mps[f][i].path.equals(path)) return mps[f][i].fs;
+            return null;
+        }
+        
+        public void add(String path, FS fs) {
+            if(get(path) != null) throw new IllegalArgumentException("mount point already exists");
+            path = fixup(path);
+            int f = path.charAt(0) & 0x7f;
+            int oldLength = mps[f] == null ? 0 : mps[f].length;
+            MP[] newList = new MP[oldLength + 1];
+            if(oldLength != 0) System.arraycopy(mps[f],0,newList,0,oldLength);
+            newList[oldLength] = new MP(path,fs);
+            Arrays.sort(newList);
+            mps[f] = newList;
+        }
+        
+        public void remove(String path) {
+            path = fixup(path);
+            if(get(path) == null) throw new IllegalArgumentException("mount point doesn't exist");
+            int f = path.charAt(0) & 0x7f;
+            MP[] oldList = mps[f];
+            MP[] newList = new MP[oldList.length - 1];
+            int p = 0;
+            for(p=0;p<oldList.length;p++) if(oldList[p].path.equals(path)) break;
+            if(p == oldList.length) throw new Error("should never happen");
+            System.arraycopy(oldList,0,newList,0,p);
+            System.arraycopy(oldList,0,newList,p,oldList.length-p-1);
+            mps[f] = newList;
+        }
+        
+        protected Object op(int op, String path, int arg1, int arg2) throws IOException {
+            int pl = path.length();
+            if(pl != 0) {
+            	    MP[] list = mps[path.charAt(0) & 0x7f];
+            	    if(list != null) for(int i=0;i<list.length;i++) {
+            	    	    	MP mp = list[i];
+            	    	    	int mpl = mp.path.length();
+            	    	    	if(pl == mpl || (pl < mpl && path.charAt(mpl) == '/'))
+            	    	    	return mp.fs.op(op,pl == mpl ? "" : path.substring(mpl+1),arg1,arg2);
+                 }
+            }
+            return root.op(op,path,arg1,arg2);
+        }
     }
     
     // FEATURE: Probably should make this more general - support mountpoints, etc
-    public class UnixOverlayFS extends FS {
+    /*public class UnixOverlayFS extends FS {
         private final FS root;
         private final FS dev = new DevFS();
         public UnixOverlayFS(FS root) {
@@ -482,31 +621,43 @@ public abstract class UnixRuntime extends Runtime {
             if(dp == null) root.mkdir(path);
             else dev.mkdir(dp);
         }
-    }
+    }*/
     
-    // FIXME: This is totally broken on non-unix hosts - need to do some kind of cygwin type mapping
     public static class HostFS extends FS {
-        public static String fixPath(String path) throws FileNotFoundException {
-            return path;
+        protected File root;
+        public File getRoot() { return root; }
+        
+        private static File hostRootDir() {
+            String cwd = getSystemProperty("user.dir");
+            File f = new File(cwd != null ? cwd : ".");
+            f = new File(f.getAbsolutePath());
+            while(f.getParent() != null) f = new File(f.getParent());
+            return f;
         }
         
-        public String hostCWD() {
-            return getSystemProperty("user.dir");
+        private File hostFile(String path) {
+            if(File.separatorChar != '/') path = path.replace('/',File.separatorChar);
+            return new File(root,path);
         }
+        
+        public HostFS() { this(hostRootDir()); }
+        public HostFS(String root) { this(new File(root)); }
+        public HostFS(File root) { this.root = root; }
+        
         
         // FEATURE: This shares a lot with Runtime.open
-        public FD open(String path, int flags, int mode) throws IOException {
-            path = fixPath(path);
-            final File f = new File(path);
-            // NOTE: createNewFile is a Java2 function
-            if((flags & (O_EXCL|O_CREAT)) == (O_EXCL|O_CREAT))
-                if(!f.createNewFile()) throw new ErrnoException(EEXIST);
-            if(!f.exists() && (flags&O_CREAT) == 0) return null;
+        // NOTE: createNewFile is a Java2 function
+        public FD _open(String path, int flags, int mode) throws IOException {
+            final File f = hostFile(path);
             if(f.isDirectory()) {
                 if((flags&3)!=RD_ONLY) throw new ErrnoException(EACCES);
                 return directoryFD(f.list(),path.hashCode());
             }
-            final Seekable.File sf = new Seekable.File(path,(flags&3)!=RD_ONLY);
+            if((flags & (O_EXCL|O_CREAT)) == (O_EXCL|O_CREAT))
+                if(!f.createNewFile()) throw new ErrnoException(EEXIST);
+            if((flags&O_CREAT) == 0 && !f.exists())
+                return null;
+            final Seekable.File sf = new Seekable.File(f,(flags&3)!=RD_ONLY);
             if((flags&O_TRUNC)!=0) sf.setLength(0);
             return new SeekableFD(sf,mode) {
                 protected FStat _fstat() { return new HostFStat(f) {
@@ -517,14 +668,14 @@ public abstract class UnixRuntime extends Runtime {
             };
         }
         
-        public FStat stat(String path) throws FileNotFoundException {
-            File f = new File(fixPath(path));
+        public FStat _stat(String path) throws FileNotFoundException {
+            File f = hostFile(path);
             if(!f.exists()) throw new FileNotFoundException();
             return new HostFStat(f);
         }
         
-        public void mkdir(String path) throws IOException {
-            File f = new File(fixPath(path));
+        public void _mkdir(String path) throws IOException {
+            File f = hostFile(path);
             if(f.exists() && f.isDirectory()) throw new ErrnoException(EEXIST);
             if(f.exists()) throw new ErrnoException(ENOTDIR);
             File parent = f.getParentFile();
@@ -532,7 +683,7 @@ public abstract class UnixRuntime extends Runtime {
             if(!f.mkdir()) throw new ErrnoException(EIO);            
         }
     }
-    
+        
     private static class DevFStat extends FStat {
         public int dev() { return 1; }
         public int mode() { return 0666; }
@@ -557,10 +708,10 @@ public abstract class UnixRuntime extends Runtime {
     };    
     
     public class DevFS extends FS {
-        public FD open(String path, int mode, int flags) throws IOException {
-            if(path.equals("/null")) return devNullFD;
-            if(path.equals("/zero")) return devZeroFD;
-            if(path.startsWith("/fd/")) {
+        public FD _open(String path, int mode, int flags) throws IOException {
+            if(path.equals("null")) return devNullFD;
+            if(path.equals("zero")) return devZeroFD;
+            if(path.startsWith("fd/")) {
                 int n;
                 try {
                     n = Integer.parseInt(path.substring(4));
@@ -571,7 +722,7 @@ public abstract class UnixRuntime extends Runtime {
                 if(fds[n] == null) throw new FileNotFoundException();
                 return fds[n].dup();
             }
-            if(path.equals("/fd")) {
+            if(path.equals("fd")) {
                 int count=0;
                 for(int i=0;i<OPEN_MAX;i++) if(fds[i] != null) count++; 
                 String[] files = new String[count];
@@ -579,17 +730,17 @@ public abstract class UnixRuntime extends Runtime {
                 for(int i=0;i<OPEN_MAX;i++) if(fds[i] != null) files[count++] = Integer.toString(i);
                 return directoryFD(files,hashCode());
             }
-            if(path.equals("/")) {
+            if(path.equals("")) {
                 String[] files = { "null", "zero", "fd" };
                 return directoryFD(files,hashCode());
             }
             throw new FileNotFoundException();
         }
         
-        public FStat stat(String path) throws IOException {
-            if(path.equals("/null")) return devNullFD.fstat();
-            if(path.equals("/zero")) return devZeroFD.fstat();            
-            if(path.startsWith("/fd/")) {
+        public FStat _stat(String path) throws IOException {
+            if(path.equals("null")) return devNullFD.fstat();
+            if(path.equals("zero")) return devZeroFD.fstat();            
+            if(path.startsWith("fd/")) {
                 int n;
                 try {
                     n = Integer.parseInt(path.substring(4));
@@ -600,11 +751,11 @@ public abstract class UnixRuntime extends Runtime {
                 if(fds[n] == null) throw new FileNotFoundException();
                 return fds[n].fstat();
             }
-            if(path.equals("/fd")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
-            if(path.equals("/")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
+            if(path.equals("fd")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
+            if(path.equals("")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
             throw new FileNotFoundException();
         }
         
-        public void mkdir(String path) throws IOException { throw new ErrnoException(EACCES); }
+        public void _mkdir(String path) throws IOException { throw new ErrnoException(EACCES); }
     }
 }

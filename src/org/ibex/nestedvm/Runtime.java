@@ -194,6 +194,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         <i>addr</i> INTO a java byte array <i>a</i> */
     public final void copyin(int addr, byte[] buf, int count) throws ReadFaultException {
         int x=0;
+        if(count == 0) return;
         if((addr&3)!=0) {
             int word = memRead(addr&~3);
             switch(addr&3) {
@@ -236,6 +237,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         space at <i>addr</i> */
     public final void copyout(byte[] buf, int addr, int count) throws FaultException {
         int x=0;
+        if(count == 0) return;
         if((addr&3)!=0) {
             int word = memRead(addr&~3);
             switch(addr&3) {
@@ -1161,9 +1163,17 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         private final boolean executable; 
         public HostFStat(File f) {
             this.f = f;
-            String name = f.getName();
-            // FEATURE: This is ugly.. maybe we should do a file(1) type check
-            executable = name.endsWith(".mips") || name.endsWith(".sh");
+            boolean _executable = false;
+            // FEATURE: This might be too expensive
+            try {
+                FileInputStream fis = new FileInputStream(f);
+                switch(fis.read()) {
+                    case '\177': _executable = fis.read() == 'E' && fis.read() == 'L' && fis.read() == 'F'; break;
+                    case '#': _executable = fis.read() == '!';
+                }
+                fis.close();
+            } catch(IOException e) { /* ignore */ }
+            executable = _executable;
         }
         public int dev() { return 1; }
         public int inode() { return f.getName().hashCode() & 0xffff; }

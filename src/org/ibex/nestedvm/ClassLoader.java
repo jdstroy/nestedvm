@@ -4,6 +4,11 @@ import java.io.*;
 
 // FEATURE: This is just a quick hack, it is really ugly and broken
 
+// FEATURE: Cache based on org.ibex.util.Cache
+// FEATURE: Base64 encode some id to form package name
+// FEATURE: Timestamped cache entries, requests carry minimum timestamp
+// NOTE: Need to handle binaries spanned accross many classfiles
+
 public class ClassLoader extends java.lang.ClassLoader {
     public Class loadClass(String name, boolean resolve) throws ClassNotFoundException {
         Class c;
