@@ -37,8 +37,6 @@ Complete Translation of Unsafe Native Code to Safe Bytecode
 
 \begin{abstract}
 
-FIXME: mention unsigned arithmetic, threading, memory model.
-
 Existing techniques for using code written in an unsafe language
 within a safe virtual machine generally involve transformations from
 one source code language (such as C, Pascal, or Fortran) to another
@@ -962,39 +960,110 @@ NestedVM also includes a MIPS binary interpreter.  All three
 translation approaches expose the same API to both the translated
 binary and the surrounding VM (including peer Java code).
 
-\subsection{The Runtime Class}
+The NestedVM Runtime (various subclasses of {\tt
+org.ibex.nestedvm.Runtime}) fill the role of an OS Kernel.
+Communication between MIPS code and the outside world is via the MIPS
+{\tt SYSCALL} instruction, just as the {\tt libc}-kernel interface is
+on real MIPS implementations.
 
-The runtime fulfills four roles:
+Two implemenations of the runtime are offered; a simple runtime with
+the minimum support required to comply with ANSI C, and a more
+sophisticated runtime which emulates a large portion of the POSIX API.
 
-\begin{itemize}
-      
-\item It provides a simple, consistent external interface.  The method
-      of actually executing the code (currently only translated
-      binaries and the interpreter) can be changed without any code
-      changes to the caller because only runtime exposes a public
-      interface.  This includes methods to pass arguments to the
-      binary's {\tt main()} function, read and write from memory, and
-      call individual functions in the binary.
-      
-\item It manages the process's memory.  The runtime class contains
-      large {\tt int[]} arrays that represent the process`s entire
-      memory space.  Subclasses read and write to these arrays as
-      required by the instructions they are executing, and can expand
-      their memory space using the {\tt sbrk} system call.
-      
-\item The runtime provides access to the host file system and standard
-      I/O streams.  Subclasses of {\tt runtime} can access the file
-      system through standard UNIX syscalls ({\tt read()}, {\tt
-      write()}, {\tt open()}, etc).  The runtime manages the file
-      descriptor table that maps UNIX file descriptors to Java {\tt
-      RandomAccessFile}s, {\tt InputStream}s, {\tt OutputStream}s, and
-      {\tt Socket}s.
-      
-\item It provides general OS services, including {\tt sleep()}, {\tt
-      gettimeofday()}, {\tt getpagesize()}, {\tt sysconf()}, {\tt
-      fcntl()}, and so on.
-      
-\end{itemize}
+\subsection{The ANSI C Runtime}
+
+The ANSI C runtime offers typical file I/O operations including {\tt
+open()}, {\tt close()}, {\tt read()}, {\tt write()}, and {\tt seek()}.
+File descriptors are implemented much as they are in OS kernels; a
+table of open files is maintained and descriptors act as an index into
+that table.  Each file is represented as a Java {\tt RandomAccessFile}
+in order to match the semantics of {\tt seek()}.
+
+Process-level memory management is done through the {\tt sbrk()}
+system call, which extends the process heap by adding more pages to
+the memory page table.  Fast memory clear and copy operations can be
+performed with {\tt memset()} and {\tt memcpy()}, which invoke the
+Java {\tt System.arraycopy()} method, which is generally much faster
+than a {\tt for()} loop.
+
+The {\tt exit()} call records the exit status, marks the VM instance
+as terminated and halts execution.  The {\tt pause()} syscall
+implements a crude form of Java-MIPS communication by returning
+control to the Java code which spawned the MIPS process.
+
+\subsection{The Unix Runtime}
+
+The Unix runtime extends the simple ANSI file I/O model to include a
+single-root filesystem, and device nodes, as well as {\tt fcntl()}
+APIs to manipulate these.  Device nodes are generally simulated by
+mapping reads, writes, and {\tt fcntl()}s on the device to the
+appropriate Java API.
+
+MIPS processes can ``mount'' other filesystems within the virtual
+filesystem made visible to the MIPS process.  Each filesystem is
+implemented by a Java class, which could, for example, offer access to
+the host filesystem (including {\tt state()}, {\tt lstat()}, {\tt
+mkdir}, and {\tt unlink()}, and {\tt getdents()}), the contents of a
+zip archive, or even a remote HTTP server.
+
+MIPS processes can also spawn subprocesses using the {\tt fork()} and
+{\tt exec()} calls, which create new Java threads to run the process.
+The {\tt fork()} call -- which is supposed to duplicate the memory
+image of a process -- is implemented in an elegant manner by calling
+the Java {\tt clone()} method (deep copy) on the VM object itself.
+Copy-on-write is not currently implemented.  The new instance is added
+to a static process table to facilitate interprocess communication.
+
+The {\tt waitpid()} API allows a parent process to block pending the
+completion of a child process, which is done quite easily with the
+Java {\tt wait()} method.
+
+The {\tt exec()} method actually loads a MIPS binary image from the
+filesystem, feeds it to the MIPS-to-bytecode translator, and then
+loads the resulting bytecode on the fly using {\tt
+ClassLoader.loadBytes()}.  The {\tt pipe()} system call permits
+parent-to-child IPC just as on a normal Unix system.
+
+Simple networking support is provided by the {\tt opensocket()}, {\tt
+listensocket()}, and {\tt accept()} methods, which are not currently
+compatible with the usual Berkeley sockets API.
+
+
+\subsection{Security Concerns}
+
+RuntimeExceptions don't escape, they care caught and turned into
+checked exceptions filesystem access does though security manager
+(NestedVM Runtime.SecurityManager, and the JVM's)
+
+
+\subsection{Threading}
+
+The NestedVM runtime currently does not support threading.  Providing
+robust support for ``true threads'', whereby each MIPS thread maps to
+a Java thread is probably not possible as the Java Memory Model
+[CITE], since all MIPS memory is stored in a set of {\tt int[]}'s and
+the Java Memory Model does not permit varying treatment or coherency
+policies at the granularity of a single array element.
+
+While this presents a major barrier for applications that use
+sophisticated locking schemes (such as {\it hash synchronization})
+which depend on atomic memory operations, it is probably possible to
+apply this threading model to ``well behaved'' multithreaded
+applications which depend only on OS-provided semaphores and mutexes
+for synchronization.
+
+Complex synchronization and incorrectly synchronized applications can
+be supported by implementing a variant of {\it user threads} within a
+single Java thread by providing a timer interrupt (via a Java
+asynchronous exception).  Unfortunately this requires that the
+compiled binary be able to restart from any arbitrary instruction
+address, which would require a {\tt case} statement for every
+instruction (rather than every jump target), which would degrade
+performance and increase the size of the resulting class file.
+
+Theoretical limitations: threads, reading from code, self-modifying
+code, COW?
+
 
 \section{Future Directions}
 
