@@ -2,8 +2,8 @@ package tests;
 
 import org.ibex.nestedvm.Runtime;
 
-import java.io.*;
-import java.util.*;
+//import java.io.*;
+//import java.util.*;
 
 class SpeedTest {
     private static long start,end;

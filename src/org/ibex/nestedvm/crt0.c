@@ -1,7 +1,5 @@
 #include <stddef.h>
 
-extern int _gp[];
-
 extern int main(int argc, char **argv, char **envp);
 extern void exit(int status);
 extern int atexit(void (*f)());

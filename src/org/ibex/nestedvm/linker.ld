@@ -46,11 +46,12 @@ SECTIONS {
   . = ALIGN(16);
    _gp = . + 0x8000;
   .sdata : {
-    *(.rosdata*) *(.sdata*) *(.gnu.linkonce.s*)
+    *(.rosdata*) *(.sdata*) *(.gnu.linkonce.s) *(.gnu.linkonce.s.*)
   }
   .sbss : {
-    *(.sbss*) *(.scommon*)
+    *(.sbss*) *(.scommon*) *(.gnu.linkonce.sb*)
   }
+
   .bss : {
     *(.bss*) *(.gnu.linkonce.b*) *(COMMON) 
   }
