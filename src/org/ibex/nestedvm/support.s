@@ -125,8 +125,8 @@ SYSCALL_R(lstat)
 SYSCALL_R(symlink)
 SYSCALL_R(link)
 SYSCALL_R(getdents)
-SYSCALL(memcpy)
-SYSCALL(memset)
+/*SYSCALL(memcpy)			  */
+/*SYSCALL(memset)			 */
 SYSCALL_R(dup)
 SYSCALL_R(vfork)
 SYSCALL_R(chroot)
