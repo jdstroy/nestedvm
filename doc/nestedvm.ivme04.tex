@@ -33,7 +33,7 @@ NestedVM: Total Translation of Native Code into Safe Bytecode
 
 \begin{abstract}
 
-We present a new approach to utilizing unsafe legacy unsafe code
+We present a new approach to utilizing unsafe legacy code
 within safe virtual machines by compiling to MIPS machine code as an
 intermediate language.  This approach carries N key benefits over
 existing techniques:
@@ -240,7 +240,7 @@ Translating a legacy library for use within a JVM proceeds as follows:
 \item (Optional) compile the resulting bytecode into a {\it safe}
       native binary using {\tt gcj}.
 
-\item From java code, invoke the {\tt execute()} on the generated
+\item From java code, invoke the {\tt run()} method on the generated
       class.  This is equivalent to the {\tt main()} entry point.
 
 \end{enumerate}
@@ -262,9 +262,13 @@ Machine:
 
 \begin{itemize}
 
-\item The original MIPS ISA supports only 32-bit aligned memory loads
-      and stores.  This allows NestedVM to represent memory as a Java
-      {\tt int[]} without introducing additional overhead.
+%\item The original MIPS ISA supports only 32-bit aligned memory loads
+%      and stores.  This allows NestedVM to represent memory as a Java
+%      {\tt int[]} without introducing additional overhead.
+\item Most of the instructions in the original MIPS ISA operate only on
+      32-bit aligned memory locations. This allows NestedVM to represent
+      memory as a Java {\tt int[]} array without introducing additional 
+      overhead.
 
 \item Unlike its predecessor, the R2000 supports 32-bit by 32-bit
       multiply and divide instructions as well as a single and double
@@ -287,10 +291,6 @@ optimizations, since most Java compilers already do this.  A recurring
 example is the treatment of the {\tt r0} register, which is fixed as
 {\tt 0} in the MIPS ISA.
 
-Now that the binary-to-binary compiler is available, the
-binary-to-source compiler is only useful for generating input to {\tt
-gcj}, as discussed in section FOOBAR.
-
 Lacking the ability to generate specially optimized bytecode
 sequences, a straightforward mapping of the general purpose hardware
 registers to 32 {\tt int} fields was optimal.
@@ -308,7 +308,7 @@ public void run() {
     for(;;) {
         switch(pc) {
             case 0x10000:
-                r29 = r29 ? 32;
+                r29 = r29 - 32;
             case 0x10004:
                 r1 = r4 + r5;
             case 0x10008:
@@ -391,7 +391,7 @@ binaries can be handled without much difficulty -- fortunately there
 is no corresponding limit on the size of a classfile as a whole.
 
 Another interesting problem that was discovered while creating the
-trampoline method was javac and Jikes? inability to properly optimize
+trampoline method was javac and Jikes' inability to properly optimize
 switch statements.  The code in Figure~\ref{lookupswitch} is compiled
 into a comparatively inefficient {\tt LOOKUPSWITCH}, while the code in
 Figure~\ref{tableswitch} is optimized into a {\tt TABLESWITCH}.
@@ -414,14 +414,14 @@ Brian, we're missing the code here... can you put it in?
 \caption{\label{tableswitch} Code which {\it is} optimized into a tableswitch}
 \end{figure}
 
-Javac isn?t smart enough to see the patter in the case values and
+Javac isn't smart enough to see the pattern in the case values and
 generates very suboptimal bytecode. Manually doing the shifts
 convinces javac to emit a tableswitch statement, which is
 significantly faster. This change alone nearly doubled the speed of
 the compiled binary.
 
 Finding the optimal method size lead to the next big performance
-increase.  It was determined with experimentation that the optimal
+increase.  It was determined through experimentation that the optimal
 number of MIPS instructions per method is 128 (considering only power
 of two options). Going above or below that lead to performance
 decreases. This is most likely due to a combination of two factors.
@@ -430,12 +430,12 @@ decreases. This is most likely due to a combination of two factors.
 
 \item The two levels of switch statements jumps have to pass though -
       The first switch statement jumps go through is the trampoline
-      switch statement. This is implemented as a TABLESWITCH in JVM
+      switch statement. This is implemented as a {\tt TABLESWITCH} in JVM
       bytecode so it is very fast. The second level switch statement
       in the individual run\_ methods is implemented as a
-      LOOKUPSWITCH, which is much slower. Using smaller methods puts
-      more burden on the faster TABLESWITCH and less on the slower
-      LOOKUPSWITCH.
+      {\tt LOOKUPSWITCH}, which is much slower. Using smaller methods puts
+      more burden on the faster {\tt TABLESWITCH} and less on the slower
+      {\tt LOOKUPSWITCH}.
 
 \item JIT compilers probably favor smaller methods smaller methods are
       easier to compile and are probably better candidates for JIT
@@ -454,27 +454,27 @@ identified. The sources for possible jump targets come from 3 places.
 
 \begin{itemize}
 
-\item The .text segment ? Every instruction in the text segment in
+\item The .text segment - Every instruction in the text segment is
       scanned for jump targets. Every branch instruction (BEQ, JAL,
       etc) has its destination added to the list of possible branch
       targets. In addition, functions that set the link register have
-      theirpc+8 added to the list (the address that would?ve been put
+      theirpc+8 added to the list (the address that would've been put
       to the link register). Finally, combinations of LUI (Load Upper
       Immediate) of ADDIU (Add Immediate Unsigned) are scanned for
       possible addresses in the text segment. This combination of
       instructions is often used to load a 32-bit word into a
       register.
 
-\item The .data segment ? When GCC generates switch() statements it
+\item The .data segment - When GCC generates switch() statements it
       often uses a jump table stored in the .data
-      segment. Unfortunately gcc doesn?t identify these jump tables in
+      segment. Unfortunately gcc doesn't identify these jump tables in
       any way. Therefore, the entire .data segment is conservatively
       scanned for possible addresses in the .text segment.
       
-\item The symbol table ? This is mainly used as a backup. Scanning the
+\item The symbol table - This is mainly used as a backup. Scanning the
       .text and .data segments should identify any possible jump
       targets but adding every function in the symbol table in the ELF
-      binary doesn?t hurt. This will also catch functions that are
+      binary doesn't hurt. This will also catch functions that are
       never called directly from the MIPS binary (for example,
       functions called with the call() method in the runtime).
 
@@ -488,7 +488,7 @@ workaround hard classfile limit was eventually hit, the constant
 pool. The constant pool in classfiles is limited to 65536
 entries. Every Integer with a magnitude greater than 32767 requires an
 entry in the constant pool. Every time the compiler emits a
-jump/branch instruction the PC field is set to the branch target. This
+jump or branch instruction the PC field is set to the branch target. This
 means nearly every branch instruction requires an entry in the
 constant pool. Large binaries hit this limit fairly quickly. One
 workaround that was employed in the Java source compiler was to
@@ -510,9 +510,9 @@ advantages:
 \begin{itemize}
       
 \item There are little tricks that can be done in JVM bytecode that
-      can?t be done in Java source code.
+      can't be done in Java source code.
 
-\item Eliminates the time-consuming javac step ? Javac takes a long
+\item Eliminates the time-consuming javac step - Javac takes a long
       time to parse and compile the output from the java source
       compiler.
 
@@ -528,12 +528,12 @@ improvements where made where in the handling of branch instructions
 and in taking advantage of the JVM stack to eliminate unnecessary
 LOADs and STOREs to local variables.
 
-The first obvious optimization that generating bytecode allows for is
-the use of GOTO. Despite the fact that java doesn?t have a GOTO
-keyword a GOTO bytecode does exist and is used heavily in the code
-generates by javac. Unfortunately the java language doesn?t provide
-any way to take advantage of this. As result of this jumps within a
-method were implemented by setting the PC field to the new address and
+The first obvious optimization that generating bytecode allows for is the
+use of GOTO. Despite the fact that java doesn't have a GOTO keyword a GOTO
+bytecode does exist and is used heavily in the code generates by javac.
+Unfortunately the java language doesn't provide any way to take advantage of
+this. As result of this, jumps within a method were implemented in the
+binary-to-source compiler by setting the PC field to the new address and
 making a trip back to the initial switch statement.  In the classfile
 compiler these jumps are implemented as GOTOs directly to the target
 instruction. This saves a costly trip back through the LOOKUPSWITCH
@@ -554,19 +554,19 @@ over the code to set the PC and go back to the switch block. If
 condition is true the JVM as to jump to the switch block. By
 generating bytecode directly we can make the target of the JVM branch
 statement the actual bytecode of the final destination. In the case
-where the branch isn?t taken the JVM doesn?t need to branch at all.
+where the branch isn't taken the JVM doesn't need to branch at all.
 
 A side affect of the above two optimizations is a solution to the
 excess constant pool entries problem. When jumps are implemented as
-GOTOs and direct branches to the target the PC field doesn?t need to
+GOTOs and direct branches to the target the PC field doesn't need to
 be set. This eliminates many of the constant pool entries the java
 source compiler requires. The limit is still there however, and given
 a large enough binary it will still be reached.
 
 Delay slots are another area where things are done somewhat
 inefficiently in the Java source compiler. In order to take advantage
-of instructions already in the pipeline MIPS cpu have a ?delay
-slot?. That is, an instruction after a branch or jump instruction that
+of instructions already in the pipeline MIPS cpu have a ``delay
+slot''. That is, an instruction after a branch or jump instruction that
 is executed regardless of whether the branch is taken. This is done
 because by the time the branch or jump instruction is finished being
 processes the next instruction is already ready to be executed and it
@@ -589,18 +589,18 @@ This piece of code is executed as follows
 
 \begin{enumerate}
 
-\item r2 is set to ?1
+\item r2 is set to -1
 
 \item r2 is loaded from the register file by the BLTEZ instruction
       
 \item 10 is added to r2 by the ADDIU instruction
 
 \item The branch is taken because at the time the BLTZ instruction was
-      executed r2 was ?1, but r2 is now 9 (-1 + 10)
+      executed r2 was -1, but r2 is now 9 (-1 + 10)
 
 \end{enumerate}
 
-There is a very element solution to this problem when using JVM
+There is a very elegent solution to this problem when using JVM
 bytecode. When a branch instruction is encountered the registers
 needed for the comparison are pushed onto the stack to prepare for the
 JVM branch instruction. Then, AFTER the values are on the stack the
@@ -641,7 +641,7 @@ instantiating the corresponding class, which extends {\tt Runtime}.
 Invoking the {\tt main()} method on this class is equivalent to
 calling the {\tt main()} function within the binary; the {\tt String}
 arguments to this function are copied into the binary's memory space
-and made available as {\tt argv**} and {\tt argc}.
+and made available as {\tt **argv} and {\tt argc}.
 
 The translated binary communicates with the rest of the VM by
 executing MIPS {\tt SYSCALL} instructions, which are translated into
