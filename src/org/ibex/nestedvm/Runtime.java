@@ -135,7 +135,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             stackSize = max(stackSize,pageSize);
             stackSize = (stackSize + pageSize - 1) & ~(pageSize-1);
             stackPages = stackSize >>> pageShift;
-            heapStart = (heapStart + pageSize) & ~(pageSize-1);
+            heapStart = (heapStart + pageSize - 1) & ~(pageSize-1);
             if(stackPages + STACK_GUARD_PAGES + (heapStart >>> pageShift) >= totalPages)
                 throw new IllegalArgumentException("total pages too small");
         } else {
@@ -546,6 +546,15 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
         sp &= ~15;
         if(top - sp > ARG_MAX) throw new IllegalArgumentException("args/environ too big");
+
+        // HACK: heapStart() isn't always available when the constructor
+        // is run and this sometimes doesn't get initialized
+        if(heapEnd == 0) {
+            heapEnd = heapStart();
+            if(heapEnd == 0) throw new Error("heapEnd == 0");
+            int pageSize = writePages.length == 1 ? 4096 : (1<<pageShift);
+            heapEnd = (heapEnd + pageSize - 1) & ~(pageSize-1);
+        }
 
         CPUState cpuState = new CPUState();
         cpuState.r[A0] = argsAddr;

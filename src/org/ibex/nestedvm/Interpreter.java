@@ -7,7 +7,7 @@ package org.ibex.nestedvm;
 import org.ibex.nestedvm.util.*;
 import java.io.*;
 
-public class Interpreter extends UnixRuntime {
+public class Interpreter extends UnixRuntime implements Cloneable {
     // Registers
     private int[] registers = new int[32];
     private int hi,lo;
@@ -49,6 +49,13 @@ public class Interpreter extends UnixRuntime {
             e.setLocation(toHex(pc) + ": " + sourceLine(pc));
             throw e;
         }
+    }
+    
+    protected Object clone() throws CloneNotSupportedException {
+        Interpreter r = (Interpreter) super.clone();
+        r.registers = (int[]) registers.clone();
+        r.fpregs = (int[]) fpregs.clone();
+        return r;
     }
     
     // Main interpretor
@@ -415,6 +422,9 @@ public class Interpreter extends UnixRuntime {
                     }
                     case 20: { // Integer
                         switch(subcode) {
+                            case 32: // CVT.S.W
+                                setFloat(fd,f[fs]);
+                                break;
                             case 33: // CVT.D.W
                                 setDouble(fd,f[fs]);
                                 break;

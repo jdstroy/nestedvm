@@ -306,6 +306,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private int exec(String normalizedPath, String[] argv, String[] envp) throws ErrnoException {
         if(argv.length == 0) argv = new String[]{""};
 
+        // NOTE: For this little hack to work nestedvm.root MUST be "."
+        /*try {
+            System.err.println("Execing normalized path: " + normalizedPath);
+            if(true) return exec(new Interpreter(normalizedPath),argv,envp);
+        } catch(IOException e) { throw new Error(e); }*/
+        
         Object o = gs.exec(this,normalizedPath);
         if(o == null) return -ENOENT;
 
