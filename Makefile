@@ -314,7 +314,7 @@ build/tests/BusyBox.mips: $(mips_objects) $(tasks)/build_busybox
 	cp upstream/build/busybox/busybox $@
 
 busyboxtest: build/tests/BusyBox.class
-	$(JAVA) -cp $(classpath) tests.BusyBox ash
+	$(JAVA) -Dnestedvm.busyboxhack=true -cp $(classpath) tests.BusyBox ash
 
 #
 # Boehm GC
