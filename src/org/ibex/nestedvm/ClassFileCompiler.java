@@ -150,14 +150,14 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(InstructionConstants.IUSHR);
         
         int beg = text.addr >>> methodShift;
-        int end = ((text.addr + text.size) >>> methodShift);
+        int end = ((text.addr + text.size + maxBytesPerMethod - 1) >>> methodShift);
 
         // This data is redundant but BCEL wants it
-        int[] matches = new int[end-beg+1];
-        for(int i=beg;i<=end;i++)  matches[i-beg] = i;
+        int[] matches = new int[end-beg];
+        for(int i=beg;i<end;i++)  matches[i-beg] = i;
         TABLESWITCH ts = new TABLESWITCH(matches,new InstructionHandle[matches.length],null);
         a(ts);
-        for(int n=beg;n<=end;n++){
+        for(int n=beg;n<end;n++){
             InstructionHandle h = a(fac.createInvoke(fullClassName,"run_"+toHex(n<<methodShift),Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
             a(InstructionFactory.createBranchInstruction(GOTO,start));
             ts.setTarget(n-beg,h);
