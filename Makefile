@@ -163,7 +163,8 @@ env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class
 	@echo 'CC=mips-unknown-elf-gcc; export CC' >> $@~
 	@echo 'CXX=mips-unknown-elf-g++; export CXX' >> $@~
 	@echo 'AS=mips-unknown-elf-as; export AS' >> $@~
-	@echo 'LD=mips-unknown-elf-ar; export LD' >> $@~
+	@echo 'AR=mips-unknown-elf-ar; export AR' >> $@~
+	@echo 'LD=mips-unknown-elf-ld; export LD' >> $@~
 	@echo 'RANLIB=mips-unknown-elf-ranlib; export RANLIB' >> $@~
 	@echo 'CFLAGS="$(mips_optflags)"; export CFLAGS' >> $@~
 	@echo 'CXXFLAGS="$(mips_optflags)"; export CXXFLAGS' >> $@~
