@@ -392,18 +392,6 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
         
-    /*
-    public static void main(String[] args) throws Exception {
-        UnixRuntime rt = new Interpreter();
-        rt.cwd = getSystemProperty("user.dir");
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        String line;
-        while((line = br.readLine()) != null) {
-            System.out.println("[" + rt.cleanupPath(line) + "]");
-        }
-    }
-    */
-    
     private static boolean needsCleanup(String path) {
         if(path.indexOf("//") != -1) return true;
         if(path.indexOf('.') != -1) {
