@@ -51,8 +51,13 @@ else
 	JAVAC_NODEBUG_FLAGS = -g:none
 endif
 
+CYGWIN = $(findstring CYGWIN,$(shell uname))
 CLASSGEN_PATH = upstream/build/classgen/build
-classpath = build:$(CLASSGEN_PATH)
+ifneq ($(CYGWIN),)
+	classpath = $(shell cygpath -wp build:$(CLASSGEN_PATH))
+else
+	classpath = build:$(CLASSGEN_PATH)
+endif
 
 GCJ = gcj
 EXE_EXT = 
@@ -101,7 +106,7 @@ $(java_classes): build/org/ibex/nestedvm/util/.Dummy.class
 endif
 
 $(java_classes): $(java_sources) $(tasks)/build_darcs_classgen
-	$(JAVAC) -classpath $(classpath) -d build $(java_sources)
+	$(JAVAC) -classpath "$(classpath)" -d build $(java_sources)
 
 # GCJ Stuff
 # FIXME: We're cramming more than we need into the binary here
@@ -150,14 +155,14 @@ build/%.mips.stripped: build/%.mips $(tasks)/build_linker
 ifdef DO_JAVASOURCE
 
 build/%.java: build/%.mips build/org/ibex/nestedvm/JavaSourceCompiler.class 
-	$(JAVA) -cp $(classpath) org.ibex.nestedvm.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
+	$(JAVA) -cp "$(classpath)" org.ibex.nestedvm.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
 
 build/%.class: build/%.java build/org/ibex/nestedvm/Runtime.class
 	$(JAVAC) $(JAVAC_NODEBUG_FLAGS) -classpath build -d build $<
 else
 
 build/%.class: build/%.mips build/org/ibex/nestedvm/ClassFileCompiler.class
-	$(JAVA) -cp $(classpath) org.ibex.nestedvm.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
+	$(JAVA) -cp "$(classpath)" org.ibex.nestedvm.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
 
 
 endif
@@ -220,7 +225,7 @@ compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcc
 	java -cp \
 		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
 	com.brian_web.gcclass.GCClass \
-		$(classpath) tmp/pruned \
+		"$(classpath)" tmp/pruned \
 		org.ibex.nestedvm.RuntimeCompiler.main 'org.ibex.nestedvm.Runtime.decodeData' \
 		'org.ibex.nestedvm.UnixRuntime.<init>' 'org.ibex.nestedvm.Runtime.initPages' \
 		'org.ibex.nestedvm.Runtime.clearPages' 'org.ibex.nestedvm.Runtime.syscall' \
@@ -355,7 +360,7 @@ build/tests/BusyBox.mips: $(tasks)/build_busybox
 	cp upstream/build/busybox/busybox $@
 
 busyboxtest: build/tests/BusyBox.class
-	$(JAVA) -Dnestedvm.busyboxhack=true -cp $(classpath) tests.BusyBox ash
+	$(JAVA) -Dnestedvm.busyboxhack=true -cp "$(classpath)" tests.BusyBox ash
 
 #
 # Boehm GC
