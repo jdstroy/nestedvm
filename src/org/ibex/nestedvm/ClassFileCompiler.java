@@ -6,6 +6,7 @@ import org.ibex.nestedvm.util.*;
 import org.ibex.classgen.*;
 
 // FEATURE: Eliminate unnecessary use of SWAP
+// FEATURE: Put regs in low (<=3) local vars, small classfile size
 
 /* FEATURE: Span large binaries across several classfiles
  * We should be able to do this with no performance penalty
@@ -31,21 +32,33 @@ import org.ibex.classgen.*;
  */
 
 
-public class ClassFileCompiler extends Compiler implements CGConst  {    
+public class ClassFileCompiler extends Compiler implements CGConst  {
+    private static final boolean OPTIMIZE_CP = true;
+    
     /** The stream to write the compiled output to */
     private OutputStream os;
+    private File outDir;
     private PrintStream warn = System.err;
+
+    private final Type.Object me;
     
     private ClassGen cg;
-    private MethodGen clinit;
-    private MethodGen init;
-    private Type.Object me;
-    private Type.Object superClass;
+    private MethodGen clinit, init;
     
     public ClassFileCompiler(String path, String className, OutputStream os) throws IOException { this(new Seekable.File(path),className,os); }
     public ClassFileCompiler(Seekable binary, String className, OutputStream os) throws IOException {
-        super(binary,className);
+        this(binary,className);
+        if(os == null) throw new NullPointerException();
         this.os = os;
+    }
+    public ClassFileCompiler(Seekable binary, String className, File outDir) throws IOException {
+        this(binary,className);
+        if(outDir == null) throw new NullPointerException();
+        this.outDir = outDir;
+    }
+    private ClassFileCompiler(Seekable binary, String className) throws IOException {
+        super(binary,className);
+        me = new Type.Object(fullClassName);
     }
     
     public void setWarnWriter(PrintStream warn) { this.warn = warn; }
@@ -58,13 +71,12 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             throw new Exn("Class generation exception: " + e.toString());
         }
     }
-    
+        
     private void __go() throws Exn, IOException {
         if(!pruneCases) throw new Exn("-o prunecases MUST be enabled for ClassFileCompiler");
 
         // Class
-        me = new Type.Object(fullClassName);
-        superClass = new Type.Object(runtimeClass);
+        Type.Object superClass = new Type.Object(runtimeClass);
         cg = new ClassGen(me,superClass,ACC_PUBLIC|ACC_FINAL|ACC_SUPER);
         if(source != null) cg.setSourceFile(source);
         
@@ -75,9 +87,11 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         cg.addField("fcsr",Type.INT,ACC_PRIVATE);
         for(int i=1;i<32;i++) cg.addField("r" + i,Type.INT,ACC_PRIVATE);
         for(int i=0;i<32;i++) cg.addField("f" + i,singleFloat ? Type.FLOAT : Type.INT,ACC_PRIVATE);
-        
+
+        // <clinit>
         clinit = cg.addMethod("<clinit>",Type.VOID,Type.NO_ARGS,ACC_PRIVATE|ACC_STATIC);
         
+        // <init>
         init = cg.addMethod("<init>",Type.VOID,Type.NO_ARGS,ACC_PUBLIC);        
         init.add(ALOAD_0);
         init.add(LDC,pageSize);
@@ -204,11 +218,14 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         tramp.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
         tramp.add(ATHROW);
                 
+        
+        if(false) {
         try {
             tramp.finish();
         } catch(ClassGen.Exn e) {
             e.printStackTrace(warn);
             throw new Exn("Generation of the trampoline method failed. Try increasing maxInsnPerMethod");
+        }
         }
         
         addConstReturnMethod("gp",gp.addr);
@@ -334,7 +351,12 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         main.add(INVOKESTATIC,new MethodRef(new Type.Object("java.lang.System"),"exit",Type.VOID,new Type[]{Type.INT}));
         main.add(RETURN);
         
-        cg.dump(os);
+        if(outDir != null) {
+            if(!outDir.isDirectory()) throw new IOException("" + outDir + " isn't a directory");
+            cg.dump(outDir);
+        } else {
+            cg.dump(os);
+        }
     }
     
     private void addConstReturnMethod(String name, int val) {
@@ -392,10 +414,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     }
     
     // Method state info
-    private boolean textDone; // a text segment was already processed
     private int startOfMethod = 0; // the start of this method (not necessarily the first instruction)
     private int endOfMethod = 0; // the maximum end of this method (could end before it is full)
-    private boolean unreachable = false; // is the current pc is reachable
     
     private MethodGen.PhantomTarget returnTarget; // where to jump when exiting the method
     private MethodGen.PhantomTarget defaultTarget; // the default switch target (throws exn)
@@ -404,6 +424,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     
     private boolean jumpable(int addr) { return jumpableAddresses.get(new Integer(addr)) != null; }
     
+    private static final int UNREACHABLE = 1;
+    private static final int SKIP_NEXT = 2;
+    
+    private boolean textDone; // a text segment was already processed
     private void emitText(int addr, DataInputStream dis, int size) throws Exn,IOException {
         if(textDone) throw new Exn("Multiple text segments");
         textDone = true;
@@ -411,22 +435,24 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         if((addr&3)!=0 || (size&3)!=0) throw new Exn("Section on weird boundaries");
         int count = size/4;
         int insn,nextInsn=-1;
+        
         boolean skipNext = true;
+        boolean unreachable = false;
         
         for(int i=0;i<count;i++,addr+=4) {
             insn = skipNext ? dis.readInt() : nextInsn;
             nextInsn = (i == count-1) ? -1 : dis.readInt();
-            if(addr >= endOfMethod) { endMethod(addr); startMethod(addr); }
-            if(insnTargets[(addr-startOfMethod)/4] != null) {
-                insnTargets[(addr-startOfMethod)/4].setTarget(mg.size());
+            if(addr >= endOfMethod) { endMethod(addr,unreachable); startMethod(addr); }
+            if(insnTargets[i%maxInsnPerMethod] != null) {
+                insnTargets[i%maxInsnPerMethod].setTarget(mg.size());
                 unreachable = false;
             } else if(unreachable) {
                 continue;
             }
             try {
-                int o = preSetRegStackPos;
-                skipNext = emitInstruction(addr,insn,nextInsn);
-                if(o != preSetRegStackPos) throw new Exn("here");
+                int ret = emitInstruction(addr,insn,nextInsn);
+                unreachable =  (ret & UNREACHABLE) != 0;
+                skipNext = (ret & SKIP_NEXT) != 0;
             } catch(Exn e) {
                 e.printStackTrace(warn);
                 warn.println("Exception at " + toHex(addr));
@@ -437,9 +463,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             }
             if(skipNext) { addr+=4; i++; }
         }
-        endMethod(0);
+        endMethod(0,unreachable);
         dis.close();
-        mg.finish();
     }
     
     private void startMethod(int first) {
@@ -486,7 +511,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         mg.add(LOOKUPSWITCH,lsi);
     }
     
-    private void endMethod(int firstAddrOfNext) {
+    private void endMethod(int firstAddrOfNext,boolean unreachable) {
         if(startOfMethod == 0) return;
         
         if(!unreachable) {
@@ -561,7 +586,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     }
     
     // This assumes everything needed by ifInsn is already on the stack
-    private boolean doIfInstruction(byte op, int pc, int target, int nextInsn) throws Exn {
+    private int doIfInstruction(byte op, int pc, int target, int nextInsn) throws Exn {
         emitInstruction(-1,nextInsn,-1); // delay slot
         if((target&methodMask) == (pc&methodMask)) {
             mg.add(op,insnTargets[(target-startOfMethod)/4]);
@@ -570,7 +595,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             branch(pc,target);
             mg.setArg(h,mg.size());
         }
-        if(!jumpable(pc+4)) return true; // done - skip it
+        if(!jumpable(pc+4)) return SKIP_NEXT; // done - skip it
         
         //System.err.println("Delay slot is jumpable - This code is untested + " + toHex(nextInsn));
         if(pc+4==endOfMethod) {
@@ -578,8 +603,9 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             jumpableAddresses.put(new Integer(pc+8),Boolean.TRUE); // make the 2nd insn of the next method jumpable
             branch(pc,pc+8); // jump over it
             //System.err.println("delay slot: " + toHex(pc+8)); */
-            unreachable = true;
-            return false; // we still need to output it
+            //unreachable = true;
+            //return false; // we still need to output it
+            return UNREACHABLE;
         } else {
             //System.err.println("jumped over delay slot: " + toHex(pc+4));
             // add another copy and jump over
@@ -589,7 +615,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             emitInstruction(-1,nextInsn,01); // delay slot
             mg.setArg(b,mg.size());
             
-            return true;
+            return SKIP_NEXT;
         }
     }
     
@@ -597,9 +623,11 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     private static final Double POINT_5_D = new Double(0.5f);
     private static final Long FFFFFFFF = new Long(0xffffffffL);
     
-    private boolean emitInstruction(int pc, int insn, int nextInsn) throws Exn {
+    private int emitInstruction(int pc, int insn, int nextInsn) throws Exn {
         MethodGen mg = this.mg; // smaller bytecode
         if(insn == -1) throw new Exn("insn is -1");
+        
+        int ret = 0;
         
         int op = (insn >>> 26) & 0xff;                 // bits 26-31
         int rs = (insn >>> 21) & 0x1f;                 // bits 21-25
@@ -673,7 +701,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 pushRegWZ(R+rs);
                 setPC();
                 leaveMethod();
-                unreachable = true;
+                ret |= UNREACHABLE;
                 break;
             case 9: // JALR
                 if(pc == -1) throw new Exn("pc modifying insn in delay slot");
@@ -683,7 +711,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 pushRegWZ(R+rs);
                 setPC();
                 leaveMethod();
-                unreachable = true;
+                ret |= UNREACHABLE;
                 break;
             case 12: // SYSCALL
                 preSetPC();
@@ -721,7 +749,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 mg.add(LDC,"BREAK Code " + toHex(breakCode));
                 mg.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
                 mg.add(ATHROW);
-                unreachable = true;
+                ret |= UNREACHABLE;
                 break;
             case 16: // MFHI
                 preSetReg(R+rd);
@@ -987,7 +1015,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 link(pc);
                 branch(pc,pc+branchTarget*4+4);
                 if(b1 != -1) mg.setArg(b1,mg.size());
-                if(b1 == -1) unreachable = true;
+                if(b1 == -1) ret |= UNREACHABLE;
                 break;
             default:
                 throw new Exn("Illegal Instruction 1/" + rt);
@@ -998,7 +1026,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             if(pc == -1) throw new Exn("pc modifying insn in delay slot");
             emitInstruction(-1,nextInsn,-1);
             branch(pc,(pc&0xf0000000)|(jumpTarget << 2));
-            unreachable = true;
+            ret |= UNREACHABLE;
             break;
         }
         case 3: { // JAL
@@ -1007,7 +1035,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             emitInstruction(-1,nextInsn,-1);
             link(pc);
             branch(pc, target);
-            unreachable = true;
+            ret |= UNREACHABLE;
             break;
         }
         case 4: // BEQ
@@ -1015,7 +1043,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             if(rs == rt) {
                 emitInstruction(-1,nextInsn,-1);
                 branch(pc,pc+branchTarget*4+4);
-                unreachable = true;
+                ret |= UNREACHABLE;
             } else if(rs == 0 || rt == 0) {
                 pushReg(rt == 0 ? R+rs : R+rt);
                 return doIfInstruction(IFEQ,pc,pc+branchTarget*4+4,nextInsn);
@@ -1047,8 +1075,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         case 9: // ADDIU
             if(rs != 0 && signedImmediate != 0 && rs == rt && doLocal(rt) && signedImmediate >= -32768 && signedImmediate <= 32767) {
                 // HACK: This should be a little cleaner
-                regLocalReadCount[rt]++;
-                regLocalWriteCount[rt]++;
+                regLocalWritten[rt] = true;
                 mg.add(IINC, new MethodGen.Pair(getLocalForReg(rt),signedImmediate));
             } else {
                 preSetReg(R+rt);
@@ -1668,7 +1695,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         default:
             throw new Exn("Invalid Instruction: " + op + " at " + toHex(pc));
         }
-        return false; 
+        return ret; 
     }
     
     // Helper functions for emitText
@@ -1679,14 +1706,25 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     private static final int LO = 65;
     private static final int FCSR = 66;
     private static final int REG_COUNT=67;
-        
+    private static final String[] regField = {
+            "r0","r1","r2","r3","r4","r5","r6","r7",
+            "r8","r9","r10","r11","r12","r13","r14","r15",
+            "r16","r17","r18","r19","r20","r21","r22","r23",
+            "r24","r25","r26","r27","r28","r29","r30","r31",
+            "f0","f1","f2","f3","f4","f5","f6","f7",
+            "f8","f9","f10","f11","f12","f13","f14","f15",
+            "f16","f17","f18","f19","f20","f21","f22","f23",
+            "f24","f25","f26","f27","f28","f29","f30","f31",
+            "hi","lo","fcsr"
+    };
+    private static final int MAX_LOCALS = 4; // doLocal can return true for this many regs
+    private static final int LOAD_LENGTH = 3; // number of instructions needed to load a field to a reg
+    
+    // Local register state info
     private int[] regLocalMapping = new int[REG_COUNT];  
-    private int[] regLocalReadCount = new int[REG_COUNT];
-    private int[] regLocalWriteCount = new int[REG_COUNT];
-    private int nextAvailLocal; 
+    private boolean[] regLocalWritten = new boolean[REG_COUNT];
+    private int nextAvailLocal;
     private int loadsStart;
-    private static final int MAX_LOCALS = 4;
-    private static final int LOAD_LENGTH = 3;
     
     private boolean doLocal(int reg) {
         return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29;
@@ -1694,15 +1732,16 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     
     private int getLocalForReg(int reg) {
         if(regLocalMapping[reg] != 0) return regLocalMapping[reg];
-        if(nextAvailLocal == 0) nextAvailLocal = onePage ? 4 : 5;
         regLocalMapping[reg] = nextAvailLocal++;
         return regLocalMapping[reg];
     }
     
     private void fixupRegsStart() {
-        for(int i=0;i<REG_COUNT;i++)
-            regLocalMapping[i] = regLocalReadCount[i] = regLocalWriteCount[i] = 0;
-        nextAvailLocal = 0;
+        for(int i=0;i<REG_COUNT;i++) {
+            regLocalMapping[i] = 0;
+            regLocalWritten[i] = false;
+        }
+        nextAvailLocal = onePage ? 4 : 5;
         loadsStart = mg.size();
         for(int i=0;i<MAX_LOCALS*LOAD_LENGTH;i++)
             mg.add(NOP);
@@ -1716,7 +1755,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             mg.set(p++,GETFIELD,new FieldRef(me,regField[i],Type.INT));
             mg.set(p++,ISTORE,regLocalMapping[i]);
             
-            if(regLocalWriteCount[i] > 0) {
+            if(regLocalWritten[i]) {
                 mg.add(ALOAD_0);
                 mg.add(ILOAD,regLocalMapping[i]);
                 mg.add(PUTFIELD,new FieldRef(me,regField[i],Type.INT));
@@ -1726,28 +1765,14 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         
     private void restoreChangedRegs() {
         for(int i=0;i<REG_COUNT;i++) {
-            if(regLocalWriteCount[i] > 0) {
+            if(regLocalWritten[i]) {
                 mg.add(ALOAD_0);
                 mg.add(ILOAD,regLocalMapping[i]);
                 mg.add(PUTFIELD,new FieldRef(me,regField[i],Type.INT));
             }
         }
     }
-    
-    private static final String[] regField = {
-            "r0","r1","r2","r3","r4","r5","r6","r7",
-            "r8","r9","r10","r11","r12","r13","r14","r15",
-            "r16","r17","r18","r19","r20","r21","r22","r23",
-            "r24","r25","r26","r27","r28","r29","r30","r31",
             
-            "f0","f1","f2","f3","f4","f5","f6","f7",
-            "f8","f9","f10","f11","f12","f13","f14","f15",
-            "f16","f17","f18","f19","f20","f21","f22","f23",
-            "f24","f25","f26","f27","f28","f29","f30","f31",
-            
-            "hi","lo","fcsr"
-    };
-        
     private int pushRegWZ(int reg) {
         if(reg == R+0) {
             warn.println("Warning: Pushing r0!");
@@ -1765,7 +1790,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     private int pushReg(int reg) {
         int h = mg.size();
         if(doLocal(reg)) {
-            regLocalReadCount[reg]++;
             mg.add(ILOAD,getLocalForReg(reg));
         } else if(reg >= F+0 && reg <= F+31 && singleFloat) {
             mg.add(ALOAD_0);
@@ -1800,7 +1824,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         int h = mg.size();
         if(doLocal(reg)) {
             mg.add(ISTORE,getLocalForReg(reg));
-            regLocalWriteCount[reg]++;
+            regLocalWritten[reg] = true;
         } else if(reg >= F+0 && reg <= F+31 && singleFloat) {
             mg.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
             mg.add(PUTFIELD,new FieldRef(me,regField[reg],Type.FLOAT));            
@@ -1878,7 +1902,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         return h;
     }
     
-    private final int tmpVar = 1;
     private void pushTmp() { mg.add(ILOAD_1); }
     private void setTmp() { mg.add(ISTORE_1); }
     

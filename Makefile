@@ -162,7 +162,7 @@ build/%.class: build/%.java build/org/ibex/nestedvm/Runtime.class
 else
 
 build/%.class: build/%.mips build/org/ibex/nestedvm/ClassFileCompiler.class
-	$(JAVA) -cp "$(classpath)" org.ibex.nestedvm.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
+	$(JAVA) -cp "$(classpath)" org.ibex.nestedvm.Compiler -outformat class -d build $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
 
 
 endif

@@ -7,8 +7,6 @@ import java.io.*;
 
 import org.ibex.nestedvm.util.*;
 
-// FEATURE: -d option for classfilecompiler (just like javac's -d)
-
 public abstract class Compiler implements Registers {    
     /** The ELF binary being read */
     ELF elf;
@@ -101,6 +99,7 @@ public abstract class Compiler implements Registers {
     
     public static void main(String[] args) throws IOException {
         String outfile = null;
+        String outdir = null;
         String o = null;
         String className = null;
         String mipsBinaryFileName = null;
@@ -112,6 +111,10 @@ public abstract class Compiler implements Registers {
                 arg++;
                 if(arg==args.length) usage();
                 outfile = args[arg];
+            } else if(args[arg].equals("-d")) {
+                arg++;
+                if(arg==args.length) usage();
+                outdir = args[arg];
             } else if(args[arg].equals("-outformat")) {
                 arg++;
                 if(arg==args.length) usage();
@@ -142,12 +145,20 @@ public abstract class Compiler implements Registers {
         OutputStream os = null;
         Compiler comp = null;
         if(outformat == null || outformat.equals("class")) {
-            if(outfile == null) {
+            if(outfile != null) {
+                os = new FileOutputStream(outfile);
+                comp = new ClassFileCompiler(mipsBinary,className,os);
+            } else if(outdir != null) {
+                File f = new File(outdir);
+                if(!f.isDirectory()) {
+                    System.err.println(outdir + " doesn't exist or is not a directory");
+                    System.exit(1);
+                }
+                comp = new ClassFileCompiler(mipsBinary,className,f);
+            } else {
                 System.err.println("Refusing to write a classfile to stdout - use -outfile foo.class");
                 System.exit(1);
             }
-            os = new FileOutputStream(outfile);
-            comp = new ClassFileCompiler(mipsBinary,className,os);
         } else if(outformat.equals("javasource") || outformat .equals("java")) {
             w = outfile == null ? new OutputStreamWriter(System.out): new FileWriter(outfile);
             comp = new JavaSourceCompiler(mipsBinary,className,w);
