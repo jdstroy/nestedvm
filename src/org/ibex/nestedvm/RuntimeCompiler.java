@@ -10,39 +10,30 @@ import org.ibex.nestedvm.util.*;
 
 // This need a lot of work to support binaries spanned across many classes
 public class RuntimeCompiler {  
-    private static SingleClassLoader singleClassLoader;
-    private static int nextID;
-    
     public static Class compile(Seekable data) throws IOException, Compiler.Exn { return compile(data,null); }
-    public static Class compile(Seekable data, String extraoptions) throws IOException, Compiler.Exn {
-        int id;
-        synchronized(RuntimeCompiler.class) {
-            if(nextID == 32 || singleClassLoader == null) {
-                singleClassLoader = new SingleClassLoader();
-                nextID = 0;
-            }
-            id = nextID++;
-        }
-        String className = "nestedvm.runtimecompiled_" + id;
-        System.err.println("RuntimeCompiler: Building " + className);
+    public static Class compile(Seekable data, String extraoptions) throws IOException, Compiler.Exn { return compile(data,extraoptions,null); }
+    
+    public static Class compile(Seekable data, String extraoptions, String sourceName) throws IOException, Compiler.Exn {
+        String className = "nestedvm.runtimecompiled";
         byte[] bytecode;
         try {
-            bytecode = runCompiler(data,className,extraoptions,null);
+            bytecode = runCompiler(data,className,extraoptions,sourceName,null);
         } catch(Compiler.Exn e) {
             if(e.getMessage() != null || e.getMessage().indexOf("constant pool full")  != -1)
-                bytecode = runCompiler(data,className,extraoptions,"lessconstants");
+                bytecode = runCompiler(data,className,extraoptions,sourceName,"lessconstants");
             else
                 throw e;
         }
-        return singleClassLoader.fromBytes(className,bytecode);
+        return new SingleClassLoader().fromBytes(className,bytecode);
     }
     
-    private static byte[] runCompiler(Seekable data, String name, String options, String moreOptions) throws IOException, Compiler.Exn {
+    private static byte[] runCompiler(Seekable data, String name, String options, String sourceName, String moreOptions) throws IOException, Compiler.Exn {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         
         try {
             ClassFileCompiler c = new ClassFileCompiler(data,name,baos);
             c.parseOptions("nosupportcall,maxinsnpermethod=256");
+            c.setSource(sourceName);
             if(options != null) c.parseOptions(options);
             if(moreOptions != null) c.parseOptions(moreOptions);
             c.go();

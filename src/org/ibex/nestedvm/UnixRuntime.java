@@ -408,7 +408,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     static {
         Method m;
         try {
-            m = Class.forName("org.ibex.nestedvm.RuntimeCompiler").getMethod("compile",new Class[]{Seekable.class,String.class});
+            m = Class.forName("org.ibex.nestedvm.RuntimeCompiler").getMethod("compile",new Class[]{Seekable.class,String.class,String.class});
         } catch(NoSuchMethodException e) {
             m = null;
         } catch(ClassNotFoundException e) {
@@ -417,14 +417,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         runtimeCompilerCompile = m;
     }
             
-    public Class runtimeCompile(Seekable s) throws IOException {
+    public Class runtimeCompile(Seekable s, String sourceName) throws IOException {
         if(runtimeCompilerCompile == null) {
             if(STDERR_DIAG) System.err.println("WARNING: Exec attempted but RuntimeCompiler not found!");
             return null;
         }
         
         try {
-            return (Class) runtimeCompilerCompile.invoke(null,new Object[]{s,"unixruntime"});
+            return (Class) runtimeCompilerCompile.invoke(null,new Object[]{s,"unixruntime,maxinsnpermethod=256,lessconstants",sourceName});
         } catch(IllegalAccessException e) {
             e.printStackTrace();
             return null;
@@ -484,7 +484,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     if(n < 4) s.tryReadFully(buf,n,4-n);
                     if(buf[1] != 'E' || buf[2] != 'L' || buf[3] != 'F') return -ENOEXEC;
                     s.seek(0);
-                    Class c = runtimeCompile(s);
+                    if(STDERR_DIAG) System.err.println("Running RuntimeCompiler for " + path);
+                    Class c = runtimeCompile(s,path);
+                    if(STDERR_DIAG) System.err.println("RuntimeCompiler finished for " + path);
                     if(c == null) throw new ErrnoException(ENOEXEC);
                     gs.execCache.put(path,new GlobalState.CacheEnt(mtime,size,c));
                     return execClass(c,argv,envp);
