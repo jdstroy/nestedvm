@@ -2,6 +2,7 @@ package tests;
 
 import org.ibex.nestedvm.Runtime;
 import java.io.*;
+import java.util.Date;
 
 public class CallTest {
     public static void main(String[] args) throws Exception {
@@ -13,27 +14,28 @@ public class CallTest {
         int a6 = args.length > 5 ? Integer.parseInt(args[5]) : 0;
         
         System.out.println("Version is: " + System.getProperty("os.version"));
-        Runtime rt;
+        final Runtime rt;
         if(a1 == 99) // yeah.. this is ugly
             rt = new org.ibex.nestedvm.Interpreter("build/tests/Test.mips");
         else
-        	//FIXME: Callback not subclass
-            rt = new Test() {
-                protected int callJava(int a, int b, int c, int d) {
+            rt = (Runtime) Class.forName("tests.Test").newInstance();
+        	
+        rt.setCallJavaCB(new Runtime.CallJavaCB() {
+                public int call(int a, int b, int c, int d) {
                     switch(a) {
-                        case 1: return strdup("OS: " + System.getProperty("os.name"));
-                        case 2: return strdup(System.getProperty("os.version"));
-                        case 3: return strdup(new Date().toString());
-                        case 4: return allocFDEnt(new OutputStreamFD(new CustomOS()));
+                        case 1: return rt.strdup("OS: " + System.getProperty("os.name"));
+                        case 2: return rt.strdup(System.getProperty("os.version"));
+                        case 3: return rt.strdup(new Date().toString());
+                        case 4: return rt.addFD(new Runtime.OutputStreamFD(new CustomOS()));
                         case 5:
                             System.out.println("In callJava() in Java"); 
-                            try { call("backinmips"); } catch(CallException e) { }
+                            try { rt.call("backinmips"); } catch(Runtime.CallException e) { }
                             System.out.println("Back in callJava() in Java");
                             return 0;
-                        default: return super.callJava(a,b,c,d);
+                        default: return 0;
                     }
                 }
-            };
+            });
         System.out.println("Runtime: " + rt);
         
         rt.start(new String[]{"Test","calltest"});

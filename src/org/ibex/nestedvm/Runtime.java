@@ -86,6 +86,11 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     final static int OPEN_MAX = 256;
     /** Table containing all open file descriptors. (Entries are null if the fd is not in use */
     FD[] fds  = new FD[OPEN_MAX];
+    
+    /** Pointer to a callback for the call_java syscall */
+    protected CallJavaCB callJavaCB;
+    public void setCallJavaCB(CallJavaCB callJavaCB) { this.callJavaCB = callJavaCB; }
+    public CallJavaCB getCallJavaCB() { return callJavaCB; }
         
     /** Temporary buffer for read/write operations */
     private byte[] _byteBuf = null;
@@ -542,6 +547,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     /** Hook for subclasses to do their own startup */
     protected void _start() { /* noop */ }
     
+    // FEATURE: call() that accepts an Object[] array and automatically allocates strings/arrays/etc on the stack
     public final int call(String sym) throws CallException { return call(sym,0,0,0,0,0,0,0); }
     public final int call(String sym, int a0) throws CallException  { return call(sym,a0,0,0,0,0,0,0); }
     public final int call(String sym, int a0, int a1) throws CallException  { return call(sym,a0,a1,0,0,0,0,0); }
@@ -592,12 +598,6 @@ public abstract class Runtime implements UsermodeConstants,Registers {
             state = oldState;
         
         return cpustate.r[V1];
-    }
-    
-    // FEATURE: This is ugly - we should have some kind of way  to specify a callback rather than requiring subclassing
-    protected int callJava(int a, int b, int c, int d) {
-        System.err.println("WARNING: Default implementation of callJava() called with args " + toHex(a) + "," + toHex(b) + "," + toHex(c) + "," + toHex(d));
-        return 0;
     }
     
     /** Determines if the process can access <i>fileName</i>. The default implementation simply logs 
@@ -885,12 +885,19 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     private int sys_getpid() { return getPid(); }
     protected int getPid() { return 1; }
     
+    public static interface CallJavaCB { public int call(int a, int b, int c, int d); }
+    
     private int sys_calljava(int a, int b, int c, int d) {
         if(state != RUNNING) throw new IllegalStateException("wound up calling sys_calljava while not in RUNNING");
-        state = CALLJAVA;
-        int ret = callJava(a,b,c,d);
-        state = RUNNING;
-        return ret;
+        if(callJavaCB != null) {
+            state = CALLJAVA;
+            int ret = callJavaCB.call(a,b,c,d);
+            state = RUNNING;
+            return ret;
+        } else {
+        		System.err.println("WARNING: calljava syscall invoked without a calljava callback set");
+        		return 0;
+        }
     }
         
     private int sys_pause() {
