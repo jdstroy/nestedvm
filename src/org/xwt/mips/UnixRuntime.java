@@ -209,7 +209,7 @@ public abstract class UnixRuntime extends Runtime {
             }
             if((options&WNOHANG)!=0) return 0;
             synchronized(waitNotification) {
-                try { waitNotification.wait(); } catch(InterruptedException e) { throw new Error(e); }
+                try { waitNotification.wait(); } catch(InterruptedException e) { /* ignore */ }
             }
         }
     }
