@@ -247,7 +247,7 @@ rebuild-constants: $(tasks)/build_libc
 	( \
 		cat \
 			src/org/ibex/nestedvm/syscalls.h \
-			$(usr)/mips-uknown-elf/include/nestedvm/sockets.h \
+			$(usr)/mips-unknown-elf/include/nestedvm/socket.h \
 			$(usr)/mips-unknown-elf/include/sys/{errno.h,unistd.h,syslimits.h,sysctl.h}; \
 		$(MIPS_CC) -E -dM $(usr)/mips-unknown-elf/include/sys/fcntl.h | awk '$$2 ~ /^[OF]_/ { print; }'; \
 	) | ( \

@@ -370,6 +370,7 @@ cat <<__EOF__ > nestedvm/socket.h
 #define __NESTEDVM_SOCKETS_H
 
 #include <sys/types.h>
+#include <sys/time.h>
 
 static unsigned short htons(int x) { return x; }
 static unsigned long htonl(int x) { return x; }
@@ -445,6 +446,9 @@ int accept(int s, struct sockaddr *addr, socklen_t *addrlen);
 int shutdown(int s, int how);
 int connect(int s, const struct sockaddr *name, socklen_t namelen);
 char *inet_ntoa(struct in_addr in);
+int recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *from, socklen_t *fromlen);
+int sendto(int s, const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen);
+int select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
 
 int getsockopt(int s, int level, int name, void *val, socklen_t *len);
 int setsockopt(int s, int level, int name, const void *val, socklen_t len);

@@ -120,6 +120,9 @@ REENT_WRAPPER5(setsockopt,int,int,int,const void*,socklen_t)
 REENT_WRAPPER3(bind,int,const struct sockaddr *,socklen_t)
 REENT_WRAPPER2(listen,int,int)
 REENT_WRAPPER2(shutdown,int,int)
+REENT_WRAPPER6(sendto,int,const void*,size_t,int,const struct sockaddr*,socklen_t)
+REENT_WRAPPER6(recvfrom,int,void*,size_t,int,struct sockaddr*,socklen_t*)
+REENT_WRAPPER5(select,int,fd_set*,fd_set*,fd_set*,struct timeval*)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {

@@ -1118,3 +1118,32 @@ diff -ur ../busybox-1.00-pre9.orig/util-linux/more.c ./util-linux/more.c
 +# Debugging Options
 +#
 +# CONFIG_DEBUG is not set
+--- .config.old	2004-06-08 16:02:45.000000000 -0400
++++ .config	2004-06-08 16:05:23.000000000 -0400
+@@ -309,7 +309,11 @@
+ # CONFIG_ROUTE is not set
+ # CONFIG_TELNET is not set
+ # CONFIG_TELNETD is not set
+-# CONFIG_TFTP is not set
++CONFIG_TFTP=y
++CONFIG_FEATURE_TFTP_GET=y
++CONFIG_FEATURE_TFTP_PUT=y
++# CONFIG_FEATURE_TFTP_BLOCKSIZE is not set
++# CONFIG_FEATURE_TFTP_DEBUG is not set
+ # CONFIG_TRACEROUTE is not set
+ # CONFIG_VCONFIG is not set
+ CONFIG_WGET=y
+--- networking/tftp.c~	2004-06-08 16:50:30.000000000 -0400
++++ networking/tftp.c	2004-06-08 16:50:30.000000000 -0400
+@@ -320,7 +320,11 @@
+ 			FD_ZERO(&rfds);
+ 			FD_SET(socketfd, &rfds);
+ 
++#ifdef NESTEDVM
++			switch(1) {
++#else
+ 			switch (select(FD_SETSIZE, &rfds, NULL, NULL, &tv)) {
++#endif
+ 			case 1:
+ 				len = recvfrom(socketfd, buf, tftp_bufsize, 0,
+ 						(struct sockaddr *) &from, &fromlen);

@@ -59,3 +59,6 @@
 #define SYS_listen 62
 #define SYS_bind 63
 #define SYS_shutdown 64
+#define SYS_sendto 65
+#define SYS_recvfrom 66
+#define SYS_select 67
