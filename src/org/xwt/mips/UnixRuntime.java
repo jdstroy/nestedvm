@@ -60,6 +60,7 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
     
+    // NOTE: getDisplayName() is a Java2 function
     private static String posixTZ() {
         StringBuffer sb = new StringBuffer();
         TimeZone zone = TimeZone.getDefault();
