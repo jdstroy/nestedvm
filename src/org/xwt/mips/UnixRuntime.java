@@ -392,6 +392,7 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
         
+    /*
     public static void main(String[] args) throws Exception {
         UnixRuntime rt = new Interpreter();
         rt.cwd = getSystemProperty("user.dir");
@@ -401,7 +402,7 @@ public abstract class UnixRuntime extends Runtime {
             System.out.println("[" + rt.cleanupPath(line) + "]");
         }
     }
-    
+    */
     
     private static boolean needsCleanup(String path) {
         if(path.indexOf("//") != -1) return true;
