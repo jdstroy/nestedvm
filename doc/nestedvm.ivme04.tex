@@ -1,23 +1,21 @@
-%
-% FIXME: - Add something about size limits on the constant pool
-%          how we worked around that and the performance impact
-%          of -o lessconstants
-%        - Add something about encoding data sections as string constants
-%          and the UTF8 non-7-bit-ascii penalty 
-%
-
 \documentclass{acmconf}
 \usepackage{graphicx}
+\usepackage{multicol}
 \usepackage{amssymb,amsmath,epsfig,alltt}
-\sloppy         % better line breaks
+\sloppy
 \usepackage{palatino}
+\usepackage{pdftricks}
+\begin{psinputs}
+  \usepackage{pstricks}
+  \usepackage{pst-node}
+\end{psinputs}
 \usepackage{parskip}
 \usepackage{tabularx}
 \usepackage{alltt}
 \bibliographystyle{alpha}
 
 \title{\textbf{\textsf{
-Running Legacy C/C++ Libraries in a Pure Java Environment
+NestedVM: Total Translation of Native Code into Safe Bytecode
 }}}
 \date{}
 \author{\begin{tabular}{@{}c@{}}
@@ -34,40 +32,73 @@ Running Legacy C/C++ Libraries in a Pure Java Environment
 \maketitle
 
 \begin{abstract}
-Abstract
+
+We present a new approach to utilizing unsafe legacy unsafe code
+within safe virtual machines by compiling to MIPS machine code as an
+intermediate language.  This approach carries N key benefits over
+existing techniques:
+
+\begin{itemize}
+\item total coverage of all language features, unlike source translation
+\item no build process modifications
+\item no post-translation human intervention
+\item efficient bytecode
+\end{itemize}
+
+We also present NestedVM, a complete system in production use which
+implements this technique.  We conclude with quantitative performance
+measurements and suggestions for VM acceleration of the resulting
+bytecodes.
+
+
 \end{abstract}
 
 \section{Introduction}
 
-\subsection{Why would you want to do this?}
+The C programming language \cite{KR} has been in use for over 30
+years.  Consequently, there is a huge library of software written in
+this language.  Although Java offers substantial benefits \cite{} over
+C (and C++), its comparatively young age means that it often lacks
+equivalents of many C/C++ libraries.
 
-The C programming language has been around for over 30 years now.
-There is a huge library of software written in this language.  By
-contrast, Java has been around for less than ten years.  Although it
-offers substantial advantages over C, the set of libraries written in
-this language still lags behind C/C++.
-
-The typical solution to this dilemma is to use JNI or CNI to invoke C
-code from within a Java VM.  Unfortunately, there are a number of
-situations in which this is not an acceptable solution:
+The typical solution to this dilemma is to use JNI \cite{} or CNI
+\cite{} to invoke C code from within a Java VM.  Unfortunately, there
+are a number of situations in which this is not an acceptable
+solution due to security concerns:
 
 \begin{itemize}
-\item Java Applets are not permitted to invoke {\tt Runtime.loadLibrary()}
+
+\item Java Applets are not permitted to invoke {\tt
+      Runtime.loadLibrary()}
+
 \item Java Servlet containers with a {\tt SecurityManager} will not
       permit loading new JNI libraries.  This configuration is popular
       with {\it shared hosting} providers and corporate intranets
       where a number of different parties contribute individual web
       applications which are run together in a single container.
+
+\item Unlike Java Bytecode, JNI code is susceptible to buffer overflow
+      and heap corruption attacks.  This can be a major security
+      vulnerability.
+
+\end{itemize}
+
+In addition to security concerns, JNI and CNI carry other
+disadvantages:
+
+\begin{itemize}
+
 \item JNI requires the native library to be compiled ahead of time,
       separately, for every architecture on which it will be deployed.
       This is unworkable for situations in which the full set of
       target architectures is not known at deployment time.
-\item The increasingly popular J2ME platform does not support JNI or CNI.
-\item Unlike Java Bytecode, JNI code is susceptible to buffer overflow
-      and heap corruption attacks.  This can be a major security
-      vulnerability.
+
+\item The increasingly popular J2ME \cite{} platform does not support
+      JNI or CNI.
+
 \item JNI often introduces undesirable added complexity to an
       application.
+
 \end{itemize}
 
 The technique we present here is based on using a typical ANSI C
@@ -76,37 +107,143 @@ tool to translate that binary on an instruction-by-instruction basis
 into Java bytecode.
 
 The technique presented here is general; we anticipate that it can be
-applied to other secure virtual machines such as Microsoft's .NET.
+applied to other secure virtual machines such as Microsoft's .NET
+\cite{}, Perl Parrot \cite{}, or Python bytecode \cite{}.
 
+\section{Approaches to Translation}
 
-\section{Existing Work: Source-to-Source Translation}
+Techniques for translating unsafe code into VM bytecode generally fall
+into four categories:
+
+\begin{itemize}
+\item source-to-source translation
+\item source-to-binary translation
+\item binary-to-source translation
+\item binary-to-binary translation
+\end{itemize}
+
+\begin{figure}[h]
+\begin{pdfpic}
+\newlength{\MyLength}
+\settowidth{\MyLength}{machine code}
+\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+\begin{psmatrix}[colsep=3,rowsep=3]
+  [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
+  [name=b0]\MyBox{machine code}  & [name=b1]\MyBox{safe bytecode} \\
+  \psset{nodesep=5pt,arrows=->}
+  \ncline{s0}{b0}<{\it gcc}
+  \ncline{s0}{s1}\aput{:U}{\it c2java}
+  \ncline{s0}{b1}\aput{:U}{\it gcc bytecode backend}
+  \ncline{s1}{b1}>{\it javac}
+\end{psmatrix}
+\end{pdfpic}
+\caption{\label{lattice} Conversion Lattice with examples of tools specific to a C/JVM scenario}
+\end{figure}
+
+\begin{figure}[h]
+\begin{pdfpic}
+\newlength{\MyLength}
+\settowidth{\MyLength}{machine code}
+\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+\begin{psmatrix}[colsep=3,rowsep=3,nrot=:U]
+  [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
+  [name=b0]\MyBox{machine code}  & [name=b1]\MyBox{safe bytecode} \\
+  \psset{nodesep=5pt,arrows=->}
+  \ncline{s0}{b0}<{\it gcc}
+  \ncline{s1}{b1}>{\it javac}
+  \ncline{b0}{s1}\naput{\it NestedVM}
+  \ncline{b0}{s1}\nbput{\it binary-to-source}
+\end{psmatrix}
+\end{pdfpic}
+\caption{\label{lattice2} Conversion Lattice including NestedVM in {\it source-output} mode}
+\end{figure}
+
+\begin{figure}[h]
+\begin{pdfpic}
+\newlength{\MyLength}
+\settowidth{\MyLength}{machine code}
+\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+\begin{psmatrix}[colsep=3,rowsep=3,nrot=:U]
+  [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
+  [name=b0]\MyBox{machine code}  & [name=b1]\MyBox{safe bytecode} \\
+  \psset{nodesep=5pt,arrows=->}
+  \ncline{s0}{b0}<{\it gcc}
+  \ncline{s1}{b1}>{\it javac}
+  \ncline{b0}{b1}\naput{\it NestedVM}
+  \ncline{b0}{b1}\nbput{\it binary-to-binary}
+\end{psmatrix}
+\end{pdfpic}
+\caption{\label{lattice3} Conversion Lattice including NestedVM in {\it bytecode-output} mode}
+\end{figure}
+
+A diagram showing these four translation approaches in the context of
+running C/C++ code within a Java VM is shown in Figure~\ref{lattice}.
+
+\subsection{Existing Work}
+\subsubsection{Source-to-Source Translation}
 
 \begin{itemize}
 \item c2java
 \item commercial products
 \end{itemize}
 
-\section{Mips2Java: Binary-to-Binary Translation}
+A number of commercial products and research projects attempt to
+translate C++ code to Java code, preserving the mapping of C++ classes
+to Java classes.  Unfortunately this is problematic since there is no
+way to do pointer arithmetic except within arrays, and even in that
+case, arithmetic cannot be done in terms of fractional objects.
 
-We present Mips2Java, a binary-to-binary translation tool to convert
-MIPS binaries into Java bytecode files.
+Mention gcc backend
 
-The process of utilizing Mips2Java begins by using any compiler for
-any language to compile the source library into a statically linked
-MIPS binary.  We used {\tt gcc 3.3.3}, but any compiler which can
-target the MIPS platform should be acceptable.  The binary is
-statically linked with a system library (in the case of C code this is
-{\tt libc}) which translates system requests (such as {\tt open()},
-{\tt read()}, or {\tt write()}) into appropriate invocations of the
-MIPS {\tt SYSCALL} instruction.
+Many of these products advise the user to tweak the code which results
+from the translation.  Unfortunately, hand-modifying machine-generated
+code is generally a bad idea, since this modification cannot be
+automated.  This means that every time the origin code changes, the
+code generator must be re-run, and the hand modifications must be
+performed yet again.  This is an error-prone process.
 
-The statically linked MIPS binary is then fed to the Mips2Java tool
-(which is itself written in Java), which emits a sequence of Java
-Bytecodes in the form of a {\tt .class} file equivalent to the
-provided binary.  This {\tt .class} file contains a single class which
-implements the {\tt Runtime} interface.  This class may then be
-instantiated; invoking the {\tt execute()} method is equivalent to
-invoking the {\tt main()} function in the original binary.
+Furthermore, NestedVM does not attempt to read C code directly.  This
+frees it from the complex task of faithfully implementing the ANSI C
+standard (or, in the case of non ANSI-C compliant code, some other
+interface).  This also saves the user the chore of altering their
+build process to accomodate NestedVM.
+
+\section{NestedVM}
+
+NestedVM takes a novel approach; it uses compiled machine code as a
+starting point for the translation process.  NestedVM has gone through
+two iterations:
+
+\begin{itemize}
+\item binary-to-source compilation  (Figure~\ref{lattice2})
+\item binary-to-binary compilation  (Figure~\ref{lattice3})
+\end{itemize}
+
+\subsection{Translation Process}
+
+Translating a legacy library for use within a JVM proceeds as follows:
+
+\begin{enumerate}
+
+\item Compile the source code to a statically linked binary, targeting
+      the MIPS R2000 ISA.
+
+\item Invoke {\tt NestedVM} on the statically linked binary.
+      Typically this will involve linking against {\tt libc}, which
+      translates system requests (such as {\tt open()}, {\tt read()},
+      or {\tt write()}) into appropriate invocations of the MIPS
+      {\tt SYSCALL} instruction.
+
+\item (If using binary-to-source translation) compile the resulting
+      {\tt .java} code using {\tt jikes} or {\tt javac}.
+
+\item (Optional) compile the resulting bytecode into a {\it safe}
+      native binary using {\tt gcj}.
+
+\item From java code, invoke the {\tt execute()} on the generated
+      class.  This is equivalent to the {\tt main()} entry point.
+
+\end{enumerate}
 
 
 \subsection{Why MIPS?}
@@ -120,213 +257,376 @@ supported by the GNU Compiler Collection, which is capable of
 compiling C, C++, Java, Fortran, Pascal (with p2c), and Objective C
 into MIPS binaries.
 
-The MIPS R1000 ISA bears a striking similarity to the Java Virtual
-Machine.  This early revision of the MIPS supports only 32-bit aligned
-loads and stores from memory, which is precisely the access model
-supported by Java for {\tt int[]}s.
-
-Cover dynamic page allocation.
-
-Cover stack setup.
-
-Brian, are there any other fortunate similarities we should mention
-here?  I seem to remember there being a bunch, but I can't recall them
-right now; it's been a while since I dealt with this stuff in detail.
-
-
-\subsection{Interpreter}
-
-The Interpreter was the first part of Mips2Java to be written.  This was the most straightforward and simple way to run MIPS binaries inside the JVM.  The simplicity of the interpreter also made it very simple to debug. Debugging machine-generated code is a pain. Most importantly, the interpreter provided a great reference to use when developing the compiler. With known working implementations of each MIPS instruction in Java writing a compiler became a matter of simple doing the same thing ahead of time.
-
-With the completion of the compiler the interpreter in Mips2Java has become less useful. However, it may still have some life left in it. One possible use is remote debugging with GDB. Although debugging the compiler generated JVM code is theoretically possible, it would be far easier to do in the interpreter. The interpreter may also be useful in cases where size is far more important than speed. The interpreter is very small. The interpreter and MIPS binary combined are smaller than the compiled classfiles.
-
-
-\subsection{Compiling to Java Source}
-
-The next major step in Mips2Java?s development was the Java source compiler. This generated Java source code (compliable with javac or Jikes) from a MIPS binary. Generating Java source code was preferred initially over JVM bytecode for two reasons. The authors weren?t very familiar with JVM bytecode and therefore generating Java source code was simpler. Generating source code also eliminated the need to do trivial optimizations in the Mips2java compiler that javac and Jikes already do. This mainly includes 2+2=4 stuff. For example, the MIPS register r0 is immutable and always 0. This register is represented by a static final int in the Java source compiler. Javac and Jikes automatically handle optimizing this away when possible. In the JVM bytecode compiler these optimizations needs to be done in Mips2Java.
-
-Early versions of the Mips2Java compiler were very simple. All 32 MIPS GPRs and a special PC register were fields in the generated java class. There was a run() method containing all the instructions in the .text segment converted to Java source code. A switch statement was used to allow jumps from instruction to instruction. The generated code looked something like this.
-
-%private final static int r0 = 0;
-%private int r1, r2, r3,...,r30;
-%private int r31 = 0xdeadbeef;
-%private int pc = ENTRY_POINT;
-%
-%public void run() {
-%	for(;;) {
-%		switch(pc) {
-%			case 0x10000:
-%				r29 = r29 ? 32;
-%			case 0x10004:
-%				r1 = r4 + r5;
-%			case 0x10008:
-%				if(r1 == r6) {
-%					/* delay slot */
-%					r1 = r1 + 1;
-%					pc = 0x10018:
-%					continue;
-%				}
-%			case 0x1000C:
-%				r1 = r1 + 1;
-%			case 0x10010:
-%				r31 = 0x10018;
-%				pc = 0x10210;
-%				continue;
-%			case 0x10014:
-%				/* nop */
-%			case 0x10018:
-%				pc = r31;
-%				continue;
-%			...
-%			case 0xdeadbeef:
-%				System.err.println(?Exited from ENTRY_POINT?);
-%				System.err.println(?R2: ? + r2);
-%				System.exit(1);
-%		}
-%	}
-%}
-
-This worked fine for small binaries but as soon as anything substantial was fed to it the 64k JVM method size limit was soon hit. The solution to this was to break up the code into many smaller methods. This required a trampoline to dispatch  jumps to the appropriate method. With the addition of the trampoline the generated code looked something like this:
-
-%public void run_0x10000() {
-%	for(;;) {
-%	switch(pc) {
-%		case 0x10000:
-%			...
-%		case 0x10004:
-%			...
-%		...
-%		case 0x10010:
-%			r31 = 0x10018;
-%			pc = 0x10210;
-%			return;
-%		...
-%	}
-%	}
-%}
-%
-%pubic void run_0x10200() {
-%	for(;;) {
-%	switch(pc) {
-%		case 0x10200:
-%			...
-%		case 0x10204:
-%			...
-%	}
-%	}
-%}
-%
-%public void trampoline() {
-%	for(;;) {
-%	switch(pc&0xfffffe00) {
-%			case 0x10000: run_0x10000(); break;
-%			case 0x10200: run_0x10200(); break;
-%			case 0xdeadbe00:
-%				...
-%		}
-%	}
-%}
-
-With this trampoline in place somewhat large binaries could be handled without much difficulty. There is no limit on the size of a classfile as a whole, just individual methods. This method should scale well. However, there are other classfile limitations that will limit the size of compiled binaries.
-
-Another interesting problem that was discovered while creating the trampoline method was javac and Jikes? inability to properly optimize switch statements. The follow code fragment gets compiled into a lookupswich by javac:
-
-%Switch(pc&0xffffff00) {
-%	Case 0x00000100: run_100(); break;
-%	Case 0x00000200: run_200(); break;
-%	Case 0x00000300: run_300(); break;
-%}
-
-while this nearly identical code fragment gets compiled to a tableswitch
-
-Javac isn?t smart enough to see the patter in the case values and generates very suboptimal bytecode. Manually doing the shifts convinces javac to emit a tableswitch statement, which is significantly faster. This change alone nearly doubled the speed of the compiled binary.
-
-Finding the optimal method size lead to the next big performance increase.  It was determined with experimentation that the optimal number of MIPS instructions per method is 128 (considering only power of two options). Going above or below that lead to performance decreases. This is most likely due to a combination of two factors.
+The MIPS R2000 ISA bears a striking similarity to the Java Virtual
+Machine:
 
 \begin{itemize}
-\item The two levels of switch statements jumps have to pass though - The first
-switch statement jumps go through is the trampoline switch statement. This
-is implemented as a TABLESWITCH in JVM bytecode so it is very fast. The
-second level switch statement in the individual run\_ methods is implemented
-as a LOOKUPSWITCH, which is much slower. Using smaller methods puts more
-burden on the faster TABLESWITCH and less on the slower LOOKUPSWITCH.
 
-\item JIT compilers probably favor smaller methods smaller methods are easier to compile and are probably better candidates for JIT compilation than larger methods.
+\item The original MIPS ISA supports only 32-bit aligned memory loads
+      and stores.  This allows NestedVM to represent memory as a Java
+      {\tt int[]} without introducing additional overhead.
+
+\item Unlike its predecessor, the R2000 supports 32-bit by 32-bit
+      multiply and divide instructions as well as a single and double
+      precision floating point unit.  These capabilities map nicely
+      onto Java's arithmetic instructions.
+
+\end{itemize}
+
+
+\subsection{Binary-to-Source Compilation}
+
+The first incarnation of NestedVM was a binary-to-source compiler.
+This version reads in a MIPS binary and emits Java source code, which
+can be compiled with {\tt javac}, {\tt jikes}, or {\tt gcj}.
+
+This implementation was primarily a first step towards the
+binary-to-binary compiler.  Conveniently, generating Java source code
+frees NestedVM from having to perform simple constant propagation
+optimizations, since most Java compilers already do this.  A recurring
+example is the treatment of the {\tt r0} register, which is fixed as
+{\tt 0} in the MIPS ISA.
+
+Now that the binary-to-binary compiler is available, the
+binary-to-source compiler is only useful for generating input to {\tt
+gcj}, as discussed in section FOOBAR.
+
+Lacking the ability to generate specially optimized bytecode
+sequences, a straightforward mapping of the general purpose hardware
+registers to 32 {\tt int} fields was optimal.
+
+\begin{figure*}[t]
+\begin{minipage}[c]{7in}%
+\begin{multicols}{2}
+{\footnotesize\begin{verbatim}
+private final static int r0 = 0;
+private int r1, r2, r3,...,r30;
+private int r31 = 0xdeadbeef;
+private int pc = ENTRY_POINT;
+
+public void run() {
+    for(;;) {
+        switch(pc) {
+            case 0x10000:
+                r29 = r29 ? 32;
+            case 0x10004:
+                r1 = r4 + r5;
+            case 0x10008:
+                if(r1 == r6) {
+                    /* delay slot */
+                    r1 = r1 + 1;
+                    pc = 0x10018:
+                    continue;
+                }
+            case 0x1000C:
+                r1 = r1 + 1;
+            case 0x10010:
+                r31 = 0x10018;
+                pc = 0x10210;
+                continue;
+            case 0x10014:
+                /* nop */
+            case 0x10018:
+                pc = r31;
+                continue;
+            ...
+            case 0xdeadbeef:
+                System.err.println(``Exited.'');
+                System.exit(1);
+        }
+    }
+}
+\end{verbatim}}
+\vspace{1in}
+{\footnotesize\begin{verbatim}
+public void run_0x10000() {
+    for(;;) {
+    switch(pc) {
+        case 0x10000:
+            ...
+        case 0x10004:
+            ...
+        ...
+        case 0x10010:
+            r31 = 0x10018;
+            pc = 0x10210;
+            return;
+        ...
+    }
+    }
+}
+
+pubic void run_0x10200() {
+    for(;;) {
+    switch(pc) {
+        case 0x10200:
+            ...
+        case 0x10204:
+            ...
+    }
+    }
+}
+
+public void trampoline() {
+    for(;;) {
+    switch(pc&0xfffffe00) {
+            case 0x10000: run_0x10000(); break;
+            case 0x10200: run_0x10200(); break;
+            case 0xdeadbe00:
+                ...
+        }
+    }
+}
+\end{verbatim}}
+\end{multicols}
+\end{minipage}
+\caption{\label{code1} Trampoline transformation necessitated by Java's 64kb method size limit}
+\end{figure*}
+
+Unfortunately Java imposes a 64kb limit on the size of the bytecode
+for a single method.  This presents a problem for NestedVM, and
+necessitates a {\it trampoline transformation}, as shown in
+Figure~\ref{code1}.  With this trampoline in place somewhat large
+binaries can be handled without much difficulty -- fortunately there
+is no corresponding limit on the size of a classfile as a whole.
+
+Another interesting problem that was discovered while creating the
+trampoline method was javac and Jikes? inability to properly optimize
+switch statements.  The code in Figure~\ref{lookupswitch} is compiled
+into a comparatively inefficient {\tt LOOKUPSWITCH}, while the code in
+Figure~\ref{tableswitch} is optimized into a {\tt TABLESWITCH}.
+
+\begin{figure}
+{\footnotesize\begin{verbatim}
+switch(pc&0xffffff00) {
+    case 0x00000100: run_100(); break;
+    case 0x00000200: run_200(); break;
+    case 0x00000300: run_300(); break;
+}
+\end{verbatim}}
+\caption{\label{lookupswitch} Code which {\it is not} optimized into a tableswitch}
+\end{figure}
+
+\begin{figure}
+{\footnotesize\begin{verbatim}
+Brian, we're missing the code here... can you put it in?
+\end{verbatim}}
+\caption{\label{tableswitch} Code which {\it is} optimized into a tableswitch}
+\end{figure}
+
+Javac isn?t smart enough to see the patter in the case values and
+generates very suboptimal bytecode. Manually doing the shifts
+convinces javac to emit a tableswitch statement, which is
+significantly faster. This change alone nearly doubled the speed of
+the compiled binary.
+
+Finding the optimal method size lead to the next big performance
+increase.  It was determined with experimentation that the optimal
+number of MIPS instructions per method is 128 (considering only power
+of two options). Going above or below that lead to performance
+decreases. This is most likely due to a combination of two factors.
+
+\begin{itemize}
+
+\item The two levels of switch statements jumps have to pass though -
+      The first switch statement jumps go through is the trampoline
+      switch statement. This is implemented as a TABLESWITCH in JVM
+      bytecode so it is very fast. The second level switch statement
+      in the individual run\_ methods is implemented as a
+      LOOKUPSWITCH, which is much slower. Using smaller methods puts
+      more burden on the faster TABLESWITCH and less on the slower
+      LOOKUPSWITCH.
+
+\item JIT compilers probably favor smaller methods smaller methods are
+      easier to compile and are probably better candidates for JIT
+      compilation than larger methods.
+
 \end{itemize}
 
 Put a chart in here
 
-The next big optimization was eliminating unnecessary case statements. Having case statements before each instruction prevents JIT compilers from being able to optimize across instruction boundaries. In order to eliminate unnecessary case statements every possible address that could be jumped to directly needed to be identified. The sources for possible jump targets come from 3 places.
+The next big optimization was eliminating unnecessary case
+statements. Having case statements before each instruction prevents
+JIT compilers from being able to optimize across instruction
+boundaries. In order to eliminate unnecessary case statements every
+possible address that could be jumped to directly needed to be
+identified. The sources for possible jump targets come from 3 places.
+
 \begin{itemize}
-\item The .text segment ? Every instruction in the text segment in scanned for jump targets. Every branch instruction (BEQ, JAL, etc) has its destination added to the list of possible branch targets. In addition, functions that set the link register have theirpc+8 added to the list (the address that would?ve been put to the link register). Finally, combinations of LUI (Load Upper Immediate) of ADDIU (Add Immediate Unsigned) are scanned for possible addresses in the text segment. This combination of instructions is often used to load a 32-bit word into a register.
-\item The .data segment ? When GCC generates switch() statements it often uses a jump table stored in the .data segment. Unfortunately gcc doesn?t identify these jump tables in any way. Therefore, the entire .data segment is conservatively scanned for possible addresses in the .text segment.
-\item The symbol table ? This is mainly used as a backup. Scanning the .text and .data segments should identify any possible jump targets but adding every function in the symbol table in the ELF binary doesn?t hurt. This will also catch functions that are never called directly from the MIPS binary (for example, functions called with the call() method in the runtime).
+
+\item The .text segment ? Every instruction in the text segment in
+      scanned for jump targets. Every branch instruction (BEQ, JAL,
+      etc) has its destination added to the list of possible branch
+      targets. In addition, functions that set the link register have
+      theirpc+8 added to the list (the address that would?ve been put
+      to the link register). Finally, combinations of LUI (Load Upper
+      Immediate) of ADDIU (Add Immediate Unsigned) are scanned for
+      possible addresses in the text segment. This combination of
+      instructions is often used to load a 32-bit word into a
+      register.
+
+\item The .data segment ? When GCC generates switch() statements it
+      often uses a jump table stored in the .data
+      segment. Unfortunately gcc doesn?t identify these jump tables in
+      any way. Therefore, the entire .data segment is conservatively
+      scanned for possible addresses in the .text segment.
+      
+\item The symbol table ? This is mainly used as a backup. Scanning the
+      .text and .data segments should identify any possible jump
+      targets but adding every function in the symbol table in the ELF
+      binary doesn?t hurt. This will also catch functions that are
+      never called directly from the MIPS binary (for example,
+      functions called with the call() method in the runtime).
+
 \end{itemize}
 
-Eliminating unnecessary case statements provided a 10-25\% speed increase 
+Eliminating unnecessary case statements provided a 10-25\% speed
+increase.
 
 Despite all the above optimizations and workaround an impossible to
-workaround hard classfile limit was eventually hit, the constant pool. The
-constant pool in classfiles is limited to 65536 entries. Every Integer with
-a magnitude greater than 32767 requires an entry in the constant pool. Every
-time the compiler emits a jump/branch instruction the PC field is set to the
-branch target. This means nearly every branch instruction requires an entry
-in the constant pool. Large binaries hit this limit fairly quickly. One
-workaround that was employed in the Java source compiler was to express
-constants as offsets from a few central values. For example: ``pc =
-N\_0x00010000 + 0x10'' where N\_0x000100000 is a non-final field to prevent
-javac from inlining it. This was sufficient to get reasonable large binaries
-to compile. It has a small (approximately 5\%) performance impact on the
-generated code. It also makes the generated classfile somewhat larger.
-Fortunately, the classfile compiler eliminates this problem.
+workaround hard classfile limit was eventually hit, the constant
+pool. The constant pool in classfiles is limited to 65536
+entries. Every Integer with a magnitude greater than 32767 requires an
+entry in the constant pool. Every time the compiler emits a
+jump/branch instruction the PC field is set to the branch target. This
+means nearly every branch instruction requires an entry in the
+constant pool. Large binaries hit this limit fairly quickly. One
+workaround that was employed in the Java source compiler was to
+express constants as offsets from a few central values. For example:
+``pc = N\_0x00010000 + 0x10'' where N\_0x000100000 is a non-final
+field to prevent javac from inlining it. This was sufficient to get
+reasonable large binaries to compile. It has a small (approximately
+5\%) performance impact on the generated code. It also makes the
+generated classfile somewhat larger.  Fortunately, the classfile
+compiler eliminates this problem.
 
-\subsection{Compiling directly to Java Bytecode}
 
-The next step in the evolution of Mips2Java was to compile directly to JVM bytecode eliminating the intermediate javac step. This had several advantages:
+\subsection{Binary-to-Binary Translation}
+
+The next step in the evolution of NestedVM was to compile directly to
+JVM bytecode eliminating the intermediate javac step. This had several
+advantages:
+
 \begin{itemize}
-\item There are little tricks that can be done in JVM bytecode that can?t be done in Java source code.
-\item Eliminates the time-consuming javac step ? Javac takes a long time to parse and compile the output from the java source compiler.
-\item Allows for MIPS binaries to be compiled and loaded into a running VM using a class loader. This eliminates the need to compile the binaries ahead of time.
+      
+\item There are little tricks that can be done in JVM bytecode that
+      can?t be done in Java source code.
+
+\item Eliminates the time-consuming javac step ? Javac takes a long
+      time to parse and compile the output from the java source
+      compiler.
+
+\item Allows for MIPS binaries to be compiled and loaded into a
+      running VM using a class loader. This eliminates the need to
+      compile the binaries ahead of time.
+
 \end{itemize}
 
-By generating code at the bytecode level  there are many areas where the compiler can be smarter than javac. Most of the areas where improvements where made where in the handling of branch instructions and in taking advantage of the JVM stack to eliminate unnecessary LOADs and STOREs to local variables.
+By generating code at the bytecode level there are many areas where
+the compiler can be smarter than javac. Most of the areas where
+improvements where made where in the handling of branch instructions
+and in taking advantage of the JVM stack to eliminate unnecessary
+LOADs and STOREs to local variables.
 
-The first obvious optimization that generating bytecode allows for is the use of GOTO. Despite the fact that java doesn?t have a GOTO keyword  a GOTO bytecode does exist and is used heavily in the code generates by javac. Unfortunately the java language doesn?t provide any way to take advantage of this. As result of this jumps within a method were implemented by setting the PC field to the new address and making a trip back to the initial switch statement.  In the classfile compiler these jumps are implemented as GOTOs directly to the target instruction. This saves a costly trip back through the LOOKUPSWITCH statement and is a huge win for small loops within a method.
+The first obvious optimization that generating bytecode allows for is
+the use of GOTO. Despite the fact that java doesn?t have a GOTO
+keyword a GOTO bytecode does exist and is used heavily in the code
+generates by javac. Unfortunately the java language doesn?t provide
+any way to take advantage of this. As result of this jumps within a
+method were implemented by setting the PC field to the new address and
+making a trip back to the initial switch statement.  In the classfile
+compiler these jumps are implemented as GOTOs directly to the target
+instruction. This saves a costly trip back through the LOOKUPSWITCH
+statement and is a huge win for small loops within a method.
 
-Somewhat related to using GOTO is the ability to optimize branch statements. In the Java source compiler branch statements are implemented as follows (delay slots are ignored for the purpose of this example):
-%if(condition) { pc = TARGET; continue; }
+Somewhat related to using GOTO is the ability to optimize branch
+statements. In the Java source compiler branch statements are
+implemented as follows (delay slots are ignored for the purpose of
+this example):
 
-This requires a branch in the JVM regardless of whether the MIPS branch is actually taken. If condition is false the JVM has to jump over the code to set the PC and go back to the switch block. If condition is true the JVM as to jump to the switch block. By generating bytecode directly we can make the target of the JVM branch statement the actual bytecode of the final destination. In the case where the branch isn?t taken the JVM doesn?t need to branch at all.
+{\footnotesize\begin{verbatim}
+if(condition) { pc = TARGET; continue; }
+\end{verbatim}}
 
-A side affect of the above two optimizations is a solution to the excess constant pool entries problem. When jumps are implemented as GOTOs and direct branches to the target the PC field doesn?t need to be set. This eliminates many of the constant pool entries the java source compiler requires. The limit is still there however, and given a large enough binary it will still be reached.
+This requires a branch in the JVM regardless of whether the MIPS
+branch is actually taken. If condition is false the JVM has to jump
+over the code to set the PC and go back to the switch block. If
+condition is true the JVM as to jump to the switch block. By
+generating bytecode directly we can make the target of the JVM branch
+statement the actual bytecode of the final destination. In the case
+where the branch isn?t taken the JVM doesn?t need to branch at all.
 
-Delay slots are another area where things are done somewhat inefficiently in the Java source compiler. In order to take advantage of instructions already in the pipeline MIPS cpu have a ?delay slot?. That is, an instruction after a branch or jump instruction that is executed regardless of whether the branch is taken. This is done because by the time the branch or jump instruction is finished being processes the next instruction is already ready to be executed and it is wasteful to discard it. (However, newer  MIPS CPUs have pipelines that are much larger than early MIPS CPUs so they have to discard many instructions anyway.) As a result of this the instruction in the delay slot is actually executed BEFORE the branch is taken. To make things even more difficult, values from the register file are loaded BEFORE the delay slot is executed.  Here is a small piece of MIPS assembly:
+A side affect of the above two optimizations is a solution to the
+excess constant pool entries problem. When jumps are implemented as
+GOTOs and direct branches to the target the PC field doesn?t need to
+be set. This eliminates many of the constant pool entries the java
+source compiler requires. The limit is still there however, and given
+a large enough binary it will still be reached.
 
-%ADDIU r2,r0,-1
-%BLTZ r2, target
-%ADDIU r2,r2,10
-%...
-%:target
+Delay slots are another area where things are done somewhat
+inefficiently in the Java source compiler. In order to take advantage
+of instructions already in the pipeline MIPS cpu have a ?delay
+slot?. That is, an instruction after a branch or jump instruction that
+is executed regardless of whether the branch is taken. This is done
+because by the time the branch or jump instruction is finished being
+processes the next instruction is already ready to be executed and it
+is wasteful to discard it. (However, newer MIPS CPUs have pipelines
+that are much larger than early MIPS CPUs so they have to discard many
+instructions anyway.) As a result of this the instruction in the delay
+slot is actually executed BEFORE the branch is taken. To make things
+even more difficult, values from the register file are loaded BEFORE
+the delay slot is executed.  Here is a small piece of MIPS assembly:
+
+{\footnotesize\begin{verbatim}
+ADDIU r2,r0,-1
+BLTZ r2, target
+ADDIU r2,r2,10
+...
+:target
+\end{verbatim}}
 
 This piece of code is executed as follows
+
 \begin{enumerate}
+
 \item r2 is set to ?1
+
 \item r2 is loaded from the register file by the BLTEZ instruction
+      
 \item 10 is added to r2 by the ADDIU instruction
-\item The branch is taken because at the time the BLTZ instruction was executed r2 was ?1, but r2 is now 9 (-1 + 10)
+
+\item The branch is taken because at the time the BLTZ instruction was
+      executed r2 was ?1, but r2 is now 9 (-1 + 10)
+
 \end{enumerate}
 
-There is a very element solution to this problem when using JVM bytecode. When a branch instruction is encountered the registers needed for the comparison are pushed onto the stack to prepare for the JVM branch instruction. Then, AFTER the values are on the stack the delay slot is emitted, and then finally the actual JVM branch instruction. Because the values were pushed to the stack before the delay slot was executed any changes the delay slot made to the registers are not visible to the branch bytecode. This allows delay slots to be used with no performance penalty or size penalty.
+There is a very element solution to this problem when using JVM
+bytecode. When a branch instruction is encountered the registers
+needed for the comparison are pushed onto the stack to prepare for the
+JVM branch instruction. Then, AFTER the values are on the stack the
+delay slot is emitted, and then finally the actual JVM branch
+instruction. Because the values were pushed to the stack before the
+delay slot was executed any changes the delay slot made to the
+registers are not visible to the branch bytecode. This allows delay
+slots to be used with no performance penalty or size penalty.
 
-One final advantage that generating bytecode directly allows is smaller more compact bytecode. All the optimization above lead to smaller bytecode as a side effect. There are also a few other areas where the generated bytecode can be optimized for size with more knowledge of the program as a whole.
+One final advantage that generating bytecode directly allows is
+smaller more compact bytecode. All the optimization above lead to
+smaller bytecode as a side effect. There are also a few other areas
+where the generated bytecode can be optimized for size with more
+knowledge of the program as a whole.
 
-When encountering the following switch block both javac and Jikes generate redundant bytecode.
-%Switch(pc>>>8) {
-%	Case 0x1: run_1(); break;
-%	Case 0x2: run_2(); break
-%	...
-%	case 0x100: run_100(); break;
-%}
+When encountering the following switch block both javac and Jikes
+generate redundant bytecode.
+
+{\footnotesize\begin{verbatim}
+switch(pc>>>8) {
+    case 0x1: run_1(); break;
+    case 0x2: run_2(); break
+    ...
+    case 0x100: run_100(); break;
+}
+\end{verbatim}}
 
 The first bytecode in each case arm in the switch statement is ALOAD\_0 to
 prepare for a invoke special call. By simple moving this outside the switch
@@ -334,7 +634,7 @@ statement each case arm was reduced in size by one instruction. Similar
 optimizations were also done in other parts of the compiler.
 
 
-\subsection{Interfacing with Java Code}
+\section{Interfacing with Java Code}
 
 Java source code can create a copy of the translated binary by
 instantiating the corresponding class, which extends {\tt Runtime}.
@@ -358,39 +658,16 @@ libc} syscalls, providing a complete interface to the filesystem,
 network socket library, time of day, (Brian: what else goes here?).
 
 \begin{itemize}
-\item ability to provide the same interface to CNI code and mips2javaified code
+
+\item ability to provide the same interface to CNI code and
+      NestedVMified code
+      
 \item security advantages (chroot the {\tt fork()}ed process)
+
 \end{itemize}
 
-\section{Related Work}
 
-\subsection{Source-to-Source translators}
-
-A number of commercial products and research projects attempt to
-translate C++ code to Java code, preserving the mapping of C++ classes
-to Java classes.  Unfortunately this is problematic since there is no
-way to do pointer arithmetic except within arrays, and even in that
-case, arithmetic cannot be done in terms of fractional objects.
-
-Mention gcc backend
-
-c2java
-
-Many of these products advise the user to tweak the code which results
-from the translation.  Unfortunately, hand-modifying machine-generated
-code is generally a bad idea, since this modification cannot be
-automated.  This means that every time the origin code changes, the
-code generator must be re-run, and the hand modifications must be
-performed yet again.  This is an error-prone process.
-
-Furthermore, Mips2Java does not attempt to read C code directly.  This
-frees it from the complex task of faithfully implementing the ANSI C
-standard (or, in the case of non ANSI-C compliant code, some other
-interface).  This also saves the user the chore of altering their
-build process to accomodate Mips2Java.
-
-
-\section{Performance}
+\section{Quantitative Performance}
 
 \subsection{Charts}
 
@@ -409,36 +686,36 @@ Brian, can you write something to go here?  Just mention which
 optimizations helped and which ones hurt.
 
 \begin{itemize}
-\item trampoline
-\item optimal method size
-\item -msingle-float
-\item -mmemcpy
-\item fastmem
-\item local vars for registers (useless)
-\item -fno-rename-registers
-\item -ffast-math
-\item -fno-trapping-math
-\item -fsingle-precision-constant
-\item -mfused-madd
-\item -freg-struct-return
-\item -freduce-all-givs
-\item -fno-peephole
-\item -fno-peephole2
-\item -fmove-all-movables
-\item -fno-sched-spec-load
-\item -fno-sched-spec
-\item -fno-schedule-insns
-\item -fno-schedule-insns2
-\item -fno-delayed-branch
-\item -fno-function-cse
-\item -ffunction-sections
-\item -fdata-sections
-\item array bounds checking
-\item -falign-functions=n
-\item -falign-labels=n
-\item -falign-loops=n
-\item -falign-jumps=n
-\item -fno-function-cse
+\item {\tt trampoline}
+\item {\tt optimal method size}
+\item {\tt -msingle-float}
+\item {\tt -mmemcpy}
+\item {\tt fastmem}
+\item {\tt local vars for registers (useless)}
+\item {\tt -fno-rename-registers}
+\item {\tt -ffast-math}
+\item {\tt -fno-trapping-math}
+\item {\tt -fsingle-precision-constant}
+\item {\tt -mfused-madd}
+\item {\tt -freg-struct-return}
+\item {\tt -freduce-all-givs}
+\item {\tt -fno-peephole}
+\item {\tt -fno-peephole2}
+\item {\tt -fmove-all-movables}
+\item {\tt -fno-sched-spec-load}
+\item {\tt -fno-sched-spec}
+\item {\tt -fno-schedule-insns}
+\item {\tt -fno-schedule-insns2}
+\item {\tt -fno-delayed-branch}
+\item {\tt -fno-function-cse}
+\item {\tt -ffunction-sections}
+\item {\tt -fdata-sections}
+\item {\tt array bounds checking}
+\item {\tt -falign-functions=n}
+\item {\tt -falign-labels=n}
+\item {\tt -falign-loops=n}
+\item {\tt -falign-jumps=n}
+\item {\tt -fno-function-cse}
 \end{itemize}
 
 \section{Future Directions}
@@ -454,7 +731,8 @@ We rock the hizzouse.
 Yer mom.
 
 \section{stuff}
-\begin{verbatim}
+\begin{onecolumn}
+{\footnotesize\begin{verbatim}
 
 libjpeg (render thebride_1280.jpg)
 Native -  0.235s
@@ -466,391 +744,6 @@ freetype (rendering characters 32-127 of Comic.TTF at sizes from 8 to
 Native - 0.201s
 JavaSource - 2.02s
 ClassFile - 1.46s
-
-Section 3.2  - Interpreter
-The Interpreter was the first part of Mips2Java to be written.  This was the most 
-straightforward and simple way to run MIPS binaries inside the JVM.  The simplicity of the 
-interpreter also made it very simple to debug. Debugging machine-generated code is a pain. 
-Most importantly, the interpreter provided a great reference to use when developing the 
-compiler. With known working implementations of each MIPS instruction in Java writing a 
-compiler became a matter of simple doing the same thing ahead of time.
-With the completion of the compiler the interpreter in Mips2Java has become less useful. 
-However, it may still have some life left in it. One possible use is remote debugging with 
-GDB. Although debugging the compiler generated JVM code is theoretically possible, it 
-would be far easier to do in the interpreter. The interpreter may also be useful in cases 
-where size is far more important than speed. The interpreter is very small. The interpreter 
-and MIPS binary combined are smaller than the compiled classfiles.
-Section 3.3 - Compiling to Java Source
-The next major step in Mips2Java’s development was the Java source compiler. This 
-generated Java source code (compliable with javac or Jikes) from a MIPS binary. 
-Generating Java source code was preferred initially over JVM bytecode for two reasons. 
-The authors weren’t very familiar with JVM bytecode and therefore generating Java source 
-code was simpler. Generating source code also eliminated the need to do trivial 
-optimizations in the Mips2java compiler that javac and Jikes already do. This mainly 
-includes 2+2=4 stuff. For example, the MIPS register r0 is immutable and always 0. This 
-register is represented by a static final int in the Java source compiler. Javac and Jikes 
-automatically handle optimizing this away when possible. In the JVM bytecode compiler 
-these optimizations needs to be done in Mips2Java.
-Early versions of the Mips2Java compiler were very simple. All 32 MIPS GPRs and a 
-special PC register were fields in the generated java class. There was a run() method 
-containing all the instructions in the .text segment converted to Java source code. A switch 
-statement was used to allow jumps from instruction to instruction. The generated code 
-looked something like this.
-private final static int r0 = 0;
-private int r1, r2, r3,...,r30;
-private int r31 = 0xdeadbeef;
-private int pc = ENTRY_POINT;
-
-public void run() {
-	for(;;) {
-	switch(pc) {
-		case 0x10000:
-			r29 = r29 – 32;
-		case 0x10004:
-			r1 = r4 + r5;
-		case 0x10008:
-			if(r1 == r6) {
-				/* delay slot */
-				r1 = r1 + 1;
-				pc = 0x10018:
-				continue;
-			}
-		case 0x1000C:
-			r1 = r1 + 1;
-		case 0x10010:
-			r31 = 0x10018;
-			pc = 0x10210;
-			continue;
-		case 0x10014:
-			/* nop */
-		case 0x10018:
-			pc = r31;
-			continue;
-		...
-		case 0xdeadbeef:
-			System.err.println("Exited from ENTRY_POINT");
-			System.err.println("R2: " + r2);
-			System.exit(1);
-	}
-	}
-}
-
-This worked fine for small binaries but as soon as anything substantial was fed to it the 64k 
-JVM method size limit was soon hit. The solution to this was to break up the code into 
-many smaller methods. This required a trampoline to dispatch  jumps to the appropriate 
-method. With the addition of the trampoline the generated code looked something like this:
-public void run_0x10000() {
-	for(;;) {
-	switch(pc) {
-		case 0x10000:
-			...
-		case 0x10004:
-			...
-		...
-		case 0x10010:
-			r31 = 0x10018;
-			pc = 0x10210;
-			return;
-		...
-	}
-	}
-}
-
-pubic void run_0x10200() {
-	for(;;) {
-	switch(pc) {
-		case 0x10200:
-			...
-		case 0x10204:
-			...
-	}
-	}
-}
-
-public void trampoline() {
-	for(;;) {
-	switch(pc&0xfffffe00) {
-			case 0x10000: run_0x10000(); break;
-			case 0x10200: run_0x10200(); break;
-			case 0xdeadbe00:
-				...
-		}
-	}
-}
-With this trampoline in place somewhat large binaries could be handled without much 
-difficulty. There is no limit on the size of a classfile as a whole, just individual methods. 
-This method should scale well. However, there are other classfile limitations that will limit 
-the size of compiled binaries.
-Another interesting problem that was discovered while creating the trampoline method was 
-javac and Jikes’ incredible stupidity when dealing with switch statements. The follow code 
-fragment gets compiled into a lookupswich by javac:
-Switch(pc&0xffffff00) {
-	Case 0x00000100: run_100(); break;
-	Case 0x00000200: run_200(); break;
-	Case 0x00000300: run_300(); break;
-}
-while this nearly identical code fragment gets compiled to a tableswitch
-switch(pc>>>8) {
-	case 0x1: run_100(); break
-	case 0x2: run_200(); break;
-	case 0x3: run_300(); break;
-}
-Javac isn’t smart enough to see the patter in the case values and generates very suboptimal 
-bytecode. Manually doing the shifts convinces javac to emit a tableswitch statement, which 
-is significantly faster. This change alone nearly doubled the speed of the compiled binary.
-Finding the optimal method size lead to the next big performance increase.  It was 
-determined with experimentation that the optimal number of MIPS instructions per method 
-is 128 (considering only power of two options). Going above or below that lead to 
-performance decreases. This is most likely due to a combination of two factors.
-_ The two levels  of switch statements jumps have to pass though – The first switch 
-statement jumps go through is the trampoline switch statement. This is implemented 
-as a TABLESWITCH in JVM bytecode so it is very fast. The second level switch 
-statement in the individual run_ methods is implemented as a LOOKUPSWITCH, 
-which is much slower. Using smaller methods puts more burden on the faster 
-TABLESWITCH and less on the slower LOOKUPSWITCH.
-_ JIT compilers probably favor smaller methods smaller methods are easier to compile 
-and are probably better candidates for JIT compilation than larger methods.
-FIXME: Put a chart here
-The next big optimization was eliminating unnecessary case statements. Having case 
-statements before each instruction prevents JIT compilers from being able to optimize 
-across instruction boundaries. In order to eliminate unnecessary case statements every 
-possible address that could be jumped to directly needed to be identified. The sources for 
-possible jump targets come from 3 places.
-_ The .text segment – Every instruction in the text segment in scanned for jump 
-targets. Every branch instruction (BEQ, JAL, etc) has its destination added to the list 
-of possible branch targets. In addition, functions that set the link register have 
-theirpc+8 added to the list (the address that would’ve been put to the link register). 
-Finally, combinations of LUI (Load Upper Immediate) of ADDIU (Add Immediate 
-Unsigned) are scanned for possible addresses in the text segment. This combination 
-of instructions is often used to load a 32-bit word into a register.
-_ The .data segment – When GCC generates switch() statements it often uses a jump 
-table stored in the .data segment. Unfortunately gcc doesn’t identify these jump 
-tables in any way. Therefore, the entire .data segment is conservatively scanned for 
-possible addresses in the .text segment.
-_ The symbol table – This is mainly used as a backup. Scanning the .text and .data 
-segments should identify any possible jump targets but adding every function in the 
-symbol table in the ELF binary doesn’t hurt. This will also catch functions that are 
-never called directly from the MIPS binary (for example, functions called with the 
-call() method in the runtime).
-Eliminating unnecessary case statements provided a 10-25% speed increase .
-Despite all the above optimizations and workaround an impossible to workaround hard 
-classfile limit was eventually hit, the constant pool. The constant pool in classfiles is limited 
-to 65536 entries. Every Integer with a magnitude greater than 32767 requires an entry in the 
-constant pool. Every time the compiler emits a jump/branch instruction the PC field is set to 
-the branch target. This means nearly every branch instruction requires an entry in the 
-constant pool. Large binaries hit this limit fairly quickly. One workaround that was 
-employed in the Java source compiler was to express constants as offsets from a few central 
-values. For example: "pc = N_0x00010000 + 0x10" where N_0x000100000 is a non-
-final field to prevent javac from inlining it. This was sufficient to get reasonable large 
-binaries to compile. It has a small (approximately 5%) performance impact on the generated 
-code. It also makes the generated classfile somewhat larger. Fortunately, the classfile 
-compiler eliminates this problem.
-3.4 – Bytecode compiler
-The next step in the evolution of Mips2Java was to compile directly to JVM bytecode 
-eliminating the intermediate javac step. This had several advantages
-_ There are little tricks that can be done in JVM bytecode that can’t be done in Java 
-source code.
-_ Eliminates the time-consuming javac step – Javac takes a long time to parse and 
-compile the output from the java source compiler.
-_ Allows for MIPS binaries to be compiled and loaded into a running VM using a 
-class loader. This eliminates the need to compile the binaries ahead of time. 
-By generating code at the bytecode level  there are many areas where the compiler can be 
-smarter than javac. Most of the areas where improvements where made where in the 
-handling of branch instructions and in taking advantage of the JVM stack to eliminate 
-unnecessary LOADs and STOREs to local variables.
-The first obvious optimization that generating bytecode allows for is the use of GOTO. 
-Despite the fact that java doesn’t have a GOTO keyword  a GOTO bytecode does exist and 
-is used heavily in the code generates by javac. Unfortunately the java language doesn’t 
-provide any way to take advantage of this. As result of this jumps within a method were 
-implemented by setting the PC field to the new address and making a trip back to the initial 
-switch statement.  In the classfile compiler these jumps are implemented as GOTOs directly 
-to the target instruction. This saves a costly trip back through the LOOKUPSWITCH 
-statement and is a huge win for small loops within a method.
-Somewhat related to using GOTO is the ability to optimize branch statements. In the Java 
-source compiler branch statements are implemented as follows (delay slots are ignored for 
-the purpose of this example)
-If(condition) { pc = TARGET; continue; }
-This requires a branch in the JVM regardless of whether the MIPS branch is actually taken. 
-If condition is false the JVM has to jump over the code to set the PC and go back to the 
-switch block. If condition is true the JVM as to jump to the switch block. By generating 
-bytecode directly we can make the target of the JVM branch statement the actual bytecode 
-of the final destination. In the case where the branch isn’t taken the JVM doesn’t need to 
-branch at all.
-A side affect of the above two optimizations is a solution to the excess constant pool entries 
-problem. When jumps are implemented as GOTOs and direct branches to the target the PC 
-field doesn’t need to be set. This eliminates many of the constant pool entries the java 
-source compiler requires. The limit is still there however, and given a large enough binary it 
-will still be reached.
-Delay slots are another area where things are done somewhat inefficiently in the Java source 
-compiler. In order to take advantage of instructions already in the pipeline MIPS cpu have a 
-"delay slot". That is, an instruction after a branch or jump instruction that is executed 
-regardless of whether the branch is taken. This is done because by the time the branch or 
-jump instruction is finished being processes the next instruction is already ready to be 
-executed and it is wasteful to discard it. (However, newer  MIPS CPUs have pipelines that 
-are much larger than early MIPS CPUs so they have to discard many instructions anyway.) 
-As a result of this the instruction in the delay slot is actually executed BEFORE the branch 
-is taken. To make things even more difficult, values from the register file are loaded 
-BEFORE the delay slot is executed.  Here is a small piece of MIPS assembly:
-ADDIU r2,r0,-1
-BLTZ r2, target
-ADDIU r2,r2,10
-...
-:target
-This piece of code is executed as follows
-1. r2 is set to –1
-2. r2 is loaded from the register file by the BLTEZ instruction
-3. 10 is added to r2 by the ADDIU instruction
-4. The branch is taken because at the time the BLTZ instruction was executed r2 was 
-–1, but r2 is now 9 (-1 + 10)
-There is a very element solution to this problem when using JVM bytecode. When a branch 
-instruction is encountered the registers needed for the comparison are pushed onto the stack 
-to prepare for the JVM branch instruction. Then, AFTER the values are on the stack the 
-delay slot is emitted, and then finally the actual JVM branch instruction. Because the values 
-were pushed to the stack before the delay slot was executed any changes the delay slot made 
-to the registers are not visible to the branch bytecode. This allows delay slots to be used 
-with no performance penalty or size penalty. 
-One final advantage that generating bytecode directly allows is smaller more compact 
-bytecode. All the optimization above lead to smaller bytecode as a side effect. There are also 
-a few other areas where the generated bytecode can be optimized for size with more 
-knowledge of the program as a whole.
-When encountering the following switch block both javac and Jikes generate redundant 
-bytecode.
-Switch(pc>>>8) {
-	Case 0x1: run_1(); break;
-	Case 0x2: run_2(); break
-	...
-	case 0x100: run_100(); break;
-}
-The first bytecode in each case arm in the switch statement is ALOAD_0 to prepare for a 
-invoke special call. By simple moving this outside the switch statement  each case arm was 
-reduced in size by one instruction. Similar optimizations were also done in other parts of the 
-compiler.
-
-Section 3 
-- Adam - The method is run(), not execute. Execute() is only used when you need to 
-resume from a pause syscall.
-
-Section 3.1
-- Adam - Even the R1000 supports LB/SB/LH/SH/LWL/LWR – saying it only supports 
-32-bit aligned loads is incorrect.
-- Other similarities
-o All the branching instructions in MIPS directly map to single JVM instructions.
-o Most of the ALU instructions map to single JVM instructions.
-
-(I can write up some stuff for each of these next several sections if you want)
-Section 3.2  - Interpreter
-- Originally written mainly to understand the MIPS instruction set
-- Far easier to debug than an ahead of time compiler (no waiting, can throw in quick 
-hacks like if(pc >= 0xbadc0de && pc <= 0xbadcfff) debugOutput() ), don’t need to 
-understand most of the ELF format)
-- Still could be useful
-o for GDB remote debugging
-o cases where size is more important than speed (size of interpreter + size of mips 
-binary < size of compiled binary or size of compiler + mips binary)
-o code which dynamically generates code (JIT compilers, etc). The ahead of time 
-compiler can’t possibly handle this
-
-Section 3.3 – Compiling to Java Source
-- First version of an ahead of time compiler
-- Huge performance boost
-- Java source output preferred for the 2+2=4 type optimizations java compilers do
-- Worked well for small binaries – large MIPS binaries required ridiculous amounts of 
-memory to compile and often created  invalid classfiles
-- Too many constants – every jump operation required an entry in the constant pool (pc = 
-0xabcd1234; continue; )
-
-Section 3.4 – Compiling directly to JVM Bytecode
-- Another jump in performance
-- More efficient code can be created at the bytecode level
-o Information can be stored on the JVM stack rather than in local variables
-_ Javac/jikes often unnecessarily use local variables
-long tmp = a*b;
-lo = (int)tmp;
-hi = (int)(tmp>>>32)
-does a store and two loads when a simple DUP would suffice
-o GOTO can be used to branch directly  to branch destinations in the same method 
-rather than going through the switch block again.
-o BEQ, BGTZ, BLE, etc can jump directly to destination rather than doing 
-if(condition) { pc=0xabcd1234; continue; }
-o Eliminates excess constant pool entries (only jump outside the current method 
-require a constant pool entry)
-o Delay slots implemented more efficiently.
-_ Java source compiler does:
-if(condition) { /* delay slot /; pc = 0xabcd1234; continue; }
-/* delay slot again */
-_ This is required because the delay slot can change the registers used in 
-condition. The registers need to be read BEFORE the delay slot in executed.
-_ In the bytecode compiler the registers used in the condition are pushed to the 
-stack, then the delay slot is executed, and finally the comparison is done. 
-This eliminates the needs to output the delay slot twice.
-- Smaller bytecode
-o Everything mentioned above makes it smaller and faster
-o Javac/jikes add redundant code
-_ Switch(a) {
-   Case 1: Run_1000(); break;
-   Case 2: run_2000(); break;
-}
-Gets compiled into
-1 –Tableswitch …. 
-2 – ALOAD_0
-3 – invokespecial  run_1000
-4 – goto end
-5 – ALOAD_0
-6 – invokespecial run_2000
-10 – goto end
-ALOAD_0 is unnecessarily put in each switch arm
-
-3.5 Interfacing with Java Code
-- _call_java ()/Runtime.call()
-o _call_java () - Call a java method from mips
-o Runime.call() – call a mips method from java
-o Easily allocate memory within the binary’s memory space by calling libc’s malloc()
-o Can go back and forth between mips and java (java calls mips which calls java which 
-calls back into mips)
-- Java Strings can easily be converted to and from null terminated strings in the process’ 
-memory space
-- Java InputStreams, OutputStreams, and Sockets can easily be turned in to standard 
-UNIX file descriptors (and ANSI FILE*s)
-- Can easily create custom filedescriptors and have full control over all operations on 
-them (read, write, seek, close, fstat, etc)
-- Int User_info[] – optional chunk of memory can very easily be accessed from java 
-(Runtime.getUserInfo/setUserInfo)
-
-3.6 Virtualization
-- Adam – we actually don’t support sockets directly yet – you should probably take that 
-out. (But you can create a socket in java and expose it to mips as a filedescriptor)
-- Runtime services
-o Provides a easy to use interface to subclasses (Interpreter or compiles binaries)
-_ Subclasses only know how to execute instructions
-_ Runtime handles setting up registers/stack for execution to begin and 
-extracting return values and the exit status from the process
-o Memory management 
-_ Sets up stack and guard pages
-_ Allocates pages with the sbrk syscall
-_ Provide easy an memcpy like interface for accessing the processes memory 
-from java
-o Runtime.call() support – sets up registers,etc to prepare the process for a call into it 
-from java
-o Filesystem – open/close/read/write/seek/fcntl s syscalls
-o Time related functions – sleep, gettimeofday, times syscall
-o UnixRuntime provides a more complete unix-like environment (Runtime smaller 
-though)
-_ Supports fork() and waitpid()
-_ Pipe() for IPC
-_ More advocated filesystem interface
-_ All filesystem operations abstracted away into a FileSystem class
-o FileSystem class can be written that exposes a zip file, 
-directory on an http server, etc as a filesystem
-_ Chdir/getcwd
-_ /dev filesystem
-_ stat()
-_ directory listing support
-5.1 Charts
-I’ll put together some charts tonight
-5.2 Optimizations
-And finish this part
-
-Let me know if this was what you were looking for
 
                                           libjpeg  libmspack libfreetype
 Interpreted MIPS Binary                   22.2      12.9      21.4
@@ -885,7 +778,7 @@ about 950 individual glyphs).
 I can provide you with the source for any of these test if you'd like.
 
 -Brian
-\end{verbatim}
-
+\end{verbatim}}
+\end{onecolumn}
 \end{document}
 

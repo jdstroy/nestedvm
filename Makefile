@@ -3,7 +3,7 @@
 #
 
 doc/nestedvm.ivme04.pdf: doc/nestedvm.ivme04.tex doc/acmconf.cls
-	cd doc; pdflatex nestedvm.ivme04.tex
+	cd doc; pdflatex nestedvm.ivme04.tex && ./pst2pdf && pdflatex nestedvm.ivme04.tex
 
 pdf: doc/nestedvm.ivme04.pdf
 	open doc/nestedvm.ivme04.pdf
