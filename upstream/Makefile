@@ -11,7 +11,7 @@ configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++"
 
 version_binutils = 2.14
 url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
-patches_binutils = binutils-no64.patch
+patches_binutils = binutils-no64.patch binutils-nocompilein.patch
 configure_binutils = --target=mips-unknown-elf
 
 version_newlib = 1.11.0
