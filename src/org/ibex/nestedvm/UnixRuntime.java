@@ -167,7 +167,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_sendto: return sys_sendto(a,b,c,d,e,f);
             case SYS_recvfrom: return sys_recvfrom(a,b,c,d,e,f);
             case SYS_select: return sys_select(a,b,c,d,e);
-
+            case SYS_access: return sys_access(a,b);
+            case SYS_realpath: return sys_realpath(a,b);
+                
             default: return super._syscall(syscall,a,b,c,d,e,f);
         }
     }
@@ -178,6 +180,20 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private int sys_getppid() {
         return parent == null ? 1 : parent.pid;
+    }
+    
+    
+    private int sys_access(int cstring, int mode) {
+        // FEATURE: sys_access
+        return 0;
+    }
+    
+    private int sys_realpath(int inAddr, int outAddr) throws FaultException {
+        String s = normalizePath(cstring(inAddr));
+        byte[] b = getNullTerminatedBytes(s);
+        if(b.length > PATH_MAX) return -ERANGE;
+        copyout(b,outAddr,b.length);
+        return 0;
     }
 
     // FEATURE: Signal handling
