@@ -1838,7 +1838,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             mg.add(INVOKESTATIC,new MethodRef(Type.DOUBLE_OBJECT,"longBitsToDouble",Type.DOUBLE,new Type[]{Type.LONG}));
         } else {
             pushReg(reg);
-            mg.add(INVOKESTATIC,new MethodRef("java.lang.Float","intToFloatBits",Type.FLOAT,new Type[]{Type.INT}));
+            mg.add(INVOKESTATIC,new MethodRef("java.lang.Float","intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
         }
         return h;
     }
