@@ -514,10 +514,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private int sys_chdir(int addr) throws ErrnoException, FaultException {
         String path = normalizePath(cstring(addr));
-        //System.err.println("Chdir: " + cstring(addr) + " -> " + path + " pwd: " + cwd);
-        if(gs.stat(this,path).type() != FStat.S_IFDIR) return -ENOTDIR;
+        FStat st = gs.stat(this,path);
+        if(st == null) return -ENOENT;
+        if(st.type() != FStat.S_IFDIR) return -ENOTDIR;
         cwd = path;
-        //System.err.println("Now: [" + cwd + "]");
         return 0;
     }
     
