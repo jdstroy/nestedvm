@@ -1136,7 +1136,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             a(InstructionConstants.I2L);
             pushConst(0xffffffffL);
             a(InstructionConstants.LAND);
-            pushConst((long)unsignedImmediate);
+            pushConst((long)signedImmediate);
             a(InstructionConstants.LCMP);
             
             b1 = a(InstructionFactory.createBranchInstruction(IFLT,null));

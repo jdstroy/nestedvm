@@ -65,6 +65,7 @@ public class Interpreter extends UnixRuntime {
         try {
             insn = readPages[pc>>>pageShift][(pc>>>2)&PAGE_WORDS-1];
         } catch (RuntimeException e) {
+            if(pc == 0xdeadbeef) throw new Error("fell off cpu: r2: " + r[2]);
             insn = memRead(pc);
         }
 
@@ -270,7 +271,7 @@ public class Interpreter extends UnixRuntime {
                 r[rt] = r[rs] < signedImmediate ? 1 : 0;
                 break;
             case 11: // SLTIU
-                r[rt] = (r[rs]&0xffffffffL) < (unsignedImmediate&0xffffffffL) ? 1 : 0;
+                r[rt] = (r[rs]&0xffffffffL) < (signedImmediate&0xffffffffL) ? 1 : 0;
                 break;
             case 12: // ANDI
                 r[rt] = r[rs] & unsignedImmediate;

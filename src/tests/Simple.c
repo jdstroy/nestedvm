@@ -4,6 +4,8 @@ char *a = "bar";
 
 volatile char buf[] = "Hello World";
 
+long long l = -1614907703LL;
+
 int _start() {
-    return strlen("foo");
+    return l >= -64;
 }

@@ -105,7 +105,7 @@ diff -urN ../newlib-1.11.0.orig/newlib/configure.host ./newlib/configure.host
 	syscall_dir=syscalls
 	;;
 +  mips*-unknown-elf*)
-+       newlib_cflags="${newlib_cflags} -DREENTRANT_SYSCALLS_PROVIDED -DHAVE_GETTIMEOFDAY -DHAVE_FCNTL -DHAVE_OPENDIR"
++       newlib_cflags="${newlib_cflags} -DREENTRANT_SYSCALLS_PROVIDED -DHAVE_GETTIMEOFDAY -DHAVE_FCNTL -DHAVE_OPENDIR -DWANT_PRINTF_LONG_LONG"
 +       syscall_dir=syscalls
 +        ;;
    mmix-*)

@@ -600,7 +600,7 @@ public class JavaSourceCompiler extends Compiler {
                 p( "r"+rt+" = r"+rs+" < "+signedImmediate+" ? 1 : 0;");
                 break;
             case 11: // SLTIU
-                p( "r"+rt+" = (r"+rs+"&0xffffffffL) < ("+unsignedImmediate+"&0xffffffffL) ? 1 : 0;");
+                p( "r"+rt+" = (r"+rs+"&0xffffffffL) < ("+signedImmediate+"&0xffffffffL) ? 1 : 0;");
                 break;
             case 12: // ANDI
                 p( "r"+rt+" = r"+rs+" & "+unsignedImmediate+";");
