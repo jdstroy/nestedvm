@@ -44,24 +44,15 @@ export PATH
 # Solaris' patch doesn't work, use gnu patch on solaris
 PATCH = $(shell test `uname` = SunOS && echo gpatch || echo patch)
 
-tasks/full_toolchain: tasks/build_binutils tasks/build_gcc_step2 tasks/build_libc
-	for f in crt0.o support.o support_aux.o; do \
-		rm -f "$(usr)/mips-unknown-elf/lib/$$f"; \
-		ln -s "$(root)/build/org/ibex/nestedvm/$$f" "$(usr)/mips-unknown-elf/lib/$$f"; \
-	done
+tasks/build_gcc: tasks/build_linker
+tasks/build_newlib: tasks/build_gcc
 
-	rm -f "$(usr)/mips-unknown-elf/lib/linker.ld"
-	ln -s "$(root)/src/org/ibex/nestedvm/linker.ld" "$(usr)/mips-unknown-elf/lib/linker.ld"
+cross_root := $(usr)/mips-unknown-elf
+libc_a := $(cross_root)/lib/libc.a
 
-	if [ ! -e "$(usr)/mips-unknown-elf/include/getopt.h" ]; then \
-		echo '#include <unistd.h>' > "$(usr)/mips-unknown-elf/include/getopt.h"; \
-	fi
-	
-	mips-unknown-elf-gcc -dumpspecs \
-		| sed '/startfile:$$/{n;s/crt0%O%s/crt0%O%s support%O%s support_aux%O%s/;};' \
-		| sed '/link_command:$$/{n;s/%{T\*}/%{T*} %{!T:-T linker.ld%s}/;};' \
-		> "$(usr)/lib/gcc-lib/mips-unknown-elf/$(version_gcc)/specs"
-		
+tasks/build_extraheaders: $(upstream)/patches/newlib-extraheaders.sh tasks/build_newlib
+	# Add extra nestedvm specific headers to include
+	cd $(cross_root)/include && sh $<
 	touch $@
 
 tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob
@@ -183,12 +174,12 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 	if [ ! -e "$(usr)/mips-unknown-elf/include/getopt.h" ]; then \
 		echo '#include <unistd.h>' > "$(usr)/mips-unknown-elf/include/getopt.h"; \
 	fi
-
+	
 	mips-unknown-elf-gcc -dumpspecs \
 		| sed '/startfile:$$/{n;s/crt0%O%s/crt0%O%s support%O%s support_aux%O%s/;};' \
 		| sed '/link_command:$$/{n;s/%{T\*}/%{T*} %{!T:-T linker.ld%s}/;};' \
 		> "$(usr)/lib/gcc-lib/mips-unknown-elf/$(version_gcc)/specs"
-
+		
 	mkdir -p $(usr)
 	mkdir -p build/gcc-obj && cd build/gcc-obj && \
 		echo | ../gcc-$(version_gcc)/configure --prefix=$(usr) $(configure_gcc_step2) && \
