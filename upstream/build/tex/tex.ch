@@ -268,17 +268,17 @@ end;
 @y
 @ An external C procedure, |test_access| is used to check whether or not the
 open will work.  It is declared in the ``ext.h'' include file, and it returns
-|true| or |false|. The |name_of_file| global holds the file name whose access
+|true| or |false|. The |Trim(name_of_file)| global holds the file name whose access
 is to be tested.
 The first parameter for |test_access| is the access mode,
 one of |read_access_mode| or |write_access_mode|.
 
 We also implement path searching in |test_access|:  its second parameter is
-one of the ``file path'' constants defined below.  If |name_of_file|
+one of the ``file path'' constants defined below.  If |Trim(name_of_file)|
 doesn't start with |'/'| then |test_access| tries prepending pathnames
 from the appropriate path list until success or the end of path list
 is reached.
-On return, |name_of_file| contains the original name with the path
+On return, |Trim(name_of_file)| contains the original name with the path
 that succeeded (if any) prepended.  It is the name used in the various
 open procedures.
 
@@ -301,7 +301,10 @@ Path searching is not done for output files.
 
 @p function a_open_in(var f:alpha_file):boolean;
   {open a text file for input}
-begin reset(f,name_of_file); a_open_in:=IOResult=0;
+var str:String;
+begin
+reset(f,name_of_file);
+a_open_in:=IOResult=0;
 end;
 
 
@@ -311,7 +314,7 @@ function a_open_out(var f:alpha_file):boolean;
   {open a text file for output}
 var @!ok:boolean;
 begin
-     rewrite(f,name_of_file);
+     rewrite(f,Trim(name_of_file));
 a_open_out:=true;
 end;
 @#
@@ -319,7 +322,7 @@ function b_open_in(var f:byte_file):boolean;
   {open a binary file for input}
 var @!ok:boolean;
 begin
-     reset(f,name_of_file);
+     reset(f,Trim(name_of_file));
 b_open_in:=true;
 end;
 @#
@@ -327,7 +330,7 @@ function b_open_out(var f:byte_file):boolean;
   {open a binary file for output}
 var @!ok:boolean;
 begin
-     rewrite(f,name_of_file);
+     rewrite(f,Trim(name_of_file));
 b_open_out:=true;
 end;
 @#
@@ -335,7 +338,7 @@ function w_open_in(var f:word_file):boolean;
   {open a word file for input}
 var @!ok:boolean;
 begin
-     reset(f,name_of_file);
+     reset(f,Trim(name_of_file));
 w_open_in:=true;
 end;
 @#
@@ -343,7 +346,7 @@ function w_open_out(var f:word_file):boolean;
   {open a word file for output}
 var @!ok:boolean;
 begin
-     rewrite(f,name_of_file);
+     rewrite(f,Trim(name_of_file));
 w_open_out:=true;
 end;
 @z
