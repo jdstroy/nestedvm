@@ -1194,8 +1194,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
         
         public void _close() {
-            try {is.close(); } catch(IOException e) { /*ignore*/ }
-            try {os.close(); } catch(IOException e) { /*ignore*/ }
+            if(is != null) try { is.close(); } catch(IOException e) { /*ignore*/ }
+            if(os != null) try { os.close(); } catch(IOException e) { /*ignore*/ }
         }
         
         public int read(byte[] a, int off, int length) throws ErrnoException {

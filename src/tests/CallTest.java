@@ -26,7 +26,7 @@ public class CallTest {
                         case 1: return rt.strdup("OS: " + System.getProperty("os.name"));
                         case 2: return rt.strdup(System.getProperty("os.version"));
                         case 3: return rt.strdup(new Date().toString());
-                        case 4: return rt.addFD(new Runtime.OutputStreamFD(new CustomOS()));
+                        case 4: return rt.addFD(new Runtime.InputOutputStreamFD(null,new CustomOS()));
                         case 5:
                             System.out.println("In callJava() in Java"); 
                             try { rt.call("backinmips"); } catch(Runtime.CallException e) { }
