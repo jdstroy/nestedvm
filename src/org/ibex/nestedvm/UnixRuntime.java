@@ -86,14 +86,21 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         UnixRuntime[] tasks = gs.tasks;
         synchronized(gs) {
             if(pid != 0) {
-                if(tasks[pid] == null || tasks[pid].pid != pid) throw new Error("should never happen");
+                UnixRuntime prev = tasks[pid];
+                if(prev == null || prev == this || prev.pid != pid || prev.parent != parent)
+                    throw new Error("should never happen");
+                synchronized(parent.children) {
+                    int i = parent.activeChildren.indexOf(prev);
+                    if(i == -1) throw new Error("should never happen");
+                    parent.activeChildren.set(i,this);
+                }
             } else {
                 int newpid = -1;
                 int nextPID = gs.nextPID;
-                    for(int i=nextPID;i<tasks.length;i++) if(tasks[i] == null) { newpid = i; break; }
-                    if(newpid == -1) for(int i=1;i<nextPID;i++) if(tasks[i] == null) { newpid = i; break; }
-                    if(newpid == -1) throw new ProcessTableFullExn();
-                    pid = newpid;
+                for(int i=nextPID;i<tasks.length;i++) if(tasks[i] == null) { newpid = i; break; }
+                if(newpid == -1) for(int i=1;i<nextPID;i++) if(tasks[i] == null) { newpid = i; break; }
+                if(newpid == -1) throw new ProcessTableFullExn();
+                pid = newpid;
                 gs.nextPID = newpid + 1;
             }
             tasks[pid] = this;
@@ -224,7 +231,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(parent == null) {
                     gs.tasks[pid] = null;
                 } else {
-                    parent.activeChildren.remove(this);
+                    if(!parent.activeChildren.remove(this)) throw new Error("should never happen _exited: pid: " + pid);
                     parent.exitedChildren.add(this);
                     parent.children.notify();
                 }
