@@ -11,7 +11,7 @@ set xtics (\
 		"TABLE\nSWITCH" 5.2, "Combined" 6.4, \
 		"Binary\n-to-\nBinary" 7.6)
 
-set title "Effects of Optimizatins on Binary-to-Souce and Binary-to-Binary Compilers"
+set title "Effects of Optimizations on Binary-to-Souce and Binary-to-Binary Compilers"
 set ylabel "Seconds"
 set grid
 #set label "59"  at 2.15, 69 
