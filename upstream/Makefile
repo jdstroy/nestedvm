@@ -273,7 +273,7 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 	cd build && \
 		rm -f busybox && \
 		ln -s busybox-$(version_busybox) busybox
-	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
+	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(filter-out -Werror,$(MIPS_CFLAGS)) -DNESTEDVM -g"
 	touch $@
 
 tasks/build_gcclass:
