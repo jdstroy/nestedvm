@@ -101,36 +101,6 @@ int main(int argc, char **argv) {
     } else if(argc > 2 && strcmp(argv[1],"crashme") == 0) {
         volatile int *mem = (int*) atoi(argv[2]);
         *mem = 1;
-    } else if(argc > 2 && strcmp(argv[1],"get") == 0) {
-        extern int _open_socket(const char *host, int port);
-        fd = _open_socket(argv[2],80);
-        if(fd == -1) { perror("open_socket"); exit(EXIT_FAILURE); }
-#define REQ "GET / HTTP/1.0\r\n\r\n"
-        n = write(fd,REQ,strlen(REQ));
-        if(n != strlen(REQ)) { perror("write"); exit(EXIT_FAILURE); }
-        for(;;) {
-            n = read(fd,buf,sizeof(buf));
-            if(n < 0) { perror("read"); exit(EXIT_FAILURE); }
-            if(n == 0) break;
-            write(1,buf,n);
-        }
-    } else if(argc > 1 && strcmp(argv[1],"server") == 0) {
-        extern int _listen_socket(int port);
-        extern int _accept(int fd);
-        
-        int server = _listen_socket(2000);
-        if(server< 0) { perror("server_socket"); exit(EXIT_FAILURE); }
-        while((fd = _accept(server)) >= 0) {
-            char buf2[1024];
-            int n = read(fd,buf,sizeof(buf));
-            if(n < 0) { perror("read"); continue; }
-            if(n == 0) continue;
-            while(n > 0 && (buf[n-1] == '\r' || buf[n-1] == '\n')) n--;
-            buf[n] = '\0';
-            snprintf(buf2,sizeof(buf2),"Hello, %s from nestedvm's socket support\r\n",buf);
-            write(fd,buf2,strlen(buf2));
-            close(fd);
-        }
     } else { 
         printf("%d\n", 0xffffff);
         printf("%u\n", 0xffffffU);

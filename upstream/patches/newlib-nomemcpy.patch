@@ -1,0 +1,22 @@
+--- newlib/libc/string/Makefile.in.orig	2004-05-20 21:29:17.000000000 -0400
++++ newlib/libc/string/Makefile.in	2004-05-20 21:29:17.000000000 -0400
+@@ -225,7 +225,7 @@
+ LIBS = @LIBS@
+ @USE_LIBTOOL_FALSE@lib_a_OBJECTS =  bcopy.$(OBJEXT) bzero.$(OBJEXT) \
+ @USE_LIBTOOL_FALSE@index.$(OBJEXT) memchr.$(OBJEXT) memcmp.$(OBJEXT) \
+-@USE_LIBTOOL_FALSE@memcpy.$(OBJEXT) memmove.$(OBJEXT) memset.$(OBJEXT) \
++@USE_LIBTOOL_FALSE@memmove.$(OBJEXT) \
+ @USE_LIBTOOL_FALSE@rindex.$(OBJEXT) strcasecmp.$(OBJEXT) \
+ @USE_LIBTOOL_FALSE@strcat.$(OBJEXT) strchr.$(OBJEXT) strcmp.$(OBJEXT) \
+ @USE_LIBTOOL_FALSE@strcoll.$(OBJEXT) strcpy.$(OBJEXT) strcspn.$(OBJEXT) \
+--- newlib/libc/machine/mips/Makefile.in~	2004-05-20 21:44:40.000000000 -0400
++++ newlib/libc/machine/mips/Makefile.in	2004-05-20 21:44:40.000000000 -0400
+@@ -103,7 +103,7 @@
+ CPPFLAGS = @CPPFLAGS@
+ LIBS = @LIBS@
+ lib_a_LIBADD = 
+-lib_a_OBJECTS =  setjmp.o strlen.o strcmp.o strncpy.o memset.o memcpy.o
++lib_a_OBJECTS =  setjmp.o strlen.o strcmp.o strncpy.o
+ CFLAGS = @CFLAGS@
+ COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+ CCLD = $(CC)
