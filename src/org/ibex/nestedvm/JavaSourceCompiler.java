@@ -47,7 +47,7 @@ public class JavaSourceCompiler extends Compiler {
         if (packageName != null) p("package " + packageName + ";");
         if(runtimeStats) p("import java.util.*;");
         p();
-        p("public class " + className + " extends " + runtimeClass + " {");
+        p("public final class " + className + " extends " + runtimeClass + " {");
         indent++;
         
         p("/* program counter */");
@@ -116,22 +116,19 @@ public class JavaSourceCompiler extends Compiler {
         // Constructor
         p("public " + className + "() {");
         indent++;
-        p("super(" + pageSize + "," + totalPages + "," + (fastMem?"false":"true") + ");");
-        p("entryPoint = " + toHex(elf.header.entry) + ";");
-        if(userInfo != null) {
-            p("userInfoBase=" + toHex(userInfo.addr) + ";");
-            p("userInfoSize=" + userInfo.size + ";");
-        }
-        p("gp = " + toHex(gp.addr) + ";");
-        if(onePage)
-            p("brkAddr = " + toHex((highestAddr+4095)&~4095) + ";");
-        else
-            p("brkAddr = " + toHex((highestAddr+pageSize-1)&~(pageSize-1)) + ";");
+        p("super(" + pageSize + "," + totalPages + ");");
         pblock(inits);
-        p("state = INITIALIZED;");
         indent--;
         p("}");
         p();
+        
+        p("protected int entryPoint() { return " + toHex(elf.header.entry) + "; }");
+        p("protected int heapStart() { return " + toHex(highestAddr) + "; }");
+        p("protected int gp() { return " + toHex(gp.addr) + "; }");
+        if(userInfo != null) {
+            p("protected int userInfoBase() { return " + toHex(userInfo.addr) + "; }");            
+            p("protected int userInfoSize() { return " + toHex(userInfo.size) + "; }");            
+        }
         
         // main() function
         p("public static void main(String[] args) throws Exception {");
@@ -156,14 +153,12 @@ public class JavaSourceCompiler extends Compiler {
         p("pc=state.pc;");
         indent--;
         p("}");
-        p("protected CPUState getCPUState() {");
+        p("protected void getCPUState(CPUState state) {");
         indent++;
-        p("CPUState state = new CPUState();");
         for(int i=1;i<32;i++) p("state.r[" + i + "]=r" + i+ ";");
         for(int i=0;i<32;i++) p("state.f[" + i + "]=f" + i +";");
         p("state.hi=hi; state.lo=lo; state.fcsr=fcsr;");
         p("state.pc=pc;");
-        p("return state;");
         indent--;
         p("}");
         p();

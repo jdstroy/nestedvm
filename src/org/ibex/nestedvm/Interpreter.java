@@ -54,6 +54,7 @@ public class Interpreter extends UnixRuntime {
     // Main interpretor
     // the return value is meaningless, its just to catch people typing "return" by accident
     private final int runSome() throws FaultException,ExecutionException {
+        final int PAGE_WORDS = (1<<pageShift)>>2;
         int[] r = registers;
         int[] f = fpregs;
         int pc = this.pc;
@@ -62,7 +63,7 @@ public class Interpreter extends UnixRuntime {
     OUTER: for(;;) {
         int insn;
         try {
-            insn = readPages[pc>>>PAGE_SHIFT][(pc>>>2)&PAGE_WORDS-1];
+            insn = readPages[pc>>>pageShift][(pc>>>2)&PAGE_WORDS-1];
         } catch (RuntimeException e) {
             insn = memRead(pc);
         }
@@ -430,7 +431,7 @@ public class Interpreter extends UnixRuntime {
             case 32: { // LB
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -447,7 +448,7 @@ public class Interpreter extends UnixRuntime {
             case 33: { // LH
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -462,7 +463,7 @@ public class Interpreter extends UnixRuntime {
             case 34: { // LWL;
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -477,7 +478,7 @@ public class Interpreter extends UnixRuntime {
             case 35: // LW
                 addr = r[rs] + signedImmediate;
                 try {
-                    r[rt] = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    r[rt] = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     r[rt] = memRead(addr);
                 }
@@ -485,7 +486,7 @@ public class Interpreter extends UnixRuntime {
             case 36: { // LBU
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr);
                 }
@@ -500,7 +501,7 @@ public class Interpreter extends UnixRuntime {
             case 37: { // LHU
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -513,7 +514,7 @@ public class Interpreter extends UnixRuntime {
             case 38: { // LWR
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -528,7 +529,7 @@ public class Interpreter extends UnixRuntime {
             case 40: { // SB
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -539,7 +540,7 @@ public class Interpreter extends UnixRuntime {
                     case 3: tmp = (tmp&0xffffff00) | ((r[rt]&0xff)<< 0); break;
                 }
                 try {
-                    writePages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
+                    writePages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
                 } catch(RuntimeException e) {
                     memWrite(addr&~3,tmp);
                 }
@@ -548,7 +549,7 @@ public class Interpreter extends UnixRuntime {
             case 41: { // SH
                 addr = r[rs] + signedImmediate;
                 try {
-                    tmp = readPages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)];
+                    tmp = readPages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)];
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
@@ -557,7 +558,7 @@ public class Interpreter extends UnixRuntime {
                     case 2: tmp = (tmp&0xffff0000) | ((r[rt]&0xffff)<< 0); break;
                 }
                 try {
-                    writePages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
+                    writePages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
                 } catch(RuntimeException e) {
                     memWrite(addr&~3,tmp);
                 }
@@ -573,7 +574,7 @@ public class Interpreter extends UnixRuntime {
                     case 3: tmp=(tmp&0xffffff00)|(r[rt]>>>24); break;
                 }
                 try {
-                    writePages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
+                    writePages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
                 } catch(RuntimeException e) {
                     memWrite(addr&~3,tmp);
                 }
@@ -582,7 +583,7 @@ public class Interpreter extends UnixRuntime {
             case 43: // SW
                 addr = r[rs] + signedImmediate;
                 try {
-                    writePages[addr>>>PAGE_SHIFT][(addr>>>2)&(PAGE_WORDS-1)] = r[rt];
+                    writePages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)] = r[rt];
                 } catch(RuntimeException e) {
                     memWrite(addr&~3,r[rt]);
                 }
@@ -632,10 +633,21 @@ public class Interpreter extends UnixRuntime {
         return sym == null ? -1 : sym.addr;
     }
     
+    private int gp;
+    protected int gp() { return gp; }
+    
+    private ELF.Symbol userInfo;
+    protected int userInfoBae() { return userInfo == null ? 0 : userInfo.addr; }
+    protected int userInfoSize() { return userInfo == null ? 0 : userInfo.size; }
+    
+    private int entryPoint;
+    protected int entryPoint() { return entryPoint; }
+    
+    private int heapStart;
+    protected int heapStart() { return heapStart; }
+    
     // Image loading function
     private void loadImage(Seekable data) throws IOException {
-        if(state != UNINITIALIZED) throw new IllegalStateException("loadImage called on initialized runtime");
-        
         ELF elf = new ELF(data);
         symtab = elf.getSymtab();
         
@@ -647,19 +659,18 @@ public class Interpreter extends UnixRuntime {
         
         ELF.Symtab symtab = elf.getSymtab();
         if(symtab == null) throw new IOException("No symtab in binary (did you strip it?)");
-        ELF.Symbol userInfo = symtab.getGlobalSymbol("user_info");
+        userInfo = symtab.getGlobalSymbol("user_info");
         ELF.Symbol gpsym = symtab.getGlobalSymbol("_gp");
         
         if(gpsym == null) throw new IOException("NO _gp symbol!");
         gp = gpsym.addr;
         
-        if(userInfo != null) {
-            userInfoBase = userInfo.addr;
-            userInfoSize = userInfo.size;
-        }
+        entryPoint = elf.header.entry;
         
         ELF.PHeader[] pheaders = elf.pheaders;
         int brk = 0;
+        int pageSize = (1<<pageShift);
+        int pageWords = (1<<pageShift) >> 2;
         for(int i=0;i<pheaders.length;i++) {
             ELF.PHeader ph = pheaders[i];
             if(ph.type != ELF.PHeader.PT_LOAD) continue;
@@ -671,25 +682,24 @@ public class Interpreter extends UnixRuntime {
             if(addr == 0x0) throw new IOException("pheader vaddr == 0x0");
             brk = max(addr+memsize,brk);
             
-            for(int j=0;j<memsize+PAGE_SIZE-1;j+=PAGE_SIZE) {
-                int page = (j+addr) >>> PAGE_SHIFT;
+            for(int j=0;j<memsize+pageSize-1;j+=pageSize) {
+                int page = (j+addr) >>> pageShift;
                 if(readPages[page] == null)
-                    readPages[page] = new int[PAGE_WORDS];
+                    readPages[page] = new int[pageWords];
                 if(ph.writable()) writePages[page] = readPages[page];
             }
             if(filesize != 0) {
                 filesize = filesize & ~3;
                 DataInputStream dis = new DataInputStream(ph.getInputStream());
                 do {
-                    readPages[addr >>> PAGE_SHIFT][(addr >>> 2)&(PAGE_WORDS-1)] = dis.readInt();
+                    readPages[addr >>> pageShift][(addr >>> 2)&(pageWords-1)] = dis.readInt();
                     addr+=4;
                     filesize-=4;
                 } while(filesize > 0);
                 dis.close();
             }
         }
-        brkAddr = (brk+PAGE_SIZE-1)&~(PAGE_SIZE-1);
-        state = INITIALIZED;
+        heapStart = (brk+pageSize-1)&~(pageSize-1);
     }
     
     protected void setCPUState(CPUState state) {
@@ -699,18 +709,17 @@ public class Interpreter extends UnixRuntime {
         pc=state.pc;
     }
     
-    protected CPUState getCPUState() {
-        CPUState state = new CPUState();
+    protected void getCPUState(CPUState state) {
         for(int i=1;i<32;i++) state.r[i] = registers[i];
         for(int i=0;i<32;i++) state.f[i] = fpregs[i];
         state.hi=hi; state.lo=lo; state.fcsr=fcsr;
         state.pc=pc;
-        return state;
     }
     
-    // This is package private for fork() which does all kinds of ugly things behind the scenes
-    Interpreter() { super(4096,65536,true); }
-    public Interpreter(Seekable data) throws IOException { this(); loadImage(data); }
+    public Interpreter(Seekable data) throws IOException {
+        super(4096,65536);
+        loadImage(data);
+    }
     public Interpreter(String filename) throws IOException {
         this(new Seekable.File(filename,false));
         image = filename;

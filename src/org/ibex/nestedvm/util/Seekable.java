@@ -2,15 +2,21 @@ package org.ibex.nestedvm.util;
 
 import java.io.*;
 
-public interface Seekable { 
-    public int read(byte[] buf, int offset, int length) throws IOException;
-    public int write(byte[] buf, int offset, int length) throws IOException;
-    public int length() throws IOException;
-    public void seek(int pos) throws IOException;
-    public void close() throws IOException;
-    public int pos() throws IOException;
+public abstract class Seekable { 
+    public abstract int read(byte[] buf, int offset, int length) throws IOException;
+    public abstract int write(byte[] buf, int offset, int length) throws IOException;
+    public abstract int length() throws IOException;
+    public abstract void seek(int pos) throws IOException;
+    public abstract void close() throws IOException;
+    public abstract int pos() throws IOException;
     
-    public class ByteArray implements Seekable {
+    public int read() throws IOException {
+        byte[] buf = new byte[1];
+        int n = read(buf,0,1);
+        return n == -1 ? -1 : buf[0]&0xff;
+    }
+    
+    public static class ByteArray extends Seekable {
         protected byte[] data;
         protected int pos;
         private final boolean writable;
@@ -28,7 +34,7 @@ public interface Seekable {
             pos += len;
             return len;
         }
-        
+                
         public int write(byte[] buf, int off, int len) throws IOException {
             if(!writable) throw new IOException("read-only data");
             len = Math.min(len,data.length-pos);
@@ -44,7 +50,7 @@ public interface Seekable {
         public void close() { /*noop*/ }
     }
     
-    public class File implements Seekable {
+    public static class File extends Seekable {
         private final RandomAccessFile raf;
         
         public File(String fileName) throws IOException { this(fileName,false); }
@@ -65,7 +71,7 @@ public interface Seekable {
         public void close() throws IOException { raf.close(); }
     }
     
-    public class InputStream implements Seekable {
+    public static class InputStream extends Seekable {
         private byte[] buffer = new byte[4096];
         private int bytesRead = 0;
         private boolean eof = false;

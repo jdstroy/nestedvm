@@ -131,8 +131,8 @@ int main(int argc, char **argv) {
         printf("Tyring to mkdir .mkdirtest\n");
         if(mkdir(".mkdirtest",0700) < 0) perror("mkdir");
         
-        printf("Trying to opendir /\n");
-        dir = opendir("/");
+        printf("Trying to opendir .\n");
+        dir = opendir(".");
         if(dir) {
             while((dent=readdir(dir))!=NULL)
                 printf("\t[%s] %lu\n",dent->d_name,dent->d_ino);

@@ -79,11 +79,8 @@ public abstract class Compiler implements Registers {
     protected boolean onePage;
     
     protected void pageSizeInit() throws Exn {
-        try {
-            Runtime.checkPageSize(pageSize,totalPages);
-        } catch(IllegalArgumentException e) {
-            throw new Exn(e.getMessage());
-        }
+        if((pageSize&(pageSize-1)) != 0) throw new Exn("pageSize not a multiple of two");
+        if((totalPages&(totalPages-1)) != 0) throw new Exn("totalPages not a multiple of two");
         while(pageSize>>>pageShift != 1) pageShift++;
     }
     

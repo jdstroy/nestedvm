@@ -79,7 +79,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         if(!pruneCases) throw new Exn("-o prunecases MUST be enabled for ClassFileCompiler");
 
         // Class
-        cl = new ClassGen(fullClassName,runtimeClass,source,ACC_SUPER|ACC_PUBLIC,null);
+        cl = new ClassGen(fullClassName,runtimeClass,source,ACC_SUPER|ACC_PUBLIC|ACC_FINAL,null);
         cp = cl.getConstantPool();
         fac = new InstructionFactory(cl,cp);
         
@@ -193,42 +193,32 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             throw new Exn("Generation of the trampoline method failed. Try increasing maxInsnPerMethod");
         }
         
+        addConstReturnMethod("gp",gp.addr);
+        addConstReturnMethod("entryPoint",elf.header.entry);
+        addConstReturnMethod("heapStart",highestAddr);
+                
+        if(userInfo != null) {
+            addConstReturnMethod("userInfoBase",userInfo.addr);
+            addConstReturnMethod("userInfoSize",userInfo.size);
+        }
+        
+        // FEATURE: Allow specification of memory size at runtime (numpages)
+        // Constructor
         MethodGen init = newMethod(ACC_PUBLIC,Type.VOID, Type.NO_ARGS, "<init>");
         selectMethod(init);
-        // Constructor
         a(InstructionConstants.ALOAD_0);
         pushConst(pageSize);
         pushConst(totalPages);
-        pushConst(fastMem ? 0 : 1);
-        a(fac.createInvoke(runtimeClass,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT,Type.BOOLEAN},INVOKESPECIAL));
-        a(InstructionConstants.ALOAD_0);
-        pushConst(gp.addr);
-        a(fac.createFieldAccess(fullClassName,"gp",Type.INT, PUTFIELD));
+        a(fac.createInvoke(runtimeClass,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT},INVOKESPECIAL));
         
-        a(InstructionConstants.ALOAD_0);
-        pushConst(elf.header.entry);
-        a(fac.createFieldAccess(fullClassName,"entryPoint",Type.INT, PUTFIELD));
-        
-        a(InstructionConstants.ALOAD_0);
-        pushConst(onePage ? ((highestAddr+4095)&~4095) : ((highestAddr+pageSize-1)&~(pageSize-1)));
-        a(fac.createFieldAccess(fullClassName,"brkAddr",Type.INT, PUTFIELD));
-        
-        if(userInfo != null) {
-            a(InstructionConstants.ALOAD_0);
-            pushConst(userInfo.addr);
-            a(fac.createFieldAccess(fullClassName,"userInfoBase",Type.INT, PUTFIELD));
-            a(InstructionConstants.ALOAD_0);
-            pushConst(userInfo.size);
-            a(fac.createFieldAccess(fullClassName,"userInfoSize",Type.INT, PUTFIELD));
-        }
         a(initExtras);
-        a(InstructionConstants.ALOAD_0);
-        pushConst(Runtime.INITIALIZED);
-        a(fac.createFieldAccess(fullClassName,"state",Type.INT, PUTFIELD));
+        
         a(InstructionConstants.RETURN);
+        
         init.setMaxLocals();
         init.setMaxStack();
         cl.addMethod(init.getMethod());
+        
         
         MethodGen clinit = newMethod(ACC_PRIVATE|ACC_STATIC,Type.VOID, Type.NO_ARGS, "<clinit>");
         selectMethod(clinit);
@@ -318,18 +308,14 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(InstructionConstants.ALOAD_1);
         a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","pc",Type.INT,GETFIELD));
         a(fac.createFieldAccess(fullClassName,"pc",Type.INT, PUTFIELD));
+        
         a(InstructionConstants.RETURN);
         setCPUState.setMaxLocals();
         setCPUState.setMaxStack();
         cl.addMethod(setCPUState.getMethod());
         
-        MethodGen getCPUState = newMethod(ACC_PROTECTED,Type.getType("Lorg/ibex/nestedvm/Runtime$CPUState;"),Type.NO_ARGS,"getCPUState");
+        MethodGen getCPUState = newMethod(ACC_PROTECTED,Type.VOID,new Type[]{Type.getType("Lorg/ibex/nestedvm/Runtime$CPUState;")},"getCPUState");
         selectMethod(getCPUState);
-        a(fac.createNew("org.ibex.nestedvm.Runtime$CPUState"));
-        a(InstructionConstants.DUP);
-        a(fac.createInvoke("org.ibex.nestedvm.Runtime$CPUState","<init>",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
-        a(InstructionConstants.ASTORE_1);
-        
         a(InstructionConstants.ALOAD_1);
         a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
         a(InstructionConstants.ASTORE_2);
@@ -368,13 +354,13 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
         a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","pc",Type.INT,PUTFIELD));
         
-        a(InstructionConstants.ALOAD_1);
-        a(InstructionConstants.ARETURN);
+        a(InstructionConstants.RETURN);
         getCPUState.setMaxLocals();
         getCPUState.setMaxStack();
         cl.addMethod(getCPUState.getMethod());
 
 
+        // FEATURE: Catch RuntimeException and turn it into a fault exception
         MethodGen execute = newMethod(ACC_PROTECTED,Type.VOID,Type.NO_ARGS,"_execute");
         selectMethod(execute);
         a(InstructionConstants.ALOAD_0);
@@ -392,7 +378,12 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(fac.createInvoke(fullClassName,"<init>",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
         a(new PUSH(cp,fullClassName));
         a(InstructionConstants.ALOAD_0);
-        a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
+        if(unixRuntime)
+            a(fac.createInvoke("org.ibex.nestedvm.UnixRuntime","runAndExec",Type.INT,
+                    new Type[]{Type.getType("Lorg/ibex/nestedvm/UnixRuntime;"),Type.STRING,new ArrayType(Type.STRING,1)},
+                    INVOKESTATIC));
+        else
+        	    a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
         a(fac.createInvoke("java.lang.System","exit",Type.VOID,new Type[]{Type.INT},INVOKESTATIC));
         a(InstructionConstants.RETURN);
         main.setMaxLocals();
@@ -400,6 +391,16 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         cl.addMethod(main.getMethod());
         
         cl.getJavaClass().dump(os);
+    }
+    
+    private void addConstReturnMethod(String name, int val) {
+    	    MethodGen method = newMethod(ACC_PROTECTED,Type.INT, Type.NO_ARGS,name);
+        selectMethod(method);
+        pushConst(val);
+        a(InstructionConstants.IRETURN);
+        method.setMaxLocals();
+        method.setMaxStack();
+        cl.addMethod(method.getMethod());
     }
         
     private static int initDataCount;

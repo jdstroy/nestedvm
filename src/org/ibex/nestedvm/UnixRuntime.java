@@ -7,7 +7,10 @@ import java.util.*;
 // FEATURE: BusyBox's ASH doesn't like \r\n at the end of lines
 // is ash just broken or are many apps like this? if so workaround in nestedvm
 
-public abstract class UnixRuntime extends Runtime {
+// FEATURE: Throw ErrnoException and catch in syscall whereever possible 
+// (only in cases where we've already paid the price for a throw)
+
+public abstract class UnixRuntime extends Runtime implements Cloneable {
     /** The pid of this "process" */
     private int pid;
     private int ppid;
@@ -17,13 +20,16 @@ public abstract class UnixRuntime extends Runtime {
     private FS fs;
     public FS getFS() { return fs; }
     public void setFS(FS fs) {
-        if(state >= RUNNING) throw new IllegalStateException("Can't change fs while process is running");
+        if(state != STOPPED) throw new IllegalStateException("Can't change fs while process is running");
         this.fs = fs;
     }
     
     /** proceses' current working directory - absolute path WITHOUT leading slash
         "" = root, "bin" = /bin "usr/bin" = /usr/bin */
     private String cwd;
+    
+    /** The runtime that should be run next when in state == EXECED */
+    private UnixRuntime execedRuntime;
     
     /* Static stuff */
     // FEATURE: Most of this is O(n) or worse - fix it
@@ -49,8 +55,8 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
     
-    public UnixRuntime(int pageSize, int totalPages, boolean allowEmptyPages) {
-        super(pageSize,totalPages,allowEmptyPages);
+    public UnixRuntime(int pageSize, int totalPages) {
+        super(pageSize,totalPages);
         
         FS root = new HostFS();
         FS dev = new DevFS();
@@ -111,11 +117,11 @@ public abstract class UnixRuntime extends Runtime {
             if(ppid == 0) removeTask(this);
             for(int i=0;i<MAX_TASKS;i++) {
                 if(tasks[i] != null && tasks[i].ppid == pid) {
-                    if(tasks[i].state == DONE) removeTask(tasks[i]);
+                    if(tasks[i].state == EXITED) removeTask(tasks[i]);
                     else tasks[i].ppid = 0;
                 }
             }
-            state = DONE;
+            state = EXITED;
             if(ppid != 0) synchronized(tasks[ppid].waitNotification) { tasks[ppid].waitNotification.notify(); }
         }
     }
@@ -166,20 +172,8 @@ public abstract class UnixRuntime extends Runtime {
             case 23: // SIGIO
             case 28: // SIGWINCH
                 break;
-            default: {
-                String msg = "Terminating on signal: " + signal + "\n";
-                exitStatus = 1;
-                state = DONE;
-                if(fds[2]==null) {
-                    System.out.print(msg);
-                } else {
-                    try {
-                        byte[] b = getBytes(msg); 
-                        fds[2].write(b,0,b.length);
-                    }
-                    catch(IOException e) { /* ignore */ }
-                }
-            }
+            default:
+                return syscall(SYS_exit,128+signal,0,0,0);
         }
         return 0;
     }
@@ -193,12 +187,12 @@ public abstract class UnixRuntime extends Runtime {
                 UnixRuntime task = null;
                 if(pid == -1) {
                     for(int i=0;i<MAX_TASKS;i++) {
-                        if(tasks[i] != null && tasks[i].ppid == this.pid && tasks[i].state == DONE) {
+                        if(tasks[i] != null && tasks[i].ppid == this.pid && tasks[i].state == EXITED) {
                             task = tasks[i];
                             break;
                         }
                     }
-                } else if(tasks[pid] != null && tasks[pid].ppid == this.pid && tasks[pid].state == DONE) {
+                } else if(tasks[pid] != null && tasks[pid].ppid == this.pid && tasks[pid].state == EXITED) {
                     task = tasks[pid];
                 }
                 
@@ -220,41 +214,32 @@ public abstract class UnixRuntime extends Runtime {
         }
     }
     
-    // FEATURE: Make this cleaner
-    // Great ugliness lies within.....
+    protected Object clone() throws CloneNotSupportedException {
+    	    UnixRuntime r = (UnixRuntime) super.clone();
+        r.pid = r.ppid = 0;
+        return r;
+    }
+
     private int sys_fork() {
-        CPUState state = getCPUState();
+        CPUState state = new CPUState();
+        getCPUState(state);
         int sp = state.r[SP];
         final UnixRuntime r;
+        
         try {
-            r = (UnixRuntime) getClass().newInstance();
+            r = (UnixRuntime) clone();
         } catch(Exception e) {
-            System.err.println(e);
+            e.printStackTrace();
             return -ENOMEM;
         }
-        int child_pid = addTask(r);
-        if(child_pid < 0) return -ENOMEM;
+        
+        int childPID = addTask(r);
+        if(childPID < 0) return -ENOMEM;
         
         r.ppid = pid;
-        r.brkAddr = brkAddr;
-        r.fds = new FD[OPEN_MAX];
-        for(int i=0;i<OPEN_MAX;i++) if(fds[i] != null) r.fds[i] = fds[i].dup();
-        r.cwd = cwd;
-        r.fs = fs;
-        for(int i=0;i<TOTAL_PAGES;i++) {
-            if(readPages[i] == null) continue;
-            if(isEmptyPage(writePages[i])) {
-                r.readPages[i] = r.writePages[i] = writePages[i];
-            } else if(writePages[i] != null) {
-                r.readPages[i] = r.writePages[i] = new int[PAGE_WORDS];
-                if(STACK_BOTTOM == 0 || i*PAGE_SIZE < STACK_BOTTOM || i*PAGE_SIZE >= sp-PAGE_SIZE*2)
-                    System.arraycopy(writePages[i],0,r.writePages[i],0,PAGE_WORDS);
-            } else {
-                r.readPages[i] = r.readPages[i];
-            }
-        }
-        state.r[V0] = 0;
-        state.pc += 4;
+        
+        state.r[V0] = 0; // return 0 to child
+        state.pc += 4; // skip over syscall instruction
         r.setCPUState(state);
         r.state = PAUSED;
         
@@ -269,23 +254,108 @@ public abstract class UnixRuntime extends Runtime {
             }
         }.start();
         
-        return child_pid;        
+        return childPID;
     }
-        
-    private int sys_execve(int cstring, int argv, int envp) {
-        /*
-        try {
-            String path = cstring(cstring);
-            FStat stat = fs.stat(path);
-            
-            
+    
+    public static int runAndExec(UnixRuntime r, String argv0, String[] rest) { return runAndExec(r,concatArgv(argv0,rest)); }
+    public static int runAndExec(UnixRuntime r, String[] argv) { r.start(argv); return executeAndExec(r); }
+    
+    public static int executeAndExec(UnixRuntime r) {
+    	    for(;;) {
+            for(;;) {
+                if(r.execute()) break;
+                System.err.println("WARNING: Pause requested while executing runAndExec()");
+            }
+            if(r.state != EXECED) return r.exitStatus();
+            r = r.execedRuntime;
         }
-        catch(FaultException e) { return -EFAULT; }
-        catch(FileNotFoundException e) {  return -ENOENT; }
-        catch(IOException e) { return -EIO; }*/
-        throw new Error("FIXME - exec() isn't finished");
     }
-            
+     
+    private String[] readStringArray(int addr) throws ReadFaultException {
+    	    int count = 0;
+        for(int p=addr;memRead(p) != 0;p+=4) count++;
+        String[] a = new String[count];
+        for(int i=0,p=addr;i<count;i++,p+=4) a[i] = cstring(memRead(p));
+        return a;
+    }
+    
+    // FEATURE: call the syscall just "exec"
+    private int sys_execve(int cpath, int cargv, int cenvp) {
+        try {
+        	    return exec(normalizePath(cstring(cpath)),readStringArray(cargv),readStringArray(cenvp));
+        } catch(FaultException e) {
+            return -EFAULT;
+        }
+    }
+    
+    private int exec(String path, String[] argv, String[] envp) {
+        final UnixRuntime r;
+        
+        throw new Error("FIXME exec() not finished");
+        //Class klass = fs.getClass(path);
+        //if(klass != null) return exec(klass,argv,envp);
+        
+        /*try {
+             Seekable s = fs.getSeekable(path);
+             boolean elf = false;
+             boolean script = false;
+             switch(s.read()) {
+                case '\177': elf = s.read() == 'E' && s.read() == 'L' && s.read() == 'F'; break;
+                case '#': script = s.read() == '!';
+            }
+            s.close();
+            if(script) {
+                // FIXME #! support
+                throw new Error("FIXME can't exec scripts yet");
+                // append args, etc
+                // return exec(...)
+            } else if(elf) {
+                klass = fs.(path);
+                if(klass == null) return -ENOEXEC;
+                return exec(klass,argv,envp);
+            } else {
+            	    return -ENOEXEC;
+            }
+        }*/
+        // FEATURE: Way too much overlap in the handling of ioexeptions everhwere
+        /*catch(ErrnoException e) { return -e.errno; }
+        catch(FileNotFoundException e) {
+            if(e.getMessage() != null && e.getMessage().indexOf("Permission denied") >= 0) return -EACCES;
+            return -ENOENT;
+        }
+        catch(IOException e) { return -EIO; }
+        catch(FaultException e) { return -EFAULT; }*/
+    }
+    
+    private int exec(Class c, String[] argv, String[] envp) {
+        UnixRuntime r;
+        
+        try {
+        	    r = (UnixRuntime) c.newInstance();
+        } catch(Exception e) {
+        	    return -ENOMEM;
+        }
+        
+        for(int i=0;i<OPEN_MAX;i++) if(closeOnExec[i]) closeFD(i);
+        r.fds = fds;
+        r.closeOnExec = closeOnExec;
+        // make sure this doesn't get messed with these since we didn't copy them
+        fds = null;
+        closeOnExec = null;
+        
+        r.cwd = cwd;
+        r.fs = fs;
+        r.pid = pid;
+        r.ppid = ppid;
+        r.start(argv,envp);
+        
+        state = EXECED;
+        execedRuntime = r;
+        
+        return 0;   
+    }
+    
+    // FEATURE: Use custom PipeFD - be sure to support PIPE_BUF of data
     private int sys_pipe(int addr) {
         PipedOutputStream writerStream = new PipedOutputStream();
         PipedInputStream readerStream;
@@ -378,7 +448,7 @@ public abstract class UnixRuntime extends Runtime {
     }
 
     public void chdir(String dir) throws FileNotFoundException {
-        if(state >= RUNNING) throw new IllegalStateException("Can't chdir while process is running");
+        if(state != STOPPED) throw new IllegalStateException("Can't chdir while process is running");
         try {
             dir = normalizePath(dir);
             if(fs.stat(dir).type() != FStat.S_IFDIR) throw new FileNotFoundException();
@@ -409,8 +479,10 @@ public abstract class UnixRuntime extends Runtime {
         public final FD open(String path, int flags, int mode) throws IOException { return (FD) op(OPEN,path,flags,mode); }
         public final FStat stat(String path) throws IOException { return (FStat) op(STAT,path,0,0); }
         public final void mkdir(String path) throws IOException { op(MKDIR,path,0,0); }
+        
 		
-		// FIXME: inode stuff
+		// FEATURE: inode stuff
+        // FEATURE: Implement whatever is needed to get newlib's opendir and friends to work - that patch is a pain
         protected static FD directoryFD(String[] files, int hashCode) throws IOException {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(bos);
@@ -466,64 +538,13 @@ public abstract class UnixRuntime extends Runtime {
                 continue;
             }
             inp++;
+            out[outp++] = '/';
             out[outp++] = '.';
         }
         if(outp > 0 && out[outp-1] == '/') outp--;
         //System.err.println("normalize: " + path + " -> " + new String(out,0,outp) + " (cwd: " + cwd + ")");
         return new String(out,0,outp);
     }
-    
-    // FIXME: This is probably still buggy
-    // FEATURE: Remove some of the "should never happen checks"
-    /*protected static String cleanupPath(String p) throws ErrnoException {
-        if(p.length() == 0) throw new ErrnoException(ENOENT);
-        if(needsCleanup(p)) {
-            char[] in = p.toCharArray();
-            char[] out;
-            int outp ;
-            if(in[0] == '/') {
-                out = new char[in.length];
-                outp = 0;
-            } else {
-                out = new char[cwd.length() + in.length + 1];
-                outp = cwd.length();
-                for(int i=0;i<outp;i++) out[i] = cwd.charAt(i);
-                if(outp == 0 || out[0] != '/') throw new Error("should never happen");
-            }
-            int inLength = in.length;
-            int inp = 0;
-            while(inp<inLength) {
-                if(inp == 0 || in[inp] == '/') {
-                    while(inp < inLength && in[inp] == '/') inp++;
-                    if(inp == inLength) break;
-                    if(in[inp] == '.') {
-                        if(inp+1 == inLength) break;
-                        if(in[inp+1] == '.' && (inp+2 == inLength || in[inp+2] == '/')) {
-                            inp+=2;
-                            if(outp == 0) continue;
-                            do { outp--; } while(outp > 0 && out[outp] != '/');
-                        } else if(in[inp+1] == '/') {
-                            inp++;
-                        } else {
-                            out[outp++] = '/';
-                        }
-                    } else {
-                        out[outp++] = '/';
-                        out[outp++] = in[inp++];
-                    }
-                } else {
-                    out[outp++] = in[inp++];
-                }
-            }
-            if(outp == 0) out[outp++] = '/';
-            return new String(out,0,outp);
-        } else {
-            if(p.startsWith("/")) return p;
-            StringBuffer sb = new StringBuffer(cwd);
-            if(!cwd.equals("/")) sb.append('/');
-            return sb.append(p).toString();
-        }
-    }*/
     
     public static class MountPointFS extends FS {
         private static class MP {
@@ -545,7 +566,7 @@ public abstract class UnixRuntime extends Runtime {
             if(path.length() == 0) throw new IllegalArgumentException("Zero length mount point path");
             return path;
         }
-        public FS get(String path) {
+        public synchronized FS get(String path) {
             path = fixup(path);
             int f = path.charAt(0) & 0x7f;
             for(int i=0;mps[f] != null && i < mps[f].length;i++)
@@ -553,7 +574,7 @@ public abstract class UnixRuntime extends Runtime {
             return null;
         }
         
-        public void add(String path, FS fs) {
+        public synchronized void add(String path, FS fs) {
             if(get(path) != null) throw new IllegalArgumentException("mount point already exists");
             path = fixup(path);
             int f = path.charAt(0) & 0x7f;
@@ -565,7 +586,7 @@ public abstract class UnixRuntime extends Runtime {
             mps[f] = newList;
         }
         
-        public void remove(String path) {
+        public synchronized void remove(String path) {
             path = fixup(path);
             if(get(path) == null) throw new IllegalArgumentException("mount point doesn't exist");
             int f = path.charAt(0) & 0x7f;
@@ -593,36 +614,7 @@ public abstract class UnixRuntime extends Runtime {
             return root.op(op,path,arg1,arg2);
         }
     }
-    
-    // FEATURE: Probably should make this more general - support mountpoints, etc
-    /*public class UnixOverlayFS extends FS {
-        private final FS root;
-        private final FS dev = new DevFS();
-        public UnixOverlayFS(FS root) {
-            this.root = root;
-        }
-        private String devPath(String path) {
-            if(path.startsWith("/dev")) {
-                if(path.length() == 4) return "/";
-                if(path.charAt(4) == '/') return path.substring(4);
-            }
-            return null;
-        }
-        public FD open(String path, int flags, int mode) throws IOException{
-            String dp = devPath(path);
-            return dp == null ? root.open(path,flags,mode) : dev.open(dp,flags,mode);
-        }
-        public FStat stat(String path) throws IOException {
-            String dp = devPath(path);
-            return dp == null ? root.stat(path) : dev.stat(dp);
-        }
-        public void mkdir(String path) throws IOException {
-            String dp = devPath(path);
-            if(dp == null) root.mkdir(path);
-            else dev.mkdir(dp);
-        }
-    }*/
-    
+        
     public static class HostFS extends FS {
         protected File root;
         public File getRoot() { return root; }
@@ -635,8 +627,17 @@ public abstract class UnixRuntime extends Runtime {
             return f;
         }
         
-        private File hostFile(String path) {
-            if(File.separatorChar != '/') path = path.replace('/',File.separatorChar);
+        File hostFile(String path) {
+            char sep = File.separatorChar;
+            if(sep != '/') {
+                char buf[] = path.toCharArray();
+                for(int i=0;i<buf.length;i++) {
+                	    char c = buf[i];
+                    if(c == '/') buf[i] = sep;
+                    else if(c == sep) buf[i] = '/';
+                }
+                path = new String(buf);
+            }
             return new File(root,path);
         }
         
@@ -707,11 +708,12 @@ public abstract class UnixRuntime extends Runtime {
         public FStat _fstat() { return new DevFStat(); }
     };    
     
-    public class DevFS extends FS {
+    // FIXME: Support /dev/fd (need to have syscalls pass along Runtime instance)
+    public static class DevFS extends FS {
         public FD _open(String path, int mode, int flags) throws IOException {
             if(path.equals("null")) return devNullFD;
             if(path.equals("zero")) return devZeroFD;
-            if(path.startsWith("fd/")) {
+            /*if(path.startsWith("fd/")) {
                 int n;
                 try {
                     n = Integer.parseInt(path.substring(4));
@@ -729,7 +731,7 @@ public abstract class UnixRuntime extends Runtime {
                 count = 0;
                 for(int i=0;i<OPEN_MAX;i++) if(fds[i] != null) files[count++] = Integer.toString(i);
                 return directoryFD(files,hashCode());
-            }
+            }*/
             if(path.equals("")) {
                 String[] files = { "null", "zero", "fd" };
                 return directoryFD(files,hashCode());
@@ -740,7 +742,7 @@ public abstract class UnixRuntime extends Runtime {
         public FStat _stat(String path) throws IOException {
             if(path.equals("null")) return devNullFD.fstat();
             if(path.equals("zero")) return devZeroFD.fstat();            
-            if(path.startsWith("fd/")) {
+            /*if(path.startsWith("fd/")) {
                 int n;
                 try {
                     n = Integer.parseInt(path.substring(4));
@@ -752,6 +754,7 @@ public abstract class UnixRuntime extends Runtime {
                 return fds[n].fstat();
             }
             if(path.equals("fd")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
+            */
             if(path.equals("")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
             throw new FileNotFoundException();
         }

@@ -239,4 +239,23 @@ public interface UsermodeConstants {
     public static final int _PC_POSIX_PERMISSIONS = 90;
     public static final int _PC_POSIX_SECURITY = 91;
     public static final int MAXPATHLEN = 1024;
+    public static final int ARG_MAX = 65536; /* max bytes for an exec function */
+    public static final int CHILD_MAX = 40; /* max simultaneous processes */
+    public static final int LINK_MAX = 32767; /* max file link count */
+    public static final int MAX_CANON = 255; /* max bytes in term canon input line */
+    public static final int MAX_INPUT = 255; /* max bytes in terminal input */
+    public static final int NAME_MAX = 255; /* max bytes in a file name */
+    public static final int NGROUPS_MAX = 16; /* max supplemental group id's */
+    public static final int OPEN_MAX = 64; /* max open files per process */
+    public static final int PATH_MAX = 1024; /* max bytes in pathname */
+    public static final int PIPE_BUF = 512; /* max bytes for atomic pipe writes */
+    public static final int IOV_MAX = 1024; /* max elements in i/o vector */
+    public static final int BC_BASE_MAX = 99; /* max ibase/obase values in bc(1) */
+    public static final int BC_DIM_MAX = 2048; /* max array elements in bc(1) */
+    public static final int BC_SCALE_MAX = 99; /* max scale value in bc(1) */
+    public static final int BC_STRING_MAX = 1000; /* max const string length in bc(1) */
+    public static final int COLL_WEIGHTS_MAX = 0; /* max weights for order keyword */
+    public static final int EXPR_NEST_MAX = 32; /* max expressions nested in expr(1) */
+    public static final int LINE_MAX = 2048; /* max bytes in an input line */
+    public static final int RE_DUP_MAX = 255; /* max RE's in interval notation */
 }

@@ -11,81 +11,66 @@ import java.util.Arrays;
 // FEATURE: Look over the public API, make sure we're exposing a bare minimum
 // (we might make this an interface in the future)
 
-public abstract class Runtime implements UsermodeConstants,Registers {
-    /** Pages are 4k in size */
-    protected final int PAGE_SIZE;
-    protected final int PAGE_WORDS;
-    protected final int PAGE_SHIFT;
-    protected final int TOTAL_PAGES;
-    /** This is the upper limit of the pages allocated by the sbrk() syscall. */
-    protected final int BRK_LIMIT;
-    protected final int STACK_BOTTOM;
-
-    /** This is the maximum size of command line arguments */
-    public final static int ARGS_MAX = 1024*1024;
-    
-    /** True if we allow empty pages (_emptyPage) to exist in memory.
-       Empty pages are pages which are allocated by the program but do not contain any
-       data yet (they are all 0s). If empty pages are allowed subclasses must always
-       access main memory with the memRead and memWrite functions */
-    private final boolean allowEmptyPages;
-    /** the "empty page" */
-    private final static int[] _emptyPage = new int[0];
-    
-    protected final static boolean isEmptyPage(int[] page) { return page == _emptyPage; }
-    
-    /** Returns a new empty page (_emptyPage is empty pages are enabled or a new zero'd page) */
-    private final int[] emptyPage() { return allowEmptyPages ? _emptyPage : new int[PAGE_WORDS]; }
+public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
+    /** Number of bits to shift to get the page number (1<<<pageShift == pageSize) */
+    protected final int pageShift;
+    /** Bottom of region of memory allocated to the stack */
+    protected final int stackBottom;
     
     /** Readable main memory pages */
-    protected final int[][] readPages;
+    protected int[][] readPages;
     /** Writable main memory pages.
         If the page is writable writePages[x] == readPages[x]; if not writePages[x] == null. */
-    protected final int[][] writePages;
+    protected int[][] writePages;
     
-    /** The current break between the heap and unallocated memory */
-    protected int brkAddr;
+    /** The address of the end of the heap */
+    private int heapEnd;
+    
+    /** Number of guard pages to keep between the stack and the heap */
+    private static final int STACK_GUARD_PAGES = 4;
+    
+    /** The last address the executable uses (other than the heap/stack) */
+    protected abstract int heapStart();
         
     /** The program's entry point */
-    protected int entryPoint;
+    protected abstract int entryPoint();
 
     /** The location of the _user_info block (or 0 is there is none) */
-    protected int userInfoBase;
-    protected int userInfoSize;
+    protected int userInfoBase() { return 0; }
+    protected int userInfoSize() { return 0; }
     
     /** The location of the global pointer */
-    protected int gp;
+    protected abstract int gp();
     
     /** When the process started */
     private long startTime;
     
-    /** State constant: There is no program loaded in memory */
-    public final static int UNINITIALIZED = 0; 
     /**  Text/Data loaded in memory  */
-    public final static int INITIALIZED = 1;
+    public final static int STOPPED = 0;
     /** Program is executing instructions */
-    public final static int RUNNING = 2;
+    public final static int RUNNING = 1;
     /** Prgram has been started but is paused */
-    public final static int PAUSED = 3;
+    public final static int PAUSED = 2;
     /** Program is executing a callJava() method */
-    public final static int CALLJAVA = 4;
+    public final static int CALLJAVA = 3;
     /** Program has exited (it cannot currently be restarted) */
-    public final static int DONE = 5;
-        
-    /** The current state (UNINITIALIZED, INITIALIZED, RUNNING, PAUSED, or DONE) */
-    protected int state = UNINITIALIZED;
+    public final static int EXITED = 4;
+    /** Program has executed a successful exec(), a new Runtime needs to be run (used by UnixRuntime) */
+    public final static int EXECED = 5;
+    
+    /** The current state */
+    protected int state = STOPPED;
     /** @see Runtime#state state */
     public final int getState() { return state; }
     
     /** The exit status if the process (only valid if state==DONE) 
         @see Runtime#state */
-    protected int exitStatus;
+    private int exitStatus;
     public ExecutionException exitException;
     
-    /** Maximum number of open file descriptors */
-    final static int OPEN_MAX = 256;
     /** Table containing all open file descriptors. (Entries are null if the fd is not in use */
-    FD[] fds  = new FD[OPEN_MAX];
+    FD[] fds = new FD[OPEN_MAX]; // package-private for UnixRuntime
+    boolean closeOnExec[] = new boolean[OPEN_MAX];
     
     /** Pointer to a callback for the call_java syscall */
     protected CallJavaCB callJavaCB;
@@ -93,10 +78,10 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     public CallJavaCB getCallJavaCB() { return callJavaCB; }
         
     /** Temporary buffer for read/write operations */
-    private byte[] _byteBuf = null;
+    private byte[] _byteBuf;
     /** Max size of temporary buffer
         @see Runtime#_byteBuf */
-    private final static int MAX_CHUNK = 15*1024*1024;
+    private final static int MAX_CHUNK = 16*1024*1024 - 1024;
         
     /** Subclasses should actually execute program in this method. They should continue 
         executing until state != RUNNING. Only syscall() can modify state. It is safe 
@@ -107,49 +92,66 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         This method is only required if the call() function is used */
     protected int lookupSymbol(String symbol) { return -1; }
     
-    /** Subclasses should returns a CPUState object representing the cpu state */
-    protected abstract CPUState getCPUState();
+    /** Subclasses should populate a CPUState object representing the cpu state */
+    protected abstract void getCPUState(CPUState state);
     
     /** Subclasses should set the CPUState to the state held in <i>state</i> */
     protected abstract void setCPUState(CPUState state);
-
-    static void checkPageSize(int pageSize, int totalPages) throws IllegalArgumentException {
-        if(pageSize < 256) throw new IllegalArgumentException("pageSize too small");
-        if((pageSize&(pageSize-1)) != 0) throw new IllegalArgumentException("pageSize must be a power of two");
-        if((totalPages&(totalPages-1)) != 0) throw new IllegalArgumentException("totalPages must be a power of two");
-        if(totalPages != 1 && totalPages < 256) throw new IllegalArgumentException("totalPages too small");
-        if(totalPages * pageSize < 4*1024*1024) throw new IllegalArgumentException("total memory too small (" + totalPages + "*" + pageSize + ")");
+    
+    protected Object clone() throws CloneNotSupportedException {
+    	    Runtime r = (Runtime) super.clone();
+        r._byteBuf = null;
+        r.startTime = 0;
+        r.fds = new FD[OPEN_MAX];
+        for(int i=0;i<OPEN_MAX;i++) if(fds[i] != null) r.fds[i] = fds[i].dup();
+        int totalPages = writePages.length;
+        r.readPages = new int[totalPages][];
+        r.writePages = new int[totalPages][];
+        for(int i=0;i<totalPages;i++) {
+        	    if(readPages[i] == null) continue;
+            if(writePages[i] == null) r.readPages[i] = readPages[i];
+            else r.readPages[i] = r.writePages[i] = (int[])writePages[i].clone();
+        }
+        return r;
     }
     
-    protected Runtime(int pageSize, int totalPages, boolean allowEmptyPages) {
-        this.allowEmptyPages = allowEmptyPages;
+    protected Runtime(int pageSize, int totalPages) {
+        if(pageSize <= 0) throw new IllegalArgumentException("pageSize <= 0");
+        if(totalPages <= 0) throw new IllegalArgumentException("totalPages <= 0");
+        if((pageSize&(pageSize-1)) != 0) throw new IllegalArgumentException("pageSize not a power of two");
+
+        int _pageShift = 0;
+        while(pageSize>>>_pageShift != 1) _pageShift++;
+        pageShift = _pageShift;
         
-        checkPageSize(pageSize,totalPages);
-        
-        PAGE_SIZE = pageSize;
-        PAGE_WORDS = pageSize>>>2;
-        int pageShift = 0;
-        while(pageSize>>>pageShift != 1) pageShift++;
-        PAGE_SHIFT = pageShift;
-        
-        TOTAL_PAGES = totalPages;
-        
-        readPages = new int[TOTAL_PAGES][];
-        writePages = new int[TOTAL_PAGES][];
-        
-        if(TOTAL_PAGES == 1) {
-            readPages[0] = writePages[0] = new int[PAGE_WORDS];
-            BRK_LIMIT = STACK_BOTTOM = 0;
+        int heapStart = heapStart();
+        int totalMemory = totalPages * pageSize;
+        int stackSize = max(totalMemory/64,ARG_MAX+65536);
+        int stackPages = 0;
+        if(totalPages > 1) {
+            stackSize = max(stackSize,pageSize);
+            stackSize = (stackSize + pageSize) & ~(pageSize-1);
+            stackPages = stackSize >>> pageShift;
+            heapStart = (heapStart + pageSize) & ~(pageSize-1);
+            if(stackPages + STACK_GUARD_PAGES + (heapStart >>> pageShift) >= totalPages)
+                throw new IllegalArgumentException("total pages too small");
         } else {
-            int stackPages = max(TOTAL_PAGES>>>8,(1024*1024)>>>PAGE_SHIFT);
-            STACK_BOTTOM = (TOTAL_PAGES - stackPages) * PAGE_SIZE;
-            // leave some unmapped pages between the stack and the heap
-            BRK_LIMIT = STACK_BOTTOM - 4*PAGE_SIZE;
-        
-            for(int i=0;i<stackPages;i++)
-                readPages[TOTAL_PAGES-1-i] = writePages[TOTAL_PAGES-1-i] = emptyPage();
+            if(pageSize < heapStart + stackSize) throw new IllegalArgumentException("total memory too small");
+            heapStart = (heapStart + 4095) & ~4096;
         }
         
+        stackBottom = totalMemory - stackSize;
+        heapEnd = heapStart;
+        
+        readPages = new int[totalPages][];
+        writePages = new int[totalPages][];
+        
+        if(totalPages == 1)
+            readPages[0] = writePages[0] = new int[pageSize>>2];
+        else
+        	    for(int i=stackBottom >>> pageShift;i<writePages.length;i++)
+        	    	    readPages[i] = writePages[i] = new int[pageSize>>2];
+    
         addFD(new StdinFD(System.in));
         addFD(new StdoutFD(System.out));
         addFD(new StdoutFD(System.err));
@@ -158,10 +160,13 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     /** Copy everything from <i>src</i> to <i>addr</i> initializing uninitialized pages if required. 
        Newly initalized pages will be marked read-only if <i>ro</i> is set */
     protected final void initPages(int[] src, int addr, boolean ro) {
+        int pageWords = (1<<pageShift)>>>2;
+        int pageMask = (1<<pageShift) - 1;
+        
         for(int i=0;i<src.length;) {
-            int page = addr >>> PAGE_SHIFT;
-            int start = (addr&(PAGE_SIZE-1))>>2;
-            int elements = min(PAGE_WORDS-start,src.length-i);
+            int page = addr >>> pageShift;
+            int start = (addr&pageMask)>>2;
+            int elements = min(pageWords-start,src.length-i);
             if(readPages[page]==null) {
                 initPage(page,ro);
             } else if(!ro) {
@@ -175,12 +180,15 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     
     /** Initialize <i>words</i> of pages starting at <i>addr</i> to 0 */
     protected final void clearPages(int addr, int words) {
+        int pageWords = (1<<pageShift)>>>2;
+        int pageMask = (1<<pageShift) - 1;
+
         for(int i=0;i<words;) {
-            int page = addr >>> PAGE_SHIFT;
-            int start = (addr&(PAGE_SIZE-1))>>2;
-            int elements = min(PAGE_WORDS-start,words-i);
+            int page = addr >>> pageShift;
+            int start = (addr&pageMask)>>2;
+            int elements = min(pageWords-start,words-i);
             if(readPages[page]==null) {
-                readPages[page] = writePages[page] = emptyPage();
+                readPages[page] = writePages[page] = new int[pageWords];
             } else {
                 if(writePages[page] == null) writePages[page] = readPages[page];
                 for(int j=start;j<start+elements;j++) writePages[page][j] = 0;
@@ -193,6 +201,9 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     /** Copies <i>length</i> bytes from the processes memory space starting at
         <i>addr</i> INTO a java byte array <i>a</i> */
     public final void copyin(int addr, byte[] buf, int count) throws ReadFaultException {
+        int pageWords = (1<<pageShift)>>>2;
+        int pageMask = pageWords - 1;
+
         int x=0;
         if(count == 0) return;
         if((addr&3)!=0) {
@@ -208,16 +219,14 @@ public abstract class Runtime implements UsermodeConstants,Registers {
             int c = count>>>2;
             int a = addr>>>2;
             while(c != 0) {
-                int[] page = readPages[a >>> (PAGE_SHIFT-2)];
+                int[] page = readPages[a >>> (pageShift-2)];
                 if(page == null) throw new ReadFaultException(a<<2);
-                int index = a&(PAGE_WORDS-1);
-                int n = min(c,PAGE_WORDS-index);
-                if(page != _emptyPage) {
-                    for(int i=0;i<n;i++,x+=4) {
-                        int word = page[index+i];
-                        buf[x+0] = (byte)((word>>>24)&0xff); buf[x+1] = (byte)((word>>>16)&0xff);
-                        buf[x+2] = (byte)((word>>> 8)&0xff); buf[x+3] = (byte)((word>>> 0)&0xff);                        
-                    }
+                int index = a&pageMask;
+                int n = min(c,pageWords-index);
+                for(int i=0;i<n;i++,x+=4) {
+                    int word = page[index+i];
+                    buf[x+0] = (byte)((word>>>24)&0xff); buf[x+1] = (byte)((word>>>16)&0xff);
+                    buf[x+2] = (byte)((word>>> 8)&0xff); buf[x+3] = (byte)((word>>> 0)&0xff);                        
                 }
                 a += n; c -=n;
             }
@@ -236,6 +245,9 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     /** Copies <i>length</i> bytes OUT OF the java array <i>a</i> into the processes memory
         space at <i>addr</i> */
     public final void copyout(byte[] buf, int addr, int count) throws FaultException {
+        int pageWords = (1<<pageShift)>>>2;
+        int pageWordMask = pageWords - 1;
+        
         int x=0;
         if(count == 0) return;
         if((addr&3)!=0) {
@@ -248,21 +260,22 @@ public abstract class Runtime implements UsermodeConstants,Registers {
             memWrite(addr&~3,word);
             addr += x;
         }
+
         if((count&~3) != 0) {
             int c = count>>>2;
             int a = addr>>>2;
             while(c != 0) {
-                int[] page = writePages[a >>> (PAGE_SHIFT-2)];
+                int[] page = writePages[a >>> (pageShift-2)];
                 if(page == null) throw new WriteFaultException(a<<2);
-                if(page == _emptyPage) page = initPage(a >>> (PAGE_SHIFT-2));
-                int index = a&(PAGE_WORDS-1);
-                int n = min(c,PAGE_WORDS-index);
+                int index = a&pageWordMask;
+                int n = min(c,pageWords-index);
                 for(int i=0;i<n;i++,x+=4)
                     page[index+i] = ((buf[x+0]&0xff)<<24)|((buf[x+1]&0xff)<<16)|((buf[x+2]&0xff)<<8)|((buf[x+3]&0xff)<<0);
                 a += n; c -=n;
             }
             addr = a<<2; count&=3;
         }
+
         if(count != 0) {
             int word = memRead(addr);
             switch(count) {
@@ -275,25 +288,23 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     }
     
     public final void memcpy(int dst, int src, int count) throws FaultException {
+        int pageWords = (1<<pageShift)>>>2;
+        int pageWordMask = pageWords - 1;
+        
         if((dst&3) == 0 && (src&3)==0) {
             if((count&~3) != 0) {
                 int c = count>>2;
                 int s = src>>>2;
                 int d = dst>>>2;
                 while(c != 0) {
-                    int[] srcPage = readPages[s>>>(PAGE_SHIFT-2)];
+                    int[] srcPage = readPages[s>>>(pageShift-2)];
                     if(srcPage == null) throw new ReadFaultException(s<<2);
-                    int[] dstPage = writePages[d>>>(PAGE_SHIFT-2)];
+                    int[] dstPage = writePages[d>>>(pageShift-2)];
                     if(dstPage == null) throw new WriteFaultException(d<<2);
-                    int srcIndex = (s&(PAGE_WORDS-1));
-                    int dstIndex = (d&(PAGE_WORDS-1));
-                    int n = min(c,PAGE_WORDS-max(srcIndex,dstIndex));
-                    if(srcPage != _emptyPage) {
-                        if(dstPage == _emptyPage) dstPage = initPage(d>>>(PAGE_SHIFT-2));
-                        System.arraycopy(srcPage,srcIndex,dstPage,dstIndex,n);
-                    } else if(srcPage == _emptyPage && dstPage != _emptyPage) {
-                        Arrays.fill(dstPage,dstIndex,dstIndex+n,0);
-                    }
+                    int srcIndex = s&pageWordMask;
+                    int dstIndex = d&pageWordMask;
+                    int n = min(c,pageWords-max(srcIndex,dstIndex));
+                    System.arraycopy(srcPage,srcIndex,dstPage,dstIndex,n);
                     s += n; d += n; c -= n;
                 }
                 src = s<<2; dst = d<<2; count&=3;
@@ -319,6 +330,9 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     }
     
     public final void memset(int addr, int ch, int count) throws FaultException {
+        int pageWords = (1<<pageShift)>>>2;
+        int pageWordMask = pageWords - 1;
+        
         int fourBytes = ((ch&0xff)<<24)|((ch&0xff)<<16)|((ch&0xff)<<8)|((ch&0xff)<<0);
         if((addr&3)!=0) {
             int word = memRead(addr&~3);
@@ -334,14 +348,11 @@ public abstract class Runtime implements UsermodeConstants,Registers {
             int c = count>>2;
             int a = addr>>>2;
             while(c != 0) {
-                int[] page = readPages[a>>>(PAGE_SHIFT-2)];
+                int[] page = readPages[a>>>(pageShift-2)];
                 if(page == null) throw new WriteFaultException(a<<2);
-                int index = (a&(PAGE_WORDS-1));
-                int n = min(c,PAGE_WORDS-index);
-                if(page != _emptyPage || ch != 0) {
-                    if(page == _emptyPage) page = initPage(a>>>(PAGE_SHIFT-2));
-                    Arrays.fill(page,index,index+n,fourBytes);
-                }
+                int index = a&pageWordMask;
+                int n = min(c,pageWords-index);
+                Arrays.fill(page,index,index+n,fourBytes);
                 a += n; c -= n;
             }
             addr = a<<2; count&=3;
@@ -364,16 +375,13 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     }
        
     protected final int unsafeMemRead(int addr) throws ReadFaultException {
-        int page = addr >>> PAGE_SHIFT;
-        int entry = (addr >>> 2) & (PAGE_WORDS-1);
+        int page = addr >>> pageShift;
+        int entry = (addr&(1<<pageShift) - 1)>>2;
         try {
             return readPages[page][entry];
         } catch(ArrayIndexOutOfBoundsException e) {
-            if(page < 0) throw e; // should never happen
-            if(page >= readPages.length) throw new ReadFaultException(addr);
-            if(readPages[page] != _emptyPage) throw e; // should never happen
-            initPage(page);
-            return 0;
+            if(page < 0 || page >= readPages.length) throw new ReadFaultException(addr);
+            throw e; // should never happen
         } catch(NullPointerException e) {
             throw new ReadFaultException(addr);
         }
@@ -386,16 +394,13 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     }
     
     protected final void unsafeMemWrite(int addr, int value) throws WriteFaultException {
-        int page = addr >>> PAGE_SHIFT;
-        int entry = (addr>>>2)&(PAGE_WORDS-1);
+        int page = addr >>> pageShift;
+        int entry = (addr&(1<<pageShift) - 1)>>2;
         try {
             writePages[page][entry] = value;
         } catch(ArrayIndexOutOfBoundsException e) {
-            if(page < 0) throw e;// should never happen
-            if(page >= writePages.length) throw new WriteFaultException(addr);
-            if(readPages[page] != _emptyPage) throw e; // should never happen
-            initPage(page);
-            writePages[page][entry] = value;
+            if(page < 0 || page >= writePages.length) throw new WriteFaultException(addr);
+            throw e; // should never happen
         } catch(NullPointerException e) {
             throw new WriteFaultException(addr);
         }
@@ -405,7 +410,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     private final int[] initPage(int page) { return initPage(page,false); }
     /** Created a new non-empty page at page number <i>page</i>. If <i>ro</i> is set the page will be read-only */
     private final int[] initPage(int page, boolean ro) {
-        int[] buf = new int[PAGE_WORDS];
+        int[] buf = new int[(1<<pageShift)>>>2];
         writePages[page] = ro ? null : buf;
         readPages[page] = buf;
         return buf;
@@ -414,15 +419,14 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     /** Returns the exit status of the process. (only valid if state == DONE) 
         @see Runtime#state */
     public final int exitStatus() {
-        if(state != DONE) throw new IllegalStateException("exitStatus() called in an inappropriate state");
+        if(state != EXITED) throw new IllegalStateException("exitStatus() called in an inappropriate state");
         return exitStatus;
     }
         
-    private int addStringArray(String[] strings, int topAddr) {
+    private int addStringArray(String[] strings, int topAddr) throws FaultException {
         int count = strings.length;
         int total = 0; /* null last table entry  */
         for(int i=0;i<count;i++) total += strings[i].length() + 1;
-        if(total >= ARGS_MAX) throw new IllegalArgumentException("arguments/environ too big");
         total += (count+1)*4;
         int start = (topAddr - total)&~3;
         int addr = start + (count+1)*4;
@@ -455,19 +459,19 @@ public abstract class Runtime implements UsermodeConstants,Registers {
      * and location of the user_info table from the ELF symbol table. setUserInfo and
      * getUserInfo are used to modify the words in the user_info table. */
     public void setUserInfo(int index, int word) {
-        if(index < 0 || index >= userInfoSize/4) throw new IndexOutOfBoundsException("setUserInfo called with index >= " + (userInfoSize/4));
+        if(index < 0 || index >= userInfoSize()/4) throw new IndexOutOfBoundsException("setUserInfo called with index >= " + (userInfoSize()/4));
         try {
-            memWrite(userInfoBase+index*4,word);
-        } catch(FaultException e) { throw new Error("should never happen: " + e); }
+            memWrite(userInfoBase()+index*4,word);
+        } catch(FaultException e) { throw new RuntimeException(e.toString()); }
     }
     
     /** Returns the word in the _user_info table entry <i>index</i>
         @see Runtime#setUserInfo(int,int) setUserInfo */
     public int getUserInfo(int index) {
-        if(index < 0 || index >= userInfoSize/4) throw new IndexOutOfBoundsException("setUserInfo called with index >= " + (userInfoSize/4));
+        if(index < 0 || index >= userInfoSize()/4) throw new IndexOutOfBoundsException("setUserInfo called with index >= " + (userInfoSize()/4));
         try {
-            return memRead(userInfoBase+index*4);
-        } catch(FaultException e) { throw new Error("should never happen: " + e); }
+            return memRead(userInfoBase()+index*4);
+        } catch(FaultException e) { throw new RuntimeException(e.toString()); }
     }
     
     /** Calls _execute() (subclass's execute()) and catches exceptions */
@@ -492,17 +496,20 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         if(startTime == 0) startTime = System.currentTimeMillis();
         state = RUNNING;
         __execute();
-        if(state != PAUSED && state != DONE) throw new IllegalStateException("execute() ended up in an inappropriate state (" + state + ")");
-        return state == DONE;
+        if(state != PAUSED && state != EXITED && state != EXECED)
+            throw new IllegalStateException("execute() ended up in an inappropriate state (" + state + ")");
+        return state != PAUSED;
+    }
+    
+    protected static String[] concatArgv(String argv0, String[] rest) {
+    	    String[] argv = new String[rest.length+1];
+    	    System.arraycopy(rest,0,argv,1,rest.length);
+        argv[0] = argv0;
+        return argv;
     }
     
     public final int run() { return run(null); }
-    public final int run(String argv0, String[] rest) {
-        String[] args = new String[rest.length+1];
-        System.arraycopy(rest,0,args,1,rest.length);
-        args[0] = argv0;
-        return run(args);
-    }
+    public final int run(String argv0, String[] rest) { return run(concatArgv(argv0,rest)); }
     public final int run(String[] args) { return run(args,null); }
     
     /** Runs the process until it exits and returns the exit status.
@@ -512,9 +519,9 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         for(;;) {
             if(execute()) break;
             System.err.println("WARNING: Pause requested while executing run()");
-            try { Thread.sleep(500); } catch(InterruptedException e) { /* noop */ }
         }
-        return exitStatus();
+        if(state == EXECED) System.err.println("WARNING: Process exec()ed while being run under run()");
+        return state == EXITED ? exitStatus() : 0;
     }
 
     public final void start() { start(null); }
@@ -522,28 +529,33 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     
     /** Initializes the process and prepairs it to be executed with execute() */
     public final void start(String[] args, String[] environ)  {
-        int sp, argsAddr, envAddr;
-        if(state != INITIALIZED) throw new IllegalStateException("start() called in inappropriate state");
+        int top, sp, argsAddr, envAddr;
+        if(state != STOPPED) throw new IllegalStateException("start() called in inappropriate state");
 
         if(args == null) args = new String[]{getClass().getName()};
         
-        sp = TOTAL_PAGES*PAGE_SIZE-512;
-        sp = argsAddr = addStringArray(args,sp);
-        sp = envAddr = addStringArray(createEnv(environ),sp);
+        sp = top = writePages.length*(1<<pageShift);
+        try {
+        	    sp = argsAddr = addStringArray(args,sp);
+        	    sp = envAddr = addStringArray(createEnv(environ),sp);
+        } catch(FaultException e) {
+            throw new IllegalArgumentException("args/environ too big");
+        }
         sp &= ~15;
-        
+        if(top - sp > ARG_MAX) throw new IllegalArgumentException("args/environ too big");
+
         CPUState cpuState = new CPUState();
         cpuState.r[A0] = argsAddr;
         cpuState.r[A1] = envAddr;
         cpuState.r[SP] = sp;
         cpuState.r[RA] = 0xdeadbeef;
-        cpuState.r[GP] = gp;
-        cpuState.pc = entryPoint;
+        cpuState.r[GP] = gp();
+        cpuState.pc = entryPoint();
         setCPUState(cpuState);
-                
+        
         state = PAUSED;
         
-        _start();
+        _start();        
     }
     
     /** Hook for subclasses to do their own startup */
@@ -572,9 +584,11 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     public final int call(int addr, int a0, int a1, int a2, int a3, int s0, int s1, int s2, int s3) {
         if(state != PAUSED && state != CALLJAVA) throw new IllegalStateException("call() called in inappropriate state");
         int oldState = state;
-        CPUState saved = getCPUState();
-        CPUState cpustate = new CPUState();
-        cpustate.r[SP] = saved.r[SP]&~15;
+        CPUState saved = new CPUState();        
+        getCPUState(saved);
+        CPUState cpustate = saved.dup();
+        
+        cpustate.r[SP] = cpustate.r[SP]&~15;
         cpustate.r[RA] = 0xdeadbeef;
         cpustate.r[A0] = a0;
         cpustate.r[A1] = a1;
@@ -584,14 +598,13 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         cpustate.r[S1] = s1;
         cpustate.r[S2] = s2;
         cpustate.r[S3] = s3;
-        cpustate.r[GP] = gp;
         cpustate.pc = addr;
         
         state = RUNNING;
 
         setCPUState(cpustate);
         __execute();
-        cpustate = getCPUState();
+        getCPUState(cpustate);
         setCPUState(saved);
 
         if(state != PAUSED)
@@ -613,15 +626,18 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         Returns -1 if the table is full. This can be used by subclasses to use custom file
         descriptors */
     public int addFD(FD fd) {
+        if(state == EXITED || state == EXECED) throw new IllegalStateException("addFD called in inappropriate state");
         int i;
         for(i=0;i<OPEN_MAX;i++) if(fds[i] == null) break;
         if(i==OPEN_MAX) return -1;
         fds[i] = fd;
+        closeOnExec[i] = false;
         return i;
     }
 
     /** Closes file descriptor <i>fdn</i> and removes it from the file descriptor table */
     public boolean closeFD(int fdn) {
+        if(state == EXITED || state == EXECED) throw new IllegalStateException("closeFD called in inappropriate state");
         if(fdn < 0 || fdn >= OPEN_MAX) return false;
         if(fds[fdn] == null) return false;
         fds[fdn].close();
@@ -856,31 +872,26 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         <i>incr</i> is how much to increase the break by */
     public int sbrk(int incr) {
         if(incr < 0) return -ENOMEM;
-        if(incr==0) return brkAddr;
+        if(incr==0) return heapEnd;
         incr = (incr+3)&~3;
-        int oldBrk = brkAddr;
-        int newBrk = oldBrk + incr;
-        if(TOTAL_PAGES == 1) {
-            CPUState state = getCPUState();
-            if(newBrk >= state.r[SP] - 65536) {
-                System.err.println("WARNING: brk too close to stack pointer");
-                return -ENOMEM;
-            }
-        } else if(newBrk >= BRK_LIMIT) {
-            System.err.println("WARNING: Hit BRK_LIMIT");
-            return -ENOMEM;
-        }
-        if(TOTAL_PAGES != 1) {
+        int oldEnd = heapEnd;
+        int newEnd = oldEnd + incr;
+        if(newEnd >= stackBottom) return -ENOMEM;
+        
+        if(writePages.length > 1) {
+            int pageMask = (1<<pageShift) - 1;
+            int pageWords = (1<<pageShift) >>> 2;
+            int start = (oldEnd + pageMask) >>> pageShift;
+            int end = (newEnd + pageMask) >>> pageShift;
             try {
-                for(int i=(oldBrk+PAGE_SIZE-1)>>>PAGE_SHIFT;i<((newBrk+PAGE_SIZE-1)>>>PAGE_SHIFT);i++)
-                    readPages[i] = writePages[i] = emptyPage();
+                for(int i=start;i<end;i++) readPages[i] = writePages[i] = new int[pageWords];
             } catch(OutOfMemoryError e) {
                 System.err.println("WARNING: Caught OOM Exception in sbrk: " + e);
                 return -ENOMEM;
             }
         }
-        brkAddr = newBrk;
-        return oldBrk;
+        heapEnd = newEnd;
+        return oldEnd;
     }
 
     /** The getpid syscall */
@@ -907,7 +918,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         return 0;
     }
     
-    private int sys_getpagesize() { return TOTAL_PAGES == 1 ? 4096 : PAGE_SIZE; }
+    private int sys_getpagesize() { return writePages.length == 1 ? 4096 : (1<<pageShift); }
     
     private int sys_isatty(int fdn) {
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
@@ -916,17 +927,20 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     }
 
     
-    /** Hook for subclasses to do something when the process exits (MUST set state = DONE) */
-    protected void _exit() { state = DONE; }
+    /** Hook for subclasses to do something when the process exits (MUST set state = EXITED) */
+    protected void _exit() { state = EXITED; }
     private int sys_exit(int status) {
         exitStatus = status;
-        for(int i=0;i<fds.length;i++) if(fds[i] != null) sys_close(i);
+        for(int i=0;i<fds.length;i++) if(fds[i] != null) closeFD(i);
         _exit();
         return 0;
     }
        
     private int sys_fcntl(int fdn, int cmd, int arg) {
+    	    // FEATURE: Pull these from fcntl.h
         final int F_DUPFD = 0;
+        final int F_GETFD = 1;
+        final int F_SETFD = 2;
         final int F_GETFL = 3;
         int i;
             
@@ -946,6 +960,11 @@ public abstract class Runtime implements UsermodeConstants,Registers {
                 if(fd.writable() && fd.readable())  flags = 2;
                 else if(fd.writable()) flags = 1;
                 return flags;
+            case F_SETFD:
+            	    closeOnExec[fdn] = arg != 0;
+                return 0;
+            case F_GETFD:
+                return closeOnExec[fdn] ? 1 : 0;
             default:
                 System.err.println("WARNING: Unknown fcntl command: " + cmd);
                 return -ENOSYS;
@@ -1052,6 +1071,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         public int seek(int n, int whence)  throws IOException  { return -1; }
         
         /** Should return true if this is a tty */
+        // FEATURE: get rid of the isatty syscall and just do with newlib's dumb isatty.c
         public boolean isatty() { return false; }
         
         private FStat cachedFStat = null;
@@ -1229,11 +1249,24 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         public int hi, lo;
         public int fcsr;
         public int pc;
+        
+        public CPUState dup() {
+        	    CPUState c = new CPUState();
+            c.hi = hi;
+            c.lo = lo;
+            c.fcsr = fcsr;
+            c.pc = pc;
+            for(int i=0;i<32;i++) {
+            	    c.r[i] = r[i];
+                c.f[i] = f[i];
+            }
+            return c;
+        }
     }
     
     // Null pointer check helper function
     protected final void nullPointerCheck(int addr) throws ExecutionException {
-        if(TOTAL_PAGES==1 ? addr < 65536 : (addr>>>PAGE_SHIFT) < 16)
+        if(addr < 65536)
             throw new ExecutionException("Attempted to dereference a null pointer " + toHex(addr));
     }
     
