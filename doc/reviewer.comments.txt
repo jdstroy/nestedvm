@@ -1,0 +1,163 @@
+From: Etienne Gagnon <gagnon.etienne_m@uqam.ca>
+Subject: IVME 04 Author Notification
+To: Adam Megacz <adam@megacz.com>
+Date: Thu, 22 Apr 2004 13:00:54 -0400
+Organization: UQAM
+Resent-From: nobody@nowhere.com
+
+Dear Adam Megacz,
+
+I am pleased to inform you that your paper (#17):
+
+        "Complete Translation of Unsafe Native Code to Safe Bytecode"
+
+has been selected for publication and presentation at IVME 04.  This
+year a total of 15 papers were submitted and of these 6 were selected
+for publication.
+
+Below please find the reviewers' comments.  Please incorporate any
+suggestions made by the reviewers and prepare the final version of your
+paper according to the ACM SIG Proceedings Templates at
+        http://www.acm.org/sigs/pubs/proceed/template.html
+Please follow the SIGS style carefully.
+
+Please note that papers should normally be limited to 8 pages, including
+figures, bibliography, possible appendixes, etc.  Please ask for permission
+by email (gagnon.etienne_m@uqam.ca) if you need more than one or two
+additional pages.
+
+IMPORTANT TASKS TO DO
+=====================
+
+** The electronic final camera-ready version is due on (strict deadline)
+Monday May 10th, 2004.  You must send your paper as attachment to an email
+message to gagnon.etienne_m@uqam , in a compressed .zip or .tar.gz archive
+which should include both of the following:
+- A PostScript or a PDF version of your camera-ready paper.
+- The source version of your document (LaTeX, Microsoft Word), suitable
+        for modification (to add heading/footing information such as line numbers).
+        *** If you used another software, please inform us of this fact by replying
+        to this message as soon as possible.
+
+** You must also print, fill and sign the copyright form attached to this message
+and send it by mail to:
+
+        Prof. Etienne M. Gagnon
+        Departement d'informatique
+        Universite du Quebec a Montreal
+        Case postale 8888, succursale Centre-ville
+        Montreal (Quebec)
+        Canada  H3C 3P8
+
+
+Do not hesistate to communicate with me as soon as possible if you have any
+problem with formating your paper according the the ACM SIGS style.
+
+Regards,
+
+Etienne Gagnon
+Program Chair
+IVME 04
+
+-------------------------------
+
+Legend
+
+1 Strong Reject
+2 Weak Reject
+3 Undecided
+4 Weak Accept
+5 Strong Accept
+
+-------------------------------
+
+Appropriateness to the Conference:	4
+Originality:	4
+Technical Strength:	4
+Presentation:	4
+Overall Evaluation:	4
+Comments
+
+An interesting paper demonstrating the translation of MIPS R2000 binaries to safe JVM bytecodes.
+
+The paper has some novelty value, since everybody knows that in theory an arbitrary native code binary could be emulated in this way, but nobody seems to have done a complete job.  Thus the paper answers the existence question, and provides some implementation details.  Of course a remaining problem is the issue of emulating the runtime/sys-call interface of the native binary.
+
+The discussion of the techniques by which the quality of the bytecode representation of the program may be improved was helpful.
+
+However, a wider range of measurements of performance would have improved the paper.  Some discussion of the theoretical limits to performance using such a compilation path would have been of interest also.
+
+There are a number of typos in the paper as presented.  A careful proof reading would be in order before final submission.
+
+Finally, there are a host of unanswered questions regarding the practical use of such techniques. Unsafe code is, well, unsafe.  Users of managed frameworks expect a certain degree of safety.  It seems that there are several levels of insecurity here.  Type violations in the native code should be bug for bug equivalent in this framework.  Stray pointers presumably lead to array bounds violations in the JVM (?).  So what happens with unsafe use of the system call interface?  Is this trapped in the NestedVM runtime? Is it trapped inside the Java sandbox, or does it require high privilege setting and wreak its damage anyhow?
+
+-------------------------------
+
+Appropriateness to the Conference:	4
+Originality:	2
+Technical Strength:	4
+Presentation:	4
+Overall Evaluation:	4
+Comments
+
+Interesting paper to read.  There are some typos which should be fixed, many of which a spell-checker should catch (my favorite is "highlym odular" on page 2).
+
+I'm not convinced that the MIPS ISA and the JVM have a "close similarity" (Section 4.1), but one could argue that they have "similarities" as they go on to explain.
+
+The citation to the JLS needs fixing, as does capitalization in a number of references.
+
+Some data needs to be shown on the size of translated binaries.
+
+What about code that uses non-libc libraries?
+
+A C to Java translator was done in 1996 which bears a lot of similarity to this work (including the big array to represent memory).  See C. W. Fraser and D. R. Hanson's "A Lean Retargetable C Compiler," 1996, at http://www.cs.princetom.edu/software/lcc/doc/lean.pdf.  The work by Fraser and Huelsberger is the C to Java translation.
+
+-------------------------------
+
+Appropriateness to the Conference:	5
+Originality:	5
+Technical Strength:	5
+Presentation:	4
+Overall Evaluation:	5
+Comments
+
+I really liked this paper (the best one in my batch). However, I would have preferred to see more technical detail instead of the blurb in Sections 2 and 3, which wastes almost 1 1/2 pages. This space could be spent much better on a deeper technical discussion.
+
+Also, I am a bit sceptical of the results, which look almost too good. I cannot imagine that translating MIPS instructions into Java of the sort shown really only has 10x worst case overhead. I would have expected more like 1000x overhead... A further discussion would be welcome.
+
+But overall, this is very interesting and novel.
+
+-------------------------------
+
+Appropriateness to the Conference:	5
+Originality:	4
+Technical Strength:	4
+Presentation:	4
+Overall Evaluation:	4
+Comments
+
+Nice paper, well-presented, but a little light on details.
+
+You chose MIPS because it was likely to be the easiest.  Have you thought
+much about x86, Power, etc.?  How much harder would it be to do
+this for other ISAs?
+
+Were there any peculiarities of the JVM that were gratuitously
+difficult to deal with?  I would have expected the lack of
+unsigned int types to be a pain.
+
+I'm guessing that NestedVM can't handle multi-threaded apps;
+please mention this.  (I note that bug-for-bug compiler
+compatibility is very hard, perhaps impossible to achieve
+for multi-threaded apps, because the memory models of the
+original machine and the JVM are unlikely to be the same).
+
+There is no mention of the work on binary translation to bytecode
+done by Cifuentes et al, (see, e.g., the paper in Computer, Mar 2000,
+or the paper in the Workshop on Binary Translation (1999)).
+
+You should make
+a pass with a spell checker.
+
+
+[2. application/octet-stream; copyright_form.pdf]...
+
