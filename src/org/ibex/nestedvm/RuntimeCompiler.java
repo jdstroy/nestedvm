@@ -19,7 +19,7 @@ public class RuntimeCompiler {
             }
             id = nextID++;
         }
-        String className = "nextedvm.runtimecompiled_" + id;
+        String className = "nestedvm.runtimecompiled_" + id;
         System.err.println("RuntimeCompiler: Building " + className);
         String options = "nosupportcall";
         if(extraoptions != null) options += "," + extraoptions;
