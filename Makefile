@@ -173,7 +173,7 @@ env.sh: Makefile $(tasks)/full_toolchain build/org/ibex/nestedvm/Compiler.class
 
 runtime_classes = Runtime Registers UsermodeConstants util/Seekable
 
-tex.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class) upstream/tasks/build_tex
+tex.jar: $(mips_objects) $(runtime_classes:%=build/org/ibex/nestedvm/%.class) upstream/tasks/build_tex
 	echo -e "Manifest-Version: 1.0\nMain-Class: TeX\n" > .manifest
 	cp upstream/build/tex/TeX.class build
 	cd build && jar cfm ../$@ ../.manifest \
@@ -390,8 +390,15 @@ doc/charts/%.pdf: doc/charts/%.dat doc/charts/%.gnuplot
 	cd doc/charts; chmod +x boxfill.pl; ./boxfill.pl -g -o unfilled.eps $*.eps
 	cd doc/charts; ps2pdf $*.eps
 
-doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf)
-	cd doc; pdflatex ivme04.tex && ./pst2pdf && pdflatex ivme04.tex
+tex := java -cp $(usr)/../../build:.. TeX
+
+#tex := java -cp $(usr)/../../build:.. org.ibex.nestedvm.Interpreter ../tex.mips
+doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf) tex.jar upstream/tasks/extract_texinputs
+	cp upstream/build/tex/tex.pool upstream/build/tex/texinputs/tex.pool
+	cd upstream/build/tex/texinputs; echo '\latex.ltx' | $(tex)
+	cd upstream/build/tex/texinputs; ln -fs ../../../../doc/* .; rm -f ivme04.aux; touch ivme04.aux; touch ivme04.bbl
+	cd upstream/build/tex/texinputs; echo '\&latex \input ivme04.tex' | $(tex)
+	cd upstream/build/tex/texinputs; dvipdf ivme04.dvi
 
 pdf: doc/ivme04.pdf
 	open doc/ivme04.pdf
