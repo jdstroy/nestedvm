@@ -1,6 +1,6 @@
 # Inspired by XWT's Makefile.upstream
 
-version_gcc = 3.3
+version_gcc = 3.3.3
 
 url_gcc-core = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
 url_gcc-c++ = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
@@ -87,7 +87,7 @@ tasks/download_%:
 	cd download && wget --passive-ftp -N $(url_$*)
 	touch $@
 
-tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++
+tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/download-gcc-g77
 	touch $@
 
 tasks/extract_%: tasks/download_%
