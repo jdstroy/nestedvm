@@ -148,7 +148,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(InstructionConstants.IUSHR);
         
         int beg = text.addr >>> methodShift;
-        int end = ((text.addr + text.size) >>> methodShift) + 1;
+        int end = ((text.addr + text.size) >>> methodShift);
 
         // This data is redundant but BCEL wants it
         int[] matches = new int[end-beg];
@@ -1822,7 +1822,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         return field;
     }
     
-    private boolean doLocal(int reg) { return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29; }
+    private boolean doLocal(int reg) {
+        //return false;
+        return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29;
+    }
     
     private InstructionHandle pushRegWZ(int reg) {
         if(reg == R+0) {

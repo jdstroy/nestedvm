@@ -1,12 +1,6 @@
-# 
+ # 
 # What to build
 #
-
-doc/nestedvm.ivme04.pdf: doc/nestedvm.ivme04.tex doc/acmconf.cls
-	cd doc; pdflatex nestedvm.ivme04.tex && ./pst2pdf && pdflatex nestedvm.ivme04.tex
-
-pdf: doc/nestedvm.ivme04.pdf
-	open doc/nestedvm.ivme04.pdf
 
 # Java sources that are part of the compiler/interpreter
 java_sources = $(wildcard src/org/xwt/mips/*.java) $(wildcard src/org/xwt/mips/util/*.java)
@@ -33,12 +27,13 @@ MIPS_CXX = mips-unknown-elf-g++
 # Be VERY careful about changing any of these as they can break binary 
 # compatibility and create hard to find bugs
 mips_optflags = -O3 -g \
-	-fno-rename-registers -freduce-all-givs \
-	-fno-peephole -fno-peephole2 -fmove-all-movables -fno-schedule-insns \
-	-fno-delayed-branch \
 	-mmemcpy \
 	-ffunction-sections -fdata-sections \
-	-falign-functions=512
+	-falign-functions=512 \
+	-fno-rename-registers \
+	-fno-schedule-insns \
+	-fno-delayed-branch \
+	-freduce-all-givs
 
 MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
 MIPS_LD = mips-unknown-elf-gcc
@@ -56,7 +51,8 @@ else
 	JAVAC_NODEBUG_FLAGS = -g:none
 endif
 
-CLASSPATH = build:upstream/build/bcel/bcel-5.1.jar
+bcel_jar = upstream/build/bcel-5.1/bcel-5.1.jar
+classpath = build:$(bcel_jar)
 
 GCJ = gcj
 EXE_EXT = 
@@ -106,22 +102,22 @@ build/org/xwt/mips/util/.Dummy.class:
 $(java_classes): build/org/xwt/mips/util/.Dummy.class
 endif
 
-$(java_classes): $(tasks)/unpack_bcel $(java_sources) $(java_gen_sources)
-	$(JAVAC) -classpath $(CLASSPATH) -d build $(java_sources) $(java_gen_sources)
+$(java_classes): $(java_sources) $(java_gen_sources) $(bcel_jar)
+	$(JAVAC) -classpath $(classpath) -d build $(java_sources) $(java_gen_sources)
 
 build/org/xwt/mips/UsermodeConstants.java: src/org/xwt/mips/syscalls.h $(errno_h) $(unistd_h)
 	@mkdir -p `dirname $@`
-	cat $^ |\
-		(FILE=org.xwt.mips.UsermodeConstants;\
-		 C="`echo $$FILE | sed 's/.*\.\([^\.]*\)$$/\1/;'`";\
-		 P="`echo $$FILE | sed -n 's/\(.*\)\..*/\1/p;'`";\
-		 [ -n "$$P" ] && echo "package $$P;";\
-		 echo "public interface $$C {";\
-		 tr '\t' ' ' | sed -n ';\
-		 s/  */ /g;\
-		 s/ *\# *define \([A-Z_][A-Za-z0-9_]*\) \([0-9][0-9x]*\)/    public static final int \1 = \2;/p';\
-		 echo "}") > $@
- 
+	cat $^ | ( \
+		echo "package org.xwt.mips;"; \
+		echo "public interface UsermodeConstants {"; \
+		tr '\t' ' ' | sed -n ' \
+			s/  */ /g; \
+			s/ *# *define \([A-Z_][A-Za-z0-9_]*\) \([0-9][0-9x]*\)/    public static final int \1 = \2;/p'; \
+		echo "}"; \
+	) > $@
+	
+$(bcel_jar): upstream/tasks/extract_bcel
+	@true
 
 # FIXME: We're cramming more than we need into the binary here
 build/mips2java$(EXE_EXT): $(java_sources) $(java_gen_sources)
@@ -156,15 +152,15 @@ build/%.mips.stripped: build/%.mips
 # MIPS Compiler generated class compilation
 ifdef DO_JAVASOURCE
 
-build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class $(tasks)/unpack_bcel 
-	$(JAVA) -cp $(CLASSPATH) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
+build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class
+	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
 
 build/%.class: build/%.java build/org/xwt/mips/Runtime.class
 	$(JAVAC) $(JAVAC_NODEBUG_FLAGS) -classpath build -d build $<
 else
 
-build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class $(tasks)/unpack_bcel 
-	$(JAVA) -cp $(CLASSPATH) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
+build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class
+	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
 
 
 endif
@@ -179,7 +175,7 @@ clean:
 #
 # env.sh
 #
-env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class $(tasks)/unpack_bcel 
+env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class
 	@rm -f "$@~"
 	@echo 'PATH="$(mips2java_root)/build:$(mips2java_root)/upstream/install/bin:$$PATH"; export PATH' >> $@~
 	@echo 'CC=mips-unknown-elf-gcc; export CC' >> $@~
@@ -190,7 +186,7 @@ env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class $(tas
 	@echo 'CFLAGS="$(mips_optflags)"; export CFLAGS' >> $@~
 	@echo 'CXXFLAGS="$(mips_optflags)"; export CXXFLAGS' >> $@~
 	@echo 'LDFLAGS="$(MIPS_LDFLAGS)"; export LDFLAGS' >> $@~
-	@echo 'CLASSPATH=$(mips2java_root)/build:$(mips2java_root)/upstream/build/bcel/bcel-5.1.jar:.; export CLASSPATH' >> $@~
+	@echo 'CLASSPATH=$(mips2java_root)/build:$(mips2java_root)/$(bcel_jar):.; export CLASSPATH' >> $@~
 	@mv "$@~" "$@"
 	@echo "$@ created successfully"
 
@@ -247,7 +243,7 @@ Paranoia_CFLAGS = "-Wno-error"
 Paranoia_LDFLAGS = -lm
 paranoiatest: build/tests/Paranoia.class
 	$(JAVA) -cp build tests.Paranoia
-
+	
 #
 # Freetype Stuff
 #
@@ -296,7 +292,7 @@ BusyBox_COMPILERFLAGS = -o unixruntime
 build/tests/BusyBox.mips: $(mips_object) $(tasks)/build_busybox
 	@mkdir -p `dirname $@`
 	cp upstream/build/busybox/busybox $@
-
+	
 busyboxtest: build/tests/BusyBox.class
 	$(JAVA) -cp build tests.BusyBox ash
 
@@ -325,6 +321,18 @@ oldspeedtest: build/tests/DJpeg.class tmp/thebride_1280.jpg
 	bash -c "time $(JAVA) -cp build tests.DJpeg -targa -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg"
 	@echo "e90f6b915aee2fc0d2eb9fc60ace6203  tmp/thebride_1280.tga" | md5sum -c && echo "MD5 is OK"
 
+djpegspeedtest: build/tests/SpeedTest.class build/tests/DJpeg.class tmp/thebride_1280.jpg
+	@echo "Running DJpeg test..."
+	@$(JAVA) -cp build tests.SpeedTest tests.DJpeg 8 -targa -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg
+
+mspackspeedtest: build/tests/SpeedTest.class build/tests/MSPackBench.class
+	@if [ -e tmp/mspack/comic32.exe ]; then \
+		echo "Running MSPackBench test..."; \
+		cd tmp/mspack && $(JAVA) -cp ../../build tests.SpeedTest tests.MSPackBench 20 *32.exe; \
+	else \
+		echo "Run \"make check\" to get the MS True Type fonts for the MSPackBench test"; \
+	fi
+
 speedtest: build/tests/SpeedTest.class build/tests/DJpeg.class build/tests/FTBench.class tmp/thebride_1280.jpg build/tests/MSPackBench.class
 	@echo "Running DJpeg test..."
 	@$(JAVA) -cp build tests.SpeedTest tests.DJpeg 10 -targa -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg
@@ -334,7 +342,7 @@ speedtest: build/tests/SpeedTest.class build/tests/DJpeg.class build/tests/FTBen
 	else \
 		echo "Run \"make check\" to get Arial.TTF for the FTBench test"; \
 	fi
-	@if [ -e tmp/mspack/comic32.exe ]; then \
+	@if false && [ -e tmp/mspack/comic32.exe ]; then \
 		echo "Running MSPackBench test..."; \
 		cd tmp/mspack && $(JAVA) -cp ../../build tests.SpeedTest tests.MSPackBench 10 *32.exe; \
 	else \
@@ -355,3 +363,10 @@ check: $(patsubst %,build/tests/%.class, FTBench MSPackBench DJpeg GCTest) tmp/t
 compiletests: $(patsubst %,build/tests/%.class,FTBench MSPackBench DJpeg Test FreeTypeDemoHelper MSPackHelper EchoHelper BusyBox GCTest Fork)
 	@true
 
+
+# IVME Paper
+doc/nestedvm.ivme04.pdf: doc/nestedvm.ivme04.tex doc/acmconf.cls
+	cd doc; pdflatex nestedvm.ivme04.tex && ./pst2pdf && pdflatex nestedvm.ivme04.tex
+
+pdf: doc/nestedvm.ivme04.pdf
+	open doc/nestedvm.ivme04.pdf

@@ -104,6 +104,7 @@ public class JavaSourceCompiler extends Compiler {
         p("while(state == RUNNING) {");
         indent++;
         p("switch(pc>>>" + methodShift+ ") {");
+        //p("switch(pc&" + toHex(methodMask) + ") {");
         indent++;
         pblock(runs);
         p("default: throw new ExecutionException(\"invalid address 0x\" + Long.toString(this.pc&0xffffffffL,16) + \": r2: \" + r2);");
@@ -207,6 +208,8 @@ public class JavaSourceCompiler extends Compiler {
         endOfMethod = addr + maxBytesPerMethod;
         String methodName = "run_" + Long.toString(addr & 0xffffffffL, 16);
         runs.append(indents[4] + "case " + toHex(addr>>>methodShift) + ": " + methodName + "(); break; \n");
+        //runs.append(indents[4] + "case " + toHex(addr&methodMask) + ": " + methodName + "(); break; \n");
+        
         p("private final void " + methodName + "() throws ExecutionException { /"+"* " + toHex(addr) + " - " + toHex(endOfMethod) + " *" + "/");
         indent++;
         p("int addr, tmp;");

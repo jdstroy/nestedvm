@@ -37,22 +37,24 @@ class SpeedTest {
             System.out.println("c.newInstance() took " + d + "sec");
             
             if(!Runtime.class.isAssignableFrom(c)) { System.err.println(className + " isn't a MIPS compiled class"); System.exit(1); }
+        } else {
+            throw new Error("Interpreter not supported in speedtest");
         }
             
         float times[] = new float[runs];
         
         for(int i=0;i<runs;i++) {
-            Runtime runtime = binary ? new Interpreter(className) : (Runtime) c.newInstance();
+            //Runtime runtime = binary ? new Interpreter(className) : (Runtime) c.newInstance();
+            Runtime runtime = (Runtime) c.newInstance();
             System.gc();
             start();
             int status = runtime.run(appArgs);
             if(status != 0) { System.err.println(className + " failed with exit status: " + status); System.exit(1); }
             end();
             times[i] = diff();
+            System.err.println("Run " + (i+1) + ": " + times[i] + " sec");
         }
         
-        for(int i=0;i<runs;i++)
-            System.out.println("Run " + (i+1) + ": " + times[i] + " sec");
         java.util.Arrays.sort(times);
         
         System.out.println("Best: " + times[0]);
