@@ -238,6 +238,13 @@ int main(int argc, char **argv) {
         printf("%llX\n",l);
     }
     
+    {
+        double d = -2.34;
+        //d = abs(d);
+        printf("abs(-2.24) = %g\n",d);
+    }
+        
+    
     //printf("cwd: %s\n",getcwd(NULL,0));
     //printf("isatty(0): %d\n",isatty(0));
     //printf("exiting\n");

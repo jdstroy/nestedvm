@@ -2,12 +2,33 @@ package tests;
 
 import org.ibex.nestedvm.Runtime;
 
+import java.io.*;
+import java.util.*;
+
 class SpeedTest {
     private static long start,end;
     private static long now() { return System.currentTimeMillis(); }
     private static void start()  { start = now(); }
     private static void end() { end = now(); }
     private static float diff() { return ((float)(end-start))/1000; }
+    
+    /*private static InputStream is = new InputStream() {
+        int left = 100*1024*1024;
+        int c = 0;
+        public int read() { if(left==0) return -1; left--; return (c++)&0xff; }
+        public int read(byte[] buf, int pos,int len) {
+            len = Math.min(left,len);
+            Arrays.fill(buf,pos,len,(byte)c++);
+            left -= len;
+            return len;
+        }
+        public void close() { left =  100*1024*1024; }
+    };
+    
+    private static OutputStream os = new OutputStream() {
+        public void write(int c) { }
+        public void write(byte[] buf, int pos, int len) { }
+    };*/
     
     public static void main(String[] args) throws Exception {
         float d;
@@ -45,11 +66,16 @@ class SpeedTest {
         for(int i=0;i<runs;i++) {
             //Runtime runtime = binary ? new Interpreter(className) : (Runtime) c.newInstance();
             Runtime runtime = (Runtime) c.newInstance();
+            /*runtime.closeFD(0);
+            runtime.closeFD(1);
+            runtime.addFD(new Runtime.InputStreamFD(is));
+            runtime.addFD(new Runtime.OutputStreamFD(os));*/
             System.gc();
             start();
             int status = runtime.run(appArgs);
             if(status != 0) { System.err.println(className + " failed with exit status: " + status); System.exit(1); }
             end();
+            //is.close();
             times[i] = diff();
             System.err.println("Run " + (i+1) + ": " + times[i] + " sec");
         }
