@@ -31,8 +31,8 @@ url_regex = ftp://ftp.zoo.toronto.edu/pub/regex.shar
 
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
 
-darcs_gcclass = http://gcclass.darcs.brianweb.net/
-darcs_classgen = http://classgen.darcs.brianweb.net/
+darcs_gcclass = http://darcs.brianweb.net/gcclass
+darcs_classgen = http://darcs.brianweb.net/classgen
 
 .SECONDARY: # This is broken in gmake < 3.79.1
 
