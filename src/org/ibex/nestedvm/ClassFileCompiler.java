@@ -7,6 +7,7 @@ import org.ibex.nestedvm.util.*;
 
 import org.apache.bcel.generic.*;
 
+// FEATURE: Use IINC where possible
 // FEATURE: Use BCEL to do peephole optimization
 // FEATURE: Special mode to support single-precision only - regs are floats not ints
 

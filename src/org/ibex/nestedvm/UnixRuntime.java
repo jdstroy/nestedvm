@@ -1051,6 +1051,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             mps = newMPS;
         }
         
+        // FEATURE: We shouldn't need to special case the root dir, it should work in the MP array
         private Object fsop(int op, UnixRuntime r, String normalizedPath, int arg1, int arg2) throws ErrnoException {
             int pl = normalizedPath.length();
             if(pl != 0) {
@@ -1066,6 +1067,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return dispatch(root,op,r,normalizedPath,arg1,arg2);
         }
         
+        // FEATURE: move this into FS so some filesystem can override it directly (devfs)
         private static Object dispatch(FS fs, int op, UnixRuntime r, String path, int arg1, int arg2) throws ErrnoException {
             switch(op) {
                 case OPEN: return fs.open(r,path,arg1,arg2);
