@@ -70,8 +70,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     public ExecutionException exitException;
     
     /** Table containing all open file descriptors. (Entries are null if the fd is not in use */
-    FD[] fds = new FD[OPEN_MAX]; // package-private for UnixRuntime
-    boolean closeOnExec[] = new boolean[OPEN_MAX];
+    FD[] fds; // package-private for UnixRuntime
+    boolean closeOnExec[];
     
     /** Pointer to a SecurityManager for this process */
     SecurityManager sm;
@@ -102,6 +102,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** Subclasses should set the CPUState to the state held in <i>state</i> */
     protected abstract void setCPUState(CPUState state);
     
+    /** True to enabled a few hacks to better support the win32 console */
+    final static boolean win32Hacks;
+    
+    static {
+        String os = Platform.getProperty("os.name");
+        String prop = Platform.getProperty("nestedvm.win32hacks");
+        if(prop != null) { win32Hacks = Boolean.valueOf(prop).booleanValue(); }
+        else { win32Hacks = os != null && os.toLowerCase().indexOf("windows") != -1; }
+    }
+    
     protected Object clone() throws CloneNotSupportedException {
         Runtime r = (Runtime) super.clone();
         r._byteBuf = null;
@@ -119,7 +129,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return r;
     }
     
-    protected Runtime(int pageSize, int totalPages) {
+    protected Runtime(int pageSize, int totalPages) { this(pageSize, totalPages,false); }
+    protected Runtime(int pageSize, int totalPages, boolean exec) {
         if(pageSize <= 0) throw new IllegalArgumentException("pageSize <= 0");
         if(totalPages <= 0) throw new IllegalArgumentException("totalPages <= 0");
         if((pageSize&(pageSize-1)) != 0) throw new IllegalArgumentException("pageSize not a power of two");
@@ -157,11 +168,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 readPages[i] = writePages[i] = new int[pageSize>>2];
             }
         }
-    
-        InputStream stdin = Boolean.valueOf(Platform.getProperty("nestedvm.textstdin")).booleanValue() ? new TextInputStream(System.in) : System.in;
-        addFD(new TerminalFD(stdin));
-        addFD(new TerminalFD(System.out));
-        addFD(new TerminalFD(System.err));
+
+        if(!exec) {
+            fds = new FD[OPEN_MAX];
+            closeOnExec = new boolean[OPEN_MAX];
+        
+            InputStream stdin = win32Hacks ? new Win32ConsoleIS(System.in) : System.in;
+            addFD(new TerminalFD(stdin));
+            addFD(new TerminalFD(System.out));
+            addFD(new TerminalFD(System.err));
+        }
     }
     
     /** Copy everything from <i>src</i> to <i>addr</i> initializing uninitialized pages if required. 
@@ -481,17 +497,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** Calls _execute() (subclass's execute()) and catches exceptions */
-    // FEATURE: Have these call kill() so we get a pretty message to stdout
     private void __execute() {
         try {
             _execute();
         } catch(FaultException e) {
             if(STDERR_DIAG) e.printStackTrace();
-            sys_exit(128+11); // SIGSEGV
+            exit(128+11,true); // SIGSEGV
             exitException = e;
         } catch(ExecutionException e) {
             if(STDERR_DIAG) e.printStackTrace();
-            sys_exit(128+4); // SIGILL
+            exit(128+4,true); // SIGILL
             exitException = e;
         }
     }
@@ -960,11 +975,21 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** Hook for subclasses to do something when the process exits  */
     void _exited() {  }
     
-    private int sys_exit(int status) {
+    void exit(int status, boolean fromSignal) {
+        if(fromSignal && fds[2] != null) {
+            try {
+                byte[] msg = getBytes("Process exited on signal " + (status - 128));
+                fds[2].write(msg,0,msg.length);
+            } catch(ErrnoException e) { }
+        }
         exitStatus = status;
         for(int i=0;i<fds.length;i++) if(fds[i] != null) closeFD(i);
         state = EXITED;
         _exited();
+    }
+    
+    private int sys_exit(int status) {
+        exit(status,false);
         return 0;
     }
        
@@ -1109,8 +1134,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         public int getdents(byte[] a, int off, int length) throws ErrnoException { throw new ErrnoException(EBADFD); }
         
-        public int flags() { return O_RDONLY; }
-        
         /** Return a Seekable object representing this file descriptor (can be read only) 
             This is required for exec() */
         Seekable seekable() { return null; }
@@ -1122,6 +1145,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
         
         protected abstract FStat _fstat();
+        public abstract int  flags();
         
         /** Closes the fd */
         public final void close() { if(--refCount==0) _close(); }
@@ -1225,7 +1249,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             }
         }
         
-        public FStat _fstat() { return new FStat(); }
+        public FStat _fstat() { return new SocketFStat(); }
     }
     
     static class TerminalFD extends InputOutputStreamFD {
@@ -1233,14 +1257,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public TerminalFD(OutputStream os) { this(null,os); }
         public TerminalFD(InputStream is, OutputStream os) { super(is,os); }
         public void _close() { /* noop */ }
-        public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } public int mode() { return 0600; } }; }
+        public FStat _fstat() { return new SocketFStat() { public int type() { return S_IFCHR; } public int mode() { return 0600; } }; }
     }
     
     // This is pretty inefficient but it is only used for reading from the console on win32
-    static class TextInputStream extends InputStream {
+    static class Win32ConsoleIS extends InputStream {
         private int pushedBack = -1;
         private final InputStream parent;
-        public TextInputStream(InputStream parent) { this.parent = parent; }
+        public Win32ConsoleIS(InputStream parent) { this.parent = parent; }
         public int read() throws IOException {
             if(pushedBack != -1) { int c = pushedBack; pushedBack = -1; return c; }
             int c = parent.read();
@@ -1272,16 +1296,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     }
     
-    public static class FStat {
-        public static final int S_IFIFO = 0010000;
-        public static final int S_IFCHR = 0020000;
-        public static final int S_IFDIR = 0040000;
-        public static final int S_IFREG = 0100000;
+    public abstract static class FStat {
+        public static final int S_IFIFO =  0010000;
+        public static final int S_IFCHR =  0020000;
+        public static final int S_IFDIR =  0040000;
+        public static final int S_IFREG =  0100000;
+        public static final int S_IFSOCK = 0140000;
         
-        public int dev() { return 1; }
-        public int inode() { return hashCode() & 0x7fff; }
         public int mode() { return 0; }
-        public int type() { return S_IFIFO; }
         public int nlink() { return 0; }
         public int uid() { return 0; }
         public int gid() { return 0; }
@@ -1291,6 +1313,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public int ctime() { return 0; }
         public int blksize() { return 512; }
         public int blocks() { return (size()+blksize()-1)/blksize(); }        
+        
+        public abstract int dev();
+        public abstract int type();
+        public abstract int inode();
+    }
+    
+    public static class SocketFStat extends FStat {
+        public int dev() { return -1; }
+        public int type() { return S_IFSOCK; }
+        public int inode() { return hashCode() & 0x7fff; }
     }
     
     static class HostFStat extends FStat {
@@ -1302,7 +1334,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             this.executable = executable;
         }
         public int dev() { return 1; }
-        public int inode() { return f.getName().hashCode() & 0xffff; }
+        public int inode() { return f.getAbsolutePath().hashCode() & 0x7fff; }
         public int type() { return f.isDirectory() ? S_IFDIR : S_IFREG; }
         public int nlink() { return 1; }
         public int mode() {

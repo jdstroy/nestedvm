@@ -335,7 +335,7 @@ tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
 	cp misc/tex.ch build/tex/tex.ch
 	cd build/tex && \
 		$(TAR) xfz ../../download/texinputs-$(version_texinputs).tgz && \
-		java -cp $(root)/build tests.Tangle \
+		java -cp $(root)/build:$(upstream)/build/classgen/build tests.Tangle \
 			--gpc-rts=-nPascalfile:tex.p    \
 			--gpc-rts=-npool:tex.pool       \
 			--gpc-rts=-nwebfile:tex.web     \

@@ -218,6 +218,7 @@ runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 
 nestedvm.jar: $(java_classes) .manifest
 	cd build && jar cfm ../$@ ../.manifest $(java_classes:build/%.class=%*.class)
+	cd $(CLASSGEN_PATH) && jar uf $(mips2java_root)/$@ .
 
 compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcclass
 	mkdir -p tmp/pruned
@@ -471,11 +472,13 @@ doc/charts/%.pdf: doc/charts/%.dat doc/charts/%.gnuplot
 
 doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf) build/tests/TeX.class
 	cp upstream/build/tex/tex.pool upstream/build/tex/texinputs/tex.pool
-	cd upstream/build/tex/texinputs && echo '\latex.ltx' | java -cp $(build) tests.TeX
+	cd upstream/build/tex/texinputs && echo '\latex.ltx' | java -cp $(mips2java_root)/build:$(mips2java_root)/$(CLASSGEN_PATH) tests.TeX
 	cd upstream/build/tex/texinputs && ln -fs ../../../../doc/* .; rm -f ivme04.aux; touch ivme04.aux; touch ivme04.bbl
-	cd upstream/build/tex/texinputs && echo '\&latex \input ivme04.tex' | java -cp $(build) tests.TeX
+	cd upstream/build/tex/texinputs && echo '\&latex \input ivme04.tex' | java -cp $(mips2java_root)/build:$(mips2java_root)/$(CLASSGEN_PATH) tests.TeX
+	cd upstream/build/tex/texinputs && bibtex ivme04
+	cd upstream/build/tex/texinputs && echo '\&latex \input ivme04.tex' | java -cp $(mips2java_root)/build:$(mips2java_root)/$(CLASSGEN_PATH) tests.TeX
 	cd upstream/build/tex/texinputs && dvipdf ivme04.dvi
-	cp upstream/build/tex/texinputs/ivme04.pdf $@
+	#cp upstream/build/tex/texinputs/ivme04.pdf $@
 
 pdf: doc/ivme04.pdf
 	open doc/ivme04.pdf

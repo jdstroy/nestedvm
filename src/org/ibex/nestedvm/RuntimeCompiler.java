@@ -4,7 +4,7 @@ import java.io.*;
 
 import org.ibex.nestedvm.util.*;
 
-// FEATURE: This need a lot of work to support binaries spanned across many classes
+// This need a lot of work to support binaries spanned across many classes
 public class RuntimeCompiler {  
     private static SingleClassLoader singleClassLoader;
     private static int nextID;

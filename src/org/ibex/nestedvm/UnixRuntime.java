@@ -16,7 +16,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     public final int getPid() { return pid; }
     
     private static final GlobalState defaultGS = new GlobalState();
-    private GlobalState gs = defaultGS;
+    private GlobalState gs;
     public void setGlobalState(GlobalState gs) {
         if(state != STOPPED) throw new IllegalStateException("can't change GlobalState when running");
         this.gs = gs;
@@ -33,14 +33,36 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private Vector activeChildren;
     private Vector exitedChildren;
     
-    protected UnixRuntime(int pageSize, int totalPages) {
-        super(pageSize,totalPages);
+    protected UnixRuntime(int pageSize, int totalPages) { this(pageSize,totalPages,false); }
+    protected UnixRuntime(int pageSize, int totalPages, boolean exec) {
+        super(pageSize,totalPages,exec);
                 
-        // FEATURE: Do the proper mangling for non-unix hosts
-        String userdir = Platform.getProperty("user.dir");
-        cwd = 
-            userdir != null && userdir.startsWith("/") && File.separatorChar == '/' && Platform.getProperty("nestedvm.root") == null
-            ? userdir.substring(1) : "";
+        if(!exec) {
+            gs = defaultGS;
+            String userdir = Platform.getProperty("user.dir");
+            String nvroot = Platform.getProperty("nestedvm.root");
+            cwd = "";
+            if(userdir != null && nvroot == null) {
+                if(userdir.startsWith("/") && File.separatorChar == '/') {
+                    cwd = userdir.substring(1);
+                } else {
+                    Vector vec = new Vector();
+                    File root = HostFS.hostRootDir();
+                    String s = new File(userdir).getAbsolutePath();
+                    File d = new File(s);
+                    System.err.println(s);
+                    System.err.println(d);
+                    while(!d.equals(root)) {
+                        System.err.println("Got " + d.getName());
+                        vec.addElement(d.getName());
+                        if((s = d.getParent()) == null) break;
+                        d = new File(s);
+                    }
+                    if(s != null)
+                        for(int i=vec.size()-1;i>=0;i--) cwd += (String) vec.elementAt(i) + (i==0?"":"/");
+                }
+            }
+        }
     }
     
     private static String posixTZ() {
@@ -73,7 +95,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(!envHas("HOME",extra) && Platform.getProperty("user.home") != null)
             defaults[n++] = "HOME=" + Platform.getProperty("user.home");
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
-        if(!envHas("TERM",extra))  defaults[n++] = "TERM=vt100";
+        if(!envHas("TERM",extra) && !win32Hacks)  defaults[n++] = "TERM=vt100";
         if(!envHas("TZ",extra))    defaults[n++] = "TZ=" + posixTZ();
         if(!envHas("PATH",extra))  defaults[n++] = "PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin";
         String[] env = new String[extra.length+n];
@@ -149,6 +171,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return parent == null ? 1 : parent.pid;
     }
 
+    // FEATURE: Signal handling
+    // check flag only on backwards jumps to basic blocks without compulsatory checks 
+    // (see A Portable Research Framework for the Execution of Java Bytecode - Etienne Gagnon, Chapter 2)
+    
     /** The kill syscall.
        SIGSTOP, SIGTSTO, SIGTTIN, and SIGTTOUT pause the process.
        SIGCONT, SIGCHLD, SIGIO, and SIGWINCH are ignored.
@@ -164,16 +190,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case 18: // SIGTSTP
             case 21: // SIGTTIN
             case 22: // SIGTTOU
-                state = PAUSED;
-                break;
             case 19: // SIGCONT
             case 20: // SIGCHLD
             case 23: // SIGIO
             case 28: // SIGWINCH
                 break;
             default:
-                // FEATURE: This is ugly, make a clean interface to sys_exit
-                return syscall(SYS_exit,128+signal,0,0,0,0,0);
+                exit(128+signal, true);
         }
         return 0;
     }
@@ -350,7 +373,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(o instanceof Class) {
             Class c = (Class) o;
             try {
-                return exec((UnixRuntime) c.newInstance(),argv,envp);
+                UnixRuntime r = (UnixRuntime) c.getDeclaredConstructor(new Class[]{Boolean.TYPE}).newInstance(new Object[]{Boolean.TRUE});
+                return exec(r,argv,envp);
             } catch(Exception e) {
                 e.printStackTrace();
                 return -ENOEXEC;
@@ -391,10 +415,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;   
     }
     
-    // FEATURE: Make sure fstat info is correct
-    // FEATURE: This could be faster if we did direct copies from each process' memory
-    // FEATURE: Check this logic one more time
-    public static class Pipe {
+    static class Pipe {
         private final byte[] pipebuf = new byte[PIPE_BUF*4];
         private int readPos;
         private int writePos;
@@ -403,7 +424,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final FD writer = new Writer();
         
         public class Reader extends FD {
-            protected FStat _fstat() { return new FStat(); }
+            protected FStat _fstat() { return new SocketFStat(); }
             public int read(byte[] buf, int off, int len) throws ErrnoException {
                 if(len == 0) return 0;
                 synchronized(Pipe.this) {
@@ -418,11 +439,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     return len;
                 }
             }
+            public int flags() { return O_RDONLY; }
             public void _close() { synchronized(Pipe.this) { readPos = -1; Pipe.this.notify(); } }
         }
         
         public class Writer extends FD {   
-            protected FStat _fstat() { return new FStat(); }
+            protected FStat _fstat() { return new SocketFStat(); }
             public int write(byte[] buf, int off, int len) throws ErrnoException {
                 if(len == 0) return 0;
                 synchronized(Pipe.this) {
@@ -442,6 +464,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     return len;
                 }
             }
+            public int flags() { return O_WRONLY; }
             public void _close() { synchronized(Pipe.this) { writePos = -1; Pipe.this.notify(); } }
         }
     }
@@ -626,16 +649,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
 
-        // FEATURE: Check that these are correct
-        public int flags() {
-            if(is != null && os != null) return O_RDWR;
-            if(is != null) return O_RDONLY;
-            if(os != null) return O_WRONLY;
-            return 0;
-        }
-        
-        // FEATURE: Populate this properly
-        public FStat _fstat() { return new FStat(); }
+        public int flags() { return O_RDWR; }
+        public FStat _fstat() { return new SocketFStat(); }
     }
     
     private int sys_socket(int domain, int type, int proto) {
@@ -1049,8 +1064,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
 
         public synchronized Object exec(UnixRuntime r, String path) throws ErrnoException {
             // HACK: Hideous hack to make a standalone busybox possible
-            if(path.equals("bin/busybox") && Boolean.valueOf(Platform.getProperty("nestedvm.busyboxhack")).booleanValue())
-                return r.getClass();
+            if(path.equals("bin/busybox") && r.getClass().getName().endsWith("BusyBox")) return r.getClass();
+            
             FStat fstat = stat(r,path);
             if(fstat == null) return null;
             long mtime = fstat.mtime();
@@ -1155,10 +1170,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public abstract void unlink(UnixRuntime r, String path) throws ErrnoException;
     }
         
-    // FEATURE: chroot support in here
+    // chroot support should go in here if it is ever implemented chroot support in here
     private String normalizePath(String path) {
         boolean absolute = path.startsWith("/");
         int cwdl = cwd.length();
+        
         // NOTE: This isn't just a fast path, it handles cases the code below doesn't
         if(!path.startsWith(".") && path.indexOf("./") == -1 && path.indexOf("//") == -1 && !path.endsWith("."))
             return absolute ? path.substring(1) : cwdl == 0 ? path : path.length() == 0 ? cwd : cwd + "/" + path;
@@ -1173,23 +1189,29 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             cwd.getChars(0,cwdl,out,0);
             outp = cwdl;
         }
-            
+
         path.getChars(0,path.length(),in,0);
         while(in[inp] != 0) {
-            if(inp != 0 || cwdl==0) {
-                if(in[inp] != '/') { out[outp++] = in[inp++]; continue; }
+            if(inp != 0) {
+                while(in[inp] != 0 && in[inp] != '/') { out[outp++] = in[inp++]; }
+                if(in[inp] == '\0') break;
                 while(in[inp] == '/') inp++;
             }
-            if(in[inp] == '\0') continue;
+            
+            // Just read a /
+            if(in[inp] == '\0') break;
             if(in[inp] != '.') { out[outp++] = '/'; out[outp++] = in[inp++]; continue; }
+            // Just read a /.
             if(in[inp+1] == '\0' || in[inp+1] == '/') { inp++; continue; }
             if(in[inp+1] == '.' && (in[inp+2] == '\0' || in[inp+2] == '/')) { // ..
+                // Just read a /..{$,/}
                 inp += 2;
                 if(outp > 0) outp--;
                 while(outp > 0 && out[outp] != '/') outp--;
                 //System.err.println("After ..: " + new String(out,0,outp));
                 continue;
             }
+            // Just read a /.[^.] or /..[^/$]
             inp++;
             out[outp++] = '/';
             out[outp++] = '.';
@@ -1228,7 +1250,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected File root;
         public File getRoot() { return root; }
         
-        private static File hostRootDir() {
+        static File hostRootDir() {
             if(Platform.getProperty("nestedvm.root") != null) {
                 File f = new File(Platform.getProperty("nestedvm.root"));
                 if(f.isDirectory()) return f;
@@ -1332,9 +1354,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected abstract String name(int n);
         protected abstract int inode(int n);
         protected abstract int myDev();
-        protected int parentInode() { return -1; }
-        protected int myInode() { return -1; }
-        
+        protected abstract int parentInode();
+        protected abstract int myInode();
+        public int flags() { return O_RDONLY; }
+
         public int getdents(byte[] buf, int off, int len) {
             int ooff = off;
             int ino;
@@ -1385,11 +1408,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         private static final int FD_INODE = 4;
         private static final int FD_INODES = 32;
         
-        private class DevFStat extends FStat {
+        private abstract class DevFStat extends FStat {
             public int dev() { return devno; }
             public int mode() { return 0666; }
             public int type() { return S_IFCHR; }
             public int nlink() { return 1; }
+            public abstract int inode();
         }
         
         private abstract class DevDirFD extends DirFD {
@@ -1405,12 +1429,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }
             public FStat _fstat() { return new DevFStat(){ public int inode() { return ZERO_INODE; } }; }
+            public int flags() { return O_RDWR; }
         };
         private FD devNullFD = new FD() {
             public int read(byte[] a, int off, int length) { return 0; }
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }
             public FStat _fstat() { return new DevFStat(){ public int inode() { return NULL_INODE; } }; }
+            public int flags() { return O_RDWR; }
         }; 
         
         public FD open(UnixRuntime r, String path, int mode, int flags) throws ErrnoException {
@@ -1483,9 +1509,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(r.fds[n] == null) return null;
                 return r.fds[n].fstat();
             }
-            // FEATURE: inode stuff
-            if(path.equals("fd")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
-            if(path.equals("")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
+            if(path.equals("fd")) return new FStat() { public int inode() { return FD_INODE; }   public int dev() { return devno; } public int type() { return S_IFDIR; } public int mode() { return 0444; }};
+            if(path.equals(""))   return new FStat() { public int inode() { return ROOT_INODE; } public int dev() { return devno; } public int type() { return S_IFDIR; } public int mode() { return 0444; }};
             return null;
         }
         

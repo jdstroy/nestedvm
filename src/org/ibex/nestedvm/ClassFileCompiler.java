@@ -99,11 +99,31 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         init.add(INVOKESPECIAL,new MethodRef(me,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT}));
         init.add(RETURN);
 
+        // <init>(Z)
+        init = cg.addMethod("<init>",Type.VOID,new Type[]{Type.BOOLEAN},ACC_PUBLIC);        
+        init.add(ALOAD_0);
+        init.add(LDC,pageSize);
+        init.add(LDC,totalPages);
+        init.add(ILOAD_1);
+        init.add(INVOKESPECIAL,new MethodRef(me,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT,Type.BOOLEAN}));
+        init.add(RETURN);
+        
+        // <init>(II)
         init = cg.addMethod("<init>",Type.VOID,new Type[]{Type.INT,Type.INT},ACC_PUBLIC);
         init.add(ALOAD_0);
         init.add(ILOAD_1);
         init.add(ILOAD_2);
-        init.add(INVOKESPECIAL,new MethodRef(superClass,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT}));
+        init.add(ICONST_0);
+        init.add(INVOKESPECIAL,new MethodRef(me,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT,Type.BOOLEAN}));
+        init.add(RETURN);
+        
+        // <init>(IIZ)
+        init = cg.addMethod("<init>",Type.VOID,new Type[]{Type.INT,Type.INT,Type.BOOLEAN},ACC_PUBLIC);
+        init.add(ALOAD_0);
+        init.add(ILOAD_1);
+        init.add(ILOAD_2);
+        init.add(ILOAD_3);
+        init.add(INVOKESPECIAL,new MethodRef(superClass,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT,Type.BOOLEAN}));
         
         if(onePage) {
             cg.addField("page",Type.arrayType(Type.INT),ACC_PRIVATE|ACC_FINAL);
