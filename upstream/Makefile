@@ -45,6 +45,7 @@ export PATH
 
 # Solaris' patch doesn't work, use gnu patch on solaris
 PATCH = $(shell test `uname` = SunOS && echo gpatch || echo patch)
+TAR = $(shell test `uname` = SunOS && echo gtar || echo tar)
 
 tasks/build_gcc: tasks/build_linker
 tasks/build_newlib: tasks/build_gcc
@@ -59,10 +60,10 @@ tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
 
 tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob
 	# HACK: Get the top level makefile to build the support stuff
-	make -s -C $(root) build/org/ibex/nestedvm/{crt0.o,support.o,support_aux.o}
+	$(MAKE) -s -C $(root) $(patsubst %,build/org/ibex/nestedvm/%.o, crt0 support support_aux)
 
 	# Add our support stuff to libc
-	mips-unknown-elf-ar sr $(libc_a)  $(root)/build/org/ibex/nestedvm/{support.o,support_aux.o}
+	mips-unknown-elf-ar sr $(libc_a) $(patsubst %,$(root)/build/org/ibex/nestedvm/%.o, support support_aux)
 	rm -f $(cross_root)/lib/crt0.o
 	cp $(root)/build/org/ibex/nestedvm/crt0.o $(cross_root)/lib/crt0.o
 
@@ -93,16 +94,16 @@ tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/downloa
 tasks/extract_%: tasks/download_%
 	mkdir -p build
 	cd build && \
-		gzip -dc  ../download/$*-$(version_$*).tar.gz | tar xf - && \
+		gzip -dc  ../download/$*-$(version_$*).tar.gz | $(TAR) -xf - && \
 		rm -f $* && \
 		ln -s $*-$(version_$*) $*
 	touch $@
 
 tasks/extract_gcc: tasks/download_gcc
 	mkdir -p build
-	cd build && gzip -dc ../download/gcc-core-$(version_gcc).tar.gz | tar xf -
-	cd build && gzip -dc ../download/gcc-g++-$(version_gcc).tar.gz | tar xf -
-	cd build && gzip -dc ../download/gcc-g77-$(version_gcc).tar.gz | tar xf -
+	cd build && gzip -dc ../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf -
+	cd build && gzip -dc ../download/gcc-g++-$(version_gcc).tar.gz | $(TAR) -xf -
+	cd build && gzip -dc ../download/gcc-g77-$(version_gcc).tar.gz | $(TAR) -xf -
 	touch $@
 
 tasks/patch_%: tasks/extract_%
@@ -131,8 +132,8 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 tasks/extract_gpc: tasks/download_gcc tasks/download_gpc
 	mkdir -p build/gpc.extract
 	cd build/gpc.extract && \
-		gzip -dc ../../download/gcc-core-$(version_gcc).tar.gz | tar xf - && \
-		gzip -dc ../../download/gpc-$(version_gpc).tar.gz      | tar xf - && \
+		gzip -dc ../../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf - && \
+		gzip -dc ../../download/gpc-$(version_gpc).tar.gz      | $(TAR) -xf - && \
 		test ! -e gcc-$(version_gcc)/gcc/p && \
 		mv gpc-$(version_gpc)/p gcc-$(version_gcc)/gcc/p
 	mv build/gpc.extract/gcc-$(version_gcc) build/gpc-$(version_gpc)
@@ -154,7 +155,7 @@ tasks/build_gpc: tasks/patch_gpc tasks/build_libc
 
 tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
 	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
-	cd build && gzip -dc ../download/openbsdglob.tar.gz | tar xf -
+	cd build && gzip -dc ../download/openbsdglob.tar.gz | $(TAR) -xf -
 	cd build/openbsdglob && \
 		mips-unknown-elf-gcc '-Dissetugid()=0' -DARG_MAX=65536 $(MIPS_CFLAGS) -I. -c -o glob.o glob.c && \
 		mips-unknown-elf-gcc -O2 -Wall -Werror -I. -c -o fnmatch.o fnmatch.c && \
@@ -208,7 +209,7 @@ url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
 tasks/extract_libjpeg: tasks/download_libjpeg
 	mkdir -p build
 	cd build && \
-		gzip -dc ../download/jpegsrc.v$(version_libjpeg).tar.gz | tar xf - && \
+		gzip -dc ../download/jpegsrc.v$(version_libjpeg).tar.gz | $(TAR) -xf - && \
 		mv jpeg-$(version_libjpeg) libjpeg-$(version_libjpeg) && \
 		rm -f libjpeg && \
 		ln -s libjpeg-$(version_libjpeg)  libjpeg
@@ -227,7 +228,7 @@ tasks/build_libjpeg: tasks/patch_libjpeg tasks/build_libc
 tasks/extract_libmspack: tasks/download_libmspack tasks/build_libc
 	mkdir -p build
 	cd build && \
-		gzip -dc ../download/libmspack-$(version_libmspack).tar.gz | tar xf - && \
+		gzip -dc ../download/libmspack-$(version_libmspack).tar.gz | $(TAR) -xf - && \
 		mv libmspack libmspack-$(version_libmspack) && \
 		rm -f libmspack && \
 		ln -s libmspack-$(version_libmspack)  libmspack
@@ -255,7 +256,7 @@ tasks/extract_boehmgc: tasks/download_boehmgc
 	mkdir -p build
 	cd build && \
 		rm -rf gc$(version_boehmgc) && \
-		gzip -dc ../download/gc$(version_boehmgc).tar.gz | tar xf - && \
+		gzip -dc ../download/gc$(version_boehmgc).tar.gz | $(TAR) -xf - && \
 		rm -f boehmgc boehmgc-$(version_boehmgc) && \
 		ln -s gc$(version_boehmgc)  boehmgc && \
 		ln -s gc$(version_boehmgc)  boehmgc-$(version_boehmgc)
@@ -304,7 +305,7 @@ tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
 	rm -f build/tex/tex.p build/tex/tex.pool
 	cp misc/tex.ch build/tex/tex.ch
 	cd build/tex && \
-		tar xfz ../../download/texinputs-$(version_texinputs).tgz && \
+		$(TAR) xfz ../../download/texinputs-$(version_texinputs).tgz && \
 		java -cp $(root)/build tests.Tangle \
 			--gpc-rts=-nPascalfile:tex.p    \
 			--gpc-rts=-npool:tex.pool       \

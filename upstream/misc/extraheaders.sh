@@ -1,13 +1,14 @@
+
 #!/bin/sh -e
 
 mkdir -p arpa netinet sys nestedvm
 
 for f in arpa/inet.h netdb.h netinet/in.h sys/socket.h; do
-    test -e $f || echo "#include <nestedvm/socket.h>" > $f
+    test -f $f || echo "#include <nestedvm/socket.h>" > $f
 done
 
 for f in getopt.h; do
-    test -e $f || echo "#include <unistd.h>" > $f
+    test -f $f || echo "#include <unistd.h>" > $f
 done
 
 cat <<__EOF__ > sys/ioctl.h
