@@ -399,7 +399,7 @@ ntlmtest: build/tests/NtlmAuth.class
 	@test -e smb.conf || cp upstream/build/samba/examples/smb.conf.default smb.conf
 	$(JAVA) -cp "$(classpath)" tests.NtlmAuth --username=brian --password=test --diagnostics -d 5
 
-ntlmauth.jar: build/tests/NtlmAuth.class
+ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_darcs_gcclass
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
 	java -cp \
