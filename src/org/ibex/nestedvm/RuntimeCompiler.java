@@ -18,7 +18,7 @@ public class RuntimeCompiler {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ClassFileCompiler c = new ClassFileCompiler(data,className,baos);
         // FEATURE: make this Optional, pass options on compile arguments
-        c.parseOptions("unixruntime,nosupportcall");
+        c.parseOptions("unixruntime,nosupportcall,maxinsnpermethod=512");
         c.go();
         baos.close();
         byte[] bytecode = baos.toByteArray();
@@ -27,7 +27,7 @@ public class RuntimeCompiler {
     
     private static class SingleClassLoader extends ClassLoader {
         public Class loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                System.err.println(this + ": loadClass(\"" + name + "," + resolve + ");");
+            //System.err.println(this + ": loadClass(\"" + name + "," + resolve + ");");
             return super.loadClass(name,resolve);
         }
         public Class fromBytes(String name, byte[] b) { return fromBytes(name,b,0,b.length); }
@@ -39,13 +39,13 @@ public class RuntimeCompiler {
     }
     
     public static void main(String[] args) throws Exception {
-            if(args.length == 0) {
-                    System.err.println("Usage: RuntimeCompiler mipsbinary");
+        if(args.length == 0) {
+            System.err.println("Usage: RuntimeCompiler mipsbinary");
             System.exit(1);
         }
         UnixRuntime r = (UnixRuntime) compile(new Seekable.File(args[0])).newInstance();
         System.err.println("Instansiated: "+ r);
-        System.exit(r.run(args));
+        System.exit(UnixRuntime.runAndExec(r,args));
     }
     
     private RuntimeCompiler() { }

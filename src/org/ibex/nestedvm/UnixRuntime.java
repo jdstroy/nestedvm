@@ -34,7 +34,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         // FEATURE: Do the proper mangling for non-unix hosts
         String userdir = getSystemProperty("user.dir");
         cwd = 
-            userdir != null && userdir.startsWith("/") && File.separatorChar == '/' && HostFS.hostRootDir().getParent() == null  
+            userdir != null && userdir.startsWith("/") && File.separatorChar == '/' && getSystemProperty("nestedvm.root") == null
             ? userdir.substring(1) : "";
     }
     
@@ -61,7 +61,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     String[] createEnv(String[] extra) {
-        String[] defaults = new String[5];
+        String[] defaults = new String[6];
         int n=0;
         if(extra == null) extra = new String[0];
         if(!envHas("USER",extra) && getSystemProperty("user.name") != null)
@@ -71,6 +71,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
         if(!envHas("TERM",extra))  defaults[n++] = "TERM=vt100";
         if(!envHas("TZ",extra))    defaults[n++] = "TZ=" + posixTZ();
+        if(!envHas("PATH",extra))  defaults[n++] = "PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin";
         String[] env = new String[extra.length+n];
         for(int i=0;i<n;i++) env[i] = defaults[i];
         for(int i=0;i<extra.length;i++) env[n++] = extra[i];
@@ -112,6 +113,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_chdir: return sys_chdir(a);
             case SYS_exec: return sys_exec(a,b,c);
             case SYS_getdents: return sys_getdents(a,b,c,d);
+            case SYS_unlink: return sys_unlink(a);
 
             default: return super._syscall(syscall,a,b,c,d);
         }
@@ -318,9 +320,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(o instanceof Class) {
             Class c = (Class) o;
             try {
-                    return exec((UnixRuntime) c.newInstance(),argv,envp);
+                return exec((UnixRuntime) c.newInstance(),argv,envp);
             } catch(Exception e) {
-                    e.printStackTrace();
+                e.printStackTrace();
                 return -ENOEXEC;
             }
         } else {
@@ -469,6 +471,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;
     }
    
+    private int sys_unlink(int cstring) throws FaultException, ErrnoException {
+        gs.unlink(this,normalizePath(cstring(cstring)));
+        return 0;
+    }
+    
     private int sys_getcwd(int addr, int size) throws FaultException, ErrnoException {
         byte[] b = getBytes(cwd);
         if(size == 0) return -EINVAL;
@@ -504,6 +511,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected static final int STAT = 2;
         protected static final int LSTAT = 3;
         protected static final int MKDIR = 4;
+        protected static final int UNLINK = 5;
         
         final UnixRuntime[] tasks;
         int nextPID = 1;
@@ -607,6 +615,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 case STAT: return fs.stat(r,path);
                 case LSTAT: return fs.lstat(r,path);
                 case MKDIR: fs.mkdir(r,path,arg1); return null;
+                case UNLINK: fs.unlink(r,path); return null;
                 default: throw new Error("should never happen");
             }
         }
@@ -615,6 +624,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final FStat stat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(STAT,r,path,0,0); }
         public final FStat lstat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(LSTAT,r,path,0,0); }
         public final void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { fsop(MKDIR,r,path,mode,0); }
+        public final void unlink(UnixRuntime r, String path) throws ErrnoException { fsop(UNLINK,r,path,0,0); }
         
         private Hashtable execCache = new Hashtable();
         private static class CacheEnt {
@@ -726,6 +736,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         // If this returns null it'll be turned into an ENOENT
         public abstract FStat stat(UnixRuntime r, String path) throws ErrnoException;
         public abstract void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException;
+        public abstract void unlink(UnixRuntime r, String path) throws ErrnoException;
     }
         
     // FEATURE: chroot support in here
@@ -749,7 +760,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             
         path.getChars(0,path.length(),in,0);
         while(in[inp] != 0) {
-            if(inp != 0) {
+            if(inp != 0 || cwdl==0) {
                 if(in[inp] != '/') { out[outp++] = in[inp++]; continue; }
                 while(in[inp] == '/') inp++;
             }
@@ -837,6 +848,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
             final File f = hostFile(path);
             return r.hostFSOpen(f,flags,mode,this);
+        }
+        
+        public void unlink(UnixRuntime r, String path) throws ErrnoException {
+            File f = hostFile(path);
+            if(r.sm != null && !r.sm.allowUnlink(f)) throw new ErrnoException(EPERM);
+            if(!f.exists()) throw new ErrnoException(ENOENT);
+            if(!f.delete()) throw new ErrnoException(EPERM);
         }
         
         public FStat stat(UnixRuntime r, String path) throws ErrnoException {
@@ -1043,6 +1061,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return null;
         }
         
-        public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { throw new ErrnoException(EACCES); }
-    }
+        public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { throw new ErrnoException(EROFS); }
+        public void unlink(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
+    }    
 }

@@ -1319,6 +1319,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public boolean allowRead(File f) { return true; }
         public boolean allowWrite(File f) { return true; }
         public boolean allowStat(File f) { return true; }
+        public boolean allowUnlink(File f) { return true; }
     }
     
     // Null pointer check helper function

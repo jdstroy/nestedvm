@@ -75,6 +75,7 @@ REENT_WRAPPER2(fchmod,int,mode_t)
 REENT_WRAPPER2(lstat,const char *,struct stat *)
 REENT_WRAPPER4(getdents,int, char *, size_t,long *)
 REENT_WRAPPER1(dup,int)
+REENT_WRAPPER2R(pathconf,long,const char *,int)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
@@ -100,6 +101,15 @@ char *_getcwd_r(struct _reent *ptr, char *buf, size_t size) {
 
 pid_t _wait_r(struct _reent *ptr, int *status) {
     return _waitpid_r(ptr,-1,status,0);
+}
+
+long _pathconf_r(struct _reent *ptr,const char *path, int name) {
+    switch(name) {
+        default:
+            fprintf(stderr,"WARNING: pathconf: Unknown \"name\": %d\n",name);
+            ptr->_errno = EINVAL;
+            return -1;
+    }
 }
 
 DIR *opendir(const char *path) {
