@@ -1120,7 +1120,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 // its an elf binary
                 try {
                     s.seek(0);
-                    Class c = RuntimeCompiler.compile(s);
+                    Class c = RuntimeCompiler.compile(s,"unixruntime");
                     //System.err.println("Compile succeeded: " + c);
                     ent = new CacheEnt(mtime,size,c);
                 } catch(Compiler.Exn e) {

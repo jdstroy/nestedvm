@@ -50,7 +50,7 @@ public class RuntimeCompiler {
             System.err.println("Usage: RuntimeCompiler mipsbinary");
             System.exit(1);
         }
-        UnixRuntime r = (UnixRuntime) compile(new Seekable.File(args[0])).newInstance();
+        UnixRuntime r = (UnixRuntime) compile(new Seekable.File(args[0]),"unixruntime").newInstance();
         System.err.println("Instansiated: "+ r);
         System.exit(UnixRuntime.runAndExec(r,args));
     }
