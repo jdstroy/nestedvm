@@ -64,8 +64,6 @@ public abstract class Platform {
     abstract RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException;
     public static RandomAccessFile truncatedRandomAccessFile(File f, String mode) throws IOException { return p._truncatedRandomAccessFile(f,mode); }
     
-    // FEATURE: Make sure GCClass can get rid of uncalled superclass methdos
-    
     static class Jdk11 extends Platform {
         boolean _atomicCreateFile(File f) throws IOException {
             // This is not atomic, but its the best we can do on jdk 1.1

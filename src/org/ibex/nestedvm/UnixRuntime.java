@@ -1,7 +1,7 @@
 package org.ibex.nestedvm;
 
 import org.ibex.nestedvm.util.*;
-// FEATURE: This is ugly, this stuff needs to be in org.ibex.util or something
+// HACK: This is ugly, this stuff needs to be in org.ibex.util or something
 import org.ibex.classgen.util.Sort;
 import java.io.*;
 import java.util.*;
@@ -223,6 +223,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         exitedChildren.removeElementAt(exitedChildren.size() - 1);
                     }
                 } else if(pid > 0) {
+                    if(pid >= gs.tasks.length) return -ECHILD;
                     UnixRuntime t = gs.tasks[pid];
                     if(t.parent != this) return -ECHILD;
                     if(t.state == EXITED) {
@@ -288,9 +289,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
 
     private int sys_fork() {
-        CPUState state = new CPUState();
-        getCPUState(state);
-        int sp = state.r[SP];
         final UnixRuntime r;
         
         try {
@@ -316,6 +314,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
         activeChildren.addElement(r);
         
+        CPUState state = new CPUState();
+        getCPUState(state);
         state.r[V0] = 0; // return 0 to child
         state.pc += 4; // skip over syscall instruction
         r.setCPUState(state);
@@ -931,14 +931,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;
     }
     
-    //  FEATURE: Run through the fork/wait stuff one more time
-    public static class GlobalState {    
-        protected static final int OPEN = 1;
-        protected static final int STAT = 2;
-        protected static final int LSTAT = 3;
-        protected static final int MKDIR = 4;
-        protected static final int UNLINK = 5;
-        
+    public static class GlobalState {            
         final UnixRuntime[] tasks;
         int nextPID = 1;
         
@@ -1020,7 +1013,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             mps = newMPS;
         }
         
-        // FEATURE: We shouldn't need to special case the root dir, it should work in the MP array
         private Object fsop(int op, UnixRuntime r, String normalizedPath, int arg1, int arg2) throws ErrnoException {
             int pl = normalizedPath.length();
             if(pl != 0) {
@@ -1030,29 +1022,17 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     MP mp = list[i];
                     int mpl = mp.path.length();
                     if(normalizedPath.startsWith(mp.path) && (pl == mpl || normalizedPath.charAt(mpl) == '/'))
-                        return dispatch(mp.fs,op,r,pl == mpl ? "" : normalizedPath.substring(mpl+1),arg1,arg2);
+                        return mp.fs.dispatch(op,r,pl == mpl ? "" : normalizedPath.substring(mpl+1),arg1,arg2);
                 }
             }
-            return dispatch(root,op,r,normalizedPath,arg1,arg2);
+            return root.dispatch(op,r,normalizedPath,arg1,arg2);
         }
         
-        // FEATURE: move this into FS so some filesystem can override it directly (devfs)
-        private static Object dispatch(FS fs, int op, UnixRuntime r, String path, int arg1, int arg2) throws ErrnoException {
-            switch(op) {
-                case OPEN: return fs.open(r,path,arg1,arg2);
-                case STAT: return fs.stat(r,path);
-                case LSTAT: return fs.lstat(r,path);
-                case MKDIR: fs.mkdir(r,path,arg1); return null;
-                case UNLINK: fs.unlink(r,path); return null;
-                default: throw new Error("should never happen");
-            }
-        }
-        
-        public final FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException { return (FD) fsop(OPEN,r,path,flags,mode); }
-        public final FStat stat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(STAT,r,path,0,0); }
-        public final FStat lstat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(LSTAT,r,path,0,0); }
-        public final void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { fsop(MKDIR,r,path,mode,0); }
-        public final void unlink(UnixRuntime r, String path) throws ErrnoException { fsop(UNLINK,r,path,0,0); }
+        public final FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException { return (FD) fsop(FS.OPEN,r,path,flags,mode); }
+        public final FStat stat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(FS.STAT,r,path,0,0); }
+        public final FStat lstat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(FS.LSTAT,r,path,0,0); }
+        public final void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { fsop(FS.MKDIR,r,path,mode,0); }
+        public final void unlink(UnixRuntime r, String path) throws ErrnoException { fsop(FS.UNLINK,r,path,0,0); }
         
         private Hashtable execCache = new Hashtable();
         private static class CacheEnt {
@@ -1157,8 +1137,25 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     public abstract static class FS {
+        static final int OPEN = 1;
+        static final int STAT = 2;
+        static final int LSTAT = 3;
+        static final int MKDIR = 4;
+        static final int UNLINK = 5;
+        
         GlobalState owner;
         int devno;
+        
+        Object dispatch(int op, UnixRuntime r, String path, int arg1, int arg2) throws ErrnoException {
+            switch(op) {
+                case OPEN: return open(r,path,arg1,arg2);
+                case STAT: return stat(r,path);
+                case LSTAT: return lstat(r,path);
+                case MKDIR: mkdir(r,path,arg1); return null;
+                case UNLINK: unlink(r,path); return null;
+                default: throw new Error("should never happen");
+            }
+        }
         
         public FStat lstat(UnixRuntime r, String path) throws ErrnoException { return stat(r,path); }
 
@@ -1261,7 +1258,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(!f.exists()) throw new Error("Couldn't get File for cwd");
             f = new File(f.getAbsolutePath());
             while(f.getParent() != null) f = new File(f.getParent());
-            // HACK: This works around a bug in some versions of ClassPath
+            // This works around a bug in some versions of ClassPath
             if(f.getPath().length() == 0) f = new File("/");
             return f;
         }
@@ -1333,7 +1330,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             public int inode(int n) { return inodes.get(children[n].getAbsolutePath()); }
             public int parentInode() {
                 File parent = getParentFile(f);
-                return parent == null ? -1 : inodes.get(parent.getAbsolutePath());
+                // HACK: myInode() isn't really correct  if we're not the root
+                return parent == null ? myInode() : inodes.get(parent.getAbsolutePath());
             }
             public int myInode() { return inodes.get(f.getAbsolutePath()); }
             public int myDev() { return devno; } 
@@ -1470,8 +1468,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(path.equals("")) {
                 return new DevDirFD() {
                     public int myInode() { return ROOT_INODE; }
-                    // FEATURE: Get the real parent inode somehow
-                    public int parentInode() { return -1; }
+                    // HACK: We don't have any clean way to get the parent inode
+                    public int parentInode() { return ROOT_INODE; }
                     public int inode(int n) {
                         switch(n) {
                             case 0: return NULL_INODE;

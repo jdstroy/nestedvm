@@ -230,7 +230,8 @@ compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcc
 		org.ibex.nestedvm.RuntimeCompiler.main 'org.ibex.nestedvm.Runtime.decodeData' \
 		'org.ibex.nestedvm.UnixRuntime.<init>' 'org.ibex.nestedvm.Runtime.initPages' \
 		'org.ibex.nestedvm.Runtime.clearPages' 'org.ibex.nestedvm.Runtime.syscall' \
-		'org.ibex.nestedvm.Runtime$$CPUState.dup'
+		'org.ibex.nestedvm.Runtime$$CPUState.dup' \
+		org.ibex.nestedvm.util.Platform\$$Jdk{11,12,13,14}.'<init>'
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest .
 
 sizecheck: compact_runtime_compiler.jar
