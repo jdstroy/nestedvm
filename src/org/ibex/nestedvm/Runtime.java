@@ -754,8 +754,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     /** The open syscall */
     private int sys_open(int addr, int flags, int mode) throws ErrnoException, FaultException {
+        String name = cstring(addr);
+        
+        // HACK: TeX, or GPC, or something really sucks
+        if(name.length() == 1024 && getClass().getName().equals("tests.TeX")) name = name.trim();
+        
         flags &= ~O_NOCTTY; // this is meaningless under nestedvm
-        FD fd = _open(cstring(addr),flags,mode);
+        FD fd = _open(name,flags,mode);
         if(fd == null) return -ENOENT;
         int fdn = addFD(fd);
         if(fdn == -1) { fd.close(); return -ENFILE; }

@@ -80,7 +80,7 @@ endif
 $(tasks)/build_libc: $(mips_object) upstream/misc/extraheaders.sh
 
 $(tasks)/%:
-	$(MAKE) -C upstream tasks/$* usr="$(usr)" MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_CFLAGS="$(flags) $(mips_optflags)"
+	$(MAKE) -C upstream tasks/$* usr="$(usr)" MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_CFLAGS="$(MIPS_LDFLAGS)" MIPS_PCFLAGS="$(MIPS_PCFLAGS)"
 
 
 upstream_clean_%:
@@ -195,8 +195,8 @@ env.sh: Makefile $(tasks)/build_gcc $(tasks)/build_libc build/org/ibex/nestedvm/
 
 runtime_classes = Runtime Registers UsermodeConstants util/Seekable
 
-tex.jar: $(mips_objects) $(runtime_classes:%=build/org/ibex/nestedvm/%.class) upstream/tasks/build_tex
-	echo -e "Manifest-Version: 1.0\nMain-Class: TeX\n" > .manifest
+tex.jar: $(mips_objects) $(runtime_classes:%=build/org/ibex/nestedvm/%.class) build/tests/TeX.class
+	echo -e "Manifest-Version: 1.0\nMain-Class: Tex\n" > .manifest
 	cp upstream/build/tex/TeX.class build
 	cd build && jar cfm ../$@ ../.manifest \
 		$(runtime_classes:%=org/ibex/nestedvm/%.class) \
@@ -359,6 +359,20 @@ boehmgctest: build/tests/Env.class build/tests/GCTest.class
 	$(JAVA) -cp build tests.Env GC_PRINT_STATS=1  tests.GCTest
 
 
+# TeX
+
+Tangle_COMPILERFLAGS = -o unixruntime
+
+build/tests/Tangle.mips: $(tasks)/build_tex_tangle
+	@mkdir -p `dirname $@`
+	cp upstream/build/tex/tangle.mips $@
+
+
+TeX_COMPILERFLAGS = -o unixruntime
+build/tests/TeX.mips: $(tasks)/build_tex
+	@mkdir -p `dirname $@`
+	cp upstream/build/tex/tex.mips $@
+	
 #
 # Speed tests
 #
@@ -424,14 +438,13 @@ doc/charts/%.pdf: doc/charts/%.dat doc/charts/%.gnuplot
 	cd doc/charts; chmod +x boxfill.pl; ./boxfill.pl -g -o unfilled.eps $*.eps
 	cd doc/charts; ps2pdf $*.eps
 
-tex := java -cp $(usr)/../../build:.. TeX
-
-doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf) tex.jar upstream/tasks/extract_texinputs
+doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf) build/tests/TeX.class
 	cp upstream/build/tex/tex.pool upstream/build/tex/texinputs/tex.pool
-	cd upstream/build/tex/texinputs; echo '\latex.ltx' | $(tex)
-	cd upstream/build/tex/texinputs; ln -fs ../../../../doc/* .; rm -f ivme04.aux; touch ivme04.aux; touch ivme04.bbl
-	cd upstream/build/tex/texinputs; echo '\&latex \input ivme04.tex' | $(tex)
-	cd upstream/build/tex/texinputs; dvipdf ivme04.dvi
+	cd upstream/build/tex/texinputs && echo '\latex.ltx' | java -cp $(build) tests.TeX
+	cd upstream/build/tex/texinputs && ln -fs ../../../../doc/* .; rm -f ivme04.aux; touch ivme04.aux; touch ivme04.bbl
+	cd upstream/build/tex/texinputs && echo '\&latex \input ivme04.tex' | java -cp $(build) tests.TeX
+	cd upstream/build/tex/texinputs && dvipdf ivme04.dvi
+	cp upstream/build/tex/texinputs/ivme04.pdf $@
 
 pdf: doc/ivme04.pdf
 	open doc/ivme04.pdf

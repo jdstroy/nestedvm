@@ -81,37 +81,6 @@ clean_%:
 	rm -f "tasks/build_$*" "tasks/patch_$*" "tasks/extract_$*"
 
 
-# FIXME ugly path hacks evil bad
-nestedvm := java -cp $(usr)/../build/bcel/bcel-5.1.jar:$(usr)/../../build org.ibex.nestedvm.Compiler -outformat class
-
-version_texinputs = 1.0
-url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
-
-tasks/download_tex:  ; mkdir -p build/tex; touch $@
-build/tex/tex.web:   ; curl -o $@ http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web
-build/dtex/tangle.p: ; curl http://www.gnu-pascal.de/crystal/gpc/en/attachments/5593/tangle.p.gz | zcat > $@
-tasks/extract_tex:     build/tex/tex.web build/tex/tangle.p; touch $@
-
-build/tex/tangle.mips:  build/tex/tangle.p tasks/full_toolchain tasks/extract_tex tasks/build_gcc_step2
-	cd build/tex; $(gpc) tangle.p $(gpc_flags) -o tangle.mips
-build/tex/Tangle.class: build/tex/tangle.mips
-	$(nestedvm) -o unixruntime -outfile $@ Tangle $<
-build/tex/tex.p: build/tex/tex.web build/tex/tex.ch build/tex/Tangle.class
-	rm -f build/tex/tex.p build/tex/tex.pool
-	cd build/tex; java -cp .:$(usr)/../../build Tangle        \
-			--gpc-rts=-nPascalfile:tex.p              \
-			--gpc-rts=-npool:tex.pool                 \
-			--gpc-rts=-nwebfile:tex.web               \
-			--gpc-rts=-nchangefile:tex.ch
-build/tex/tex.mips:  build/tex/tex.p tasks/full_toolchain tasks/build_gcc_step2
-	cd build/tex; $(gpc) tex.p $(gpc_flags) -o tex.mips
-tasks/build_tex: build/tex/tex.mips
-	cd build/tex; $(nestedvm) -o unixruntime -outfile TeX.class TeX tex.mips
-	touch $@ 
-tasks/extract_texinputs: tasks/build_tex tasks/download_texinputs
-	cd build/tex; tar xvzf ../../download/texinputs-1.0.tgz
-	touch $@
-
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
 	mkdir -p download
@@ -233,6 +202,9 @@ version_busybox = 1.00-pre9
 url_busybox = http://busybox.net/downloads/busybox-$(version_busybox).tar.gz
 patches_busybox = busybox.patch
 
+version_texinputs = 1.0
+url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
+
 tasks/extract_libjpeg: tasks/download_libjpeg
 	mkdir -p build
 	cd build && \
@@ -307,4 +279,37 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 tasks/build_gcclass:
 	cd build &&  darcs get --verbose http://darcs.brianweb.net/gcclass
 	cd build/gcclass && make
+	touch $@
+
+# TeX Stuff
+
+tasks/extract_tex_tangle:
+	@mkdir -p build/tex
+	cd build/tex && \
+		curl -o tex.web http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web && \
+		curl http://www.gnu-pascal.de/crystal/gpc/en/attachments/5593/tangle.p.gz | zcat > tangle.p 
+	touch $@
+
+tasks/build_tex_tangle: tasks/extract_tex_tangle tasks/build_gpc
+	@mkdir -p build/tex
+	mips-unknown-elf-gpc $(MIPS_PCFLAGS) build/tex/tangle.p $(MIPS_LDFLAGS) -o build/tex/tangle.mips
+	touch $@
+
+tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
+	@mkdir -p build/tex
+	
+	# HACK: Build Tangel.class
+	make -C $(root) build/tests/Tangle.class
+	
+	rm -f build/tex/tex.p build/tex/tex.pool
+	cp misc/tex.ch build/tex/tex.ch
+	cd build/tex && \
+		tar xfz ../../download/texinputs-$(version_texinputs).tgz && \
+		java -cp $(root)/build tests.Tangle \
+			--gpc-rts=-nPascalfile:tex.p    \
+			--gpc-rts=-npool:tex.pool       \
+			--gpc-rts=-nwebfile:tex.web     \
+			--gpc-rts=-nchangefile:tex.ch   \
+			&& \
+		mips-unknown-elf-gpc $(filter-out -Werror,$(MIPS_PCFLAGS)) tex.p $(MIPS_LDFLAGS) -o tex.mips
 	touch $@
