@@ -79,10 +79,10 @@ tasks/extract_darcs_%:
 	touch $@
 
 update_darcs_%: tasks/extract_darcs_%
-	if [ -d "build/$*/darcs" ]; then \
+	if [ -d "build/$*/_darcs" ]; then \
 		cd "build/$*" && darcs pull; \
-	else
-		cd "build/$*" && wget -nH -rl 16 -N -X _darcs $(darcs_$*); \
+	else \
+		cd "build/$*" && wget -np -nH --cut-dirs=1 -rl 16 -N -X _darcs $(darcs_$*); \
 	fi
 	rm "tasks/build_darcs_$*" # to force a rebuild
 
