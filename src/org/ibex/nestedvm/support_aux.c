@@ -12,6 +12,10 @@
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
 #include <paths.h>
+#include <ctype.h>
+#include <pwd.h>
+#include <grp.h>
+#include <stdarg.h>
 
 #include <nestedvm/socket.h>
 
