@@ -363,6 +363,9 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                             case 60: // C.LT.S
                                 setFC(getFloat(fs) < getFloat(ft));
                                 break;
+                            case 62: // C.LE.S
+                                setFC(getFloat(fs) <= getFloat(ft));
+                                break;   
                             default: throw new ExecutionException("Invalid Instruction 17/" + rs + "/" + subcode + " at " + sourceLine(pc));
                         }
                         break;

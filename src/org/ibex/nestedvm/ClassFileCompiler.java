@@ -1231,10 +1231,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     break;
                 case 1: // SUB.X
                     preSetDouble(F+fd,d);
-                    pushDouble(F+ft,d);
                     pushDouble(F+fs,d);
+                    pushDouble(F+ft,d);
                     a(d ? InstructionConstants.DSUB : InstructionConstants.FSUB);
-                    setDouble(d);                    
+                    setDouble(d);
                     break;
                 case 2: // MUL.X
                     preSetDouble(F+fd,d);
@@ -1277,26 +1277,28 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     pushReg(F+fs);
                     setReg();
                     
-                    preSetReg(F+fd+1);
-                    pushReg(F+fs+1);
-                    setReg();
+                    if(d) {
+                        preSetReg(F+fd+1);
+                        pushReg(F+fs+1);
+                        setReg();
+                    }
                     
                     break;
                 case 7: // NEG.X
                     preSetDouble(F+fd,d);
                     pushDouble(F+fs,d);
                     a(d ? InstructionConstants.DNEG : InstructionConstants.FNEG);
-                    setDouble(d);                    
+                    setDouble(d);
                     break;
                 case 32: // CVT.S.X
                     preSetFloat(F+fd);
-                    pushDouble(F+fd,d);
+                    pushDouble(F+fs,d);
                     if(d) a(InstructionConstants.D2F);
                     setFloat();
                     break;
                 case 33: // CVT.D.X
                     preSetDouble(F+fd);
-                    pushDouble(F+fd,d);
+                    pushDouble(F+fs,d);
                     if(!d) a(InstructionConstants.F2D);
                     setDouble();
                     break;
@@ -1356,7 +1358,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                         case 62: b1 = a(InstructionFactory.createBranchInstruction(IFLE,null)); break;
                         default: b1 = null;
                     }
-                    
+                    // FIXME: We probably don't need to pushConst(0x00000)
                     pushConst(0x000000);
                     b2 = a(InstructionFactory.createBranchInstruction(GOTO,null));
                     b1.setTarget(pushConst(0x800000));
