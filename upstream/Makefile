@@ -29,10 +29,10 @@ configure_newlib = --enable-multilib --target=mips-unknown-elf
 url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
 url_regex = ftp://ftp.zoo.toronto.edu/pub/regex.shar
 
-version_bcel = 5.1
-url_bcel = http://mirrors.mix5.com/apache/jakarta/bcel/binaries/bcel-$(version_bcel).tar.gz
-
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
+
+darcs_gcclass = http://darcs.brianweb.net/gcclass
+darcs_classgen = http://darcs.brianweb.net/classgen
 
 .SECONDARY: # This is broken in gmake < 3.79.1
 
@@ -53,12 +53,40 @@ tasks/build_newlib: tasks/build_gcc
 cross_root := $(usr)/mips-unknown-elf
 libc_a := $(cross_root)/lib/libc.a
 
+tasks/download_%:
+	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
+	mkdir -p download
+	cd download && wget --passive-ftp -N $(url_$*)
+	touch $@
+
+tasks/extract_%: tasks/download_%
+	mkdir -p build
+	cd build && \
+		gzip -dc  ../download/$*-$(version_$*).tar.gz | $(TAR) -xf - && \
+		rm -f $* && \
+		ln -s $*-$(version_$*) $*
+	touch $@
+
+tasks/extract_darcs_%:
+	mkdir -p build
+	if [ -z "$(darcs_$*)" ]; then echo "No darcs url for $*" >&2; false; fi
+	cd build && darcs get --verbose "$(darcs_$*)"
+	touch $@
+
+update_darcs_%: tasks/extract_darcs_%
+	cd "build/$*" && darcs pull
+	rm "tasks/build_darcs_$*" # to force a rebuild
+
+tasks/build_darcs_%: tasks/extract_darcs_%
+	cd "build/$*" && make
+	touch $@
+
 tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
 	# Add extra nestedvm specific headers to include
 	cd $(cross_root)/include && sh $<
 	touch $@
 
-tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob
+tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob misc/extraheaders.sh $(patsubst %,$(root)/build/org/ibex/nestedvm/%.o, crt0 support support_aux)
 	# HACK: Get the top level makefile to build the support stuff
 	$(MAKE) -s -C $(root) $(patsubst %,build/org/ibex/nestedvm/%.o, crt0 support support_aux)
 
@@ -81,12 +109,6 @@ clean_%:
 	rm -rf "build/$(*)"*
 	rm -f "tasks/build_$*" "tasks/patch_$*" "tasks/extract_$*"
 
-
-tasks/download_%:
-	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
-	mkdir -p download
-	cd download && wget --passive-ftp -N $(url_$*)
-	touch $@
 
 tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/download_gcc-g77
 	touch $@
@@ -275,11 +297,6 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 		rm -f busybox && \
 		ln -s busybox-$(version_busybox) busybox
 	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
-	touch $@
-
-tasks/build_gcclass:
-	cd build &&  darcs get --verbose http://darcs.brianweb.net/gcclass
-	cd build/gcclass && make
 	touch $@
 
 # TeX Stuff

@@ -51,8 +51,8 @@ else
 	JAVAC_NODEBUG_FLAGS = -g:none
 endif
 
-bcel_jar = upstream/build/bcel-5.1/bcel-5.1.jar
-classpath = build:$(bcel_jar)
+CLASSGEN_PATH = upstream/build/classgen/build
+classpath = build:$(CLASSGEN_PATH)
 
 GCJ = gcj
 EXE_EXT = 
@@ -100,11 +100,8 @@ build/org/ibex/nestedvm/util/.Dummy.class:
 $(java_classes): build/org/ibex/nestedvm/util/.Dummy.class
 endif
 
-$(java_classes): $(java_sources) $(bcel_jar)
+$(java_classes): $(java_sources) $(tasks)/build_darcs_classgen
 	$(JAVAC) -classpath $(classpath) -d build $(java_sources)
-
-$(bcel_jar): upstream/tasks/extract_bcel
-	@true
 
 # GCJ Stuff
 # FIXME: We're cramming more than we need into the binary here
@@ -187,7 +184,7 @@ env.sh: Makefile $(tasks)/build_gcc $(tasks)/build_libc build/org/ibex/nestedvm/
 	@echo 'CFLAGS="$(mips_optflags)"; export CFLAGS' >> $@~
 	@echo 'CXXFLAGS="$(mips_optflags)"; export CXXFLAGS' >> $@~
 	@echo 'LDFLAGS="$(MIPS_LDFLAGS)"; export LDFLAGS' >> $@~
-	@echo 'CLASSPATH=$(mips2java_root)/build:$(mips2java_root)/$(bcel_jar):.; export CLASSPATH' >> $@~
+	@echo 'CLASSPATH=$(mips2java_root)/build:$(mips2java_root)/upstream/build/classgen/build:.; export CLASSPATH' >> $@~
 	@mv "$@~" "$@"
 	@echo "$@ created successfully"
 
@@ -217,10 +214,13 @@ runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 nestedvm.jar: $(java_classes) .manifest
 	cd build && jar cfm ../$@ ../.manifest $(java_classes:build/%.class=%*.class)
 
-compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_gcclass
+compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcclass
 	mkdir -p tmp/pruned
-	java -cp upstream/build/gcclass/build:$(bcel_jar) com.brian_web.gcclass.GCClass \
-		build tmp/pruned \
+	rm -rf tmp/pruned/*
+	java -cp \
+		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
+	com.brian_web.gcclass.GCClass \
+		$(classpath) tmp/pruned \
 		org.ibex.nestedvm.RuntimeCompiler.main 'org.ibex.nestedvm.Runtime.decodeData' \
 		'org.ibex.nestedvm.UnixRuntime.<init>' 'org.ibex.nestedvm.Runtime.initPages' \
 		'org.ibex.nestedvm.Runtime.clearPages' 'org.ibex.nestedvm.Runtime.syscall' \
