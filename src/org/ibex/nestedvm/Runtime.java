@@ -157,7 +157,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             }
         }
     
-        addFD(new StdinFD(System.in));
+        InputStream stdin = Boolean.valueOf(getSystemProperty("nestedvm.textstdin")).booleanValue() ? new TextInputStream(System.in) : System.in;
+        addFD(new StdinFD(stdin));
         addFD(new StdoutFD(System.out));
         addFD(new StdoutFD(System.err));
     }
@@ -1213,6 +1214,42 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public StdoutFD(OutputStream os) { super(os); }
         public void _close() { /* noop */ }
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
+    }
+    
+    // FEATURE: TextInputStream: This is pretty inefficient but it is only used for reading from the console on win32
+    static class TextInputStream extends InputStream {
+        private int pushedBack = -1;
+        private final InputStream parent;
+        public TextInputStream(InputStream parent) { this.parent = parent; }
+        public int read() throws IOException {
+            if(pushedBack != -1) { int c = pushedBack; pushedBack = -1; return c; }
+            int c = parent.read();
+            if(c == '\r' && (c = parent.read()) != '\n') { pushedBack = c; return '\r'; }
+            return c;
+        }
+        public int read(byte[] buf, int pos, int len) throws IOException {
+            boolean pb = false;
+            if(pushedBack != -1 && len > 0) {
+                buf[0] = (byte) pushedBack;
+                pushedBack = -1;
+                pos++; len--; pb = true;
+            }
+            int n = parent.read(buf,pos,len);
+            if(n == -1) return -1;
+            for(int i=0;i<n;i++) {
+                if(buf[pos+i] == '\r') {
+                    if(i==n-1) {
+                        int c = parent.read();
+                        if(c == '\n') buf[pos+i] = '\n';
+                        else pushedBack = c;
+                    } else if(buf[pos+i+1] == '\n') {
+                        System.arraycopy(buf,pos+i+1,buf,pos+i,len-i-1);
+                        n--;
+                    }
+                }
+            }
+            return n + (pb ? 1 : 0);
+        }
     }
     
     public static class FStat {
