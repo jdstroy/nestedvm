@@ -360,12 +360,20 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         cl.addMethod(getCPUState.getMethod());
 
 
-        // FEATURE: Catch RuntimeException and turn it into a fault exception
         MethodGen execute = newMethod(ACC_PROTECTED,Type.VOID,Type.NO_ARGS,"_execute");
         selectMethod(execute);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createInvoke(fullClassName,"trampoline",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
+        InstructionHandle tryStart = a(InstructionConstants.ALOAD_0);
+        InstructionHandle tryEnd = a(fac.createInvoke(fullClassName,"trampoline",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
         a(InstructionConstants.RETURN);
+        
+        InstructionHandle catchInsn = a(InstructionConstants.ASTORE_1);
+        a(fac.createNew("org.ibex.nestedvm.Runtime$FaultException"));
+        a(InstructionConstants.DUP);
+        a(InstructionConstants.ALOAD_1);
+        a(fac.createInvoke("org.ibex.nestedvm.Runtime$FaultException","<init>",Type.VOID,new Type[]{new ObjectType("java.lang.RuntimeException")},INVOKESPECIAL));
+        a(InstructionConstants.ATHROW);
+        
+        execute.addExceptionHandler(tryStart,tryEnd,catchInsn,new ObjectType("java.lang.RuntimeException"));
         execute.setMaxLocals();
         execute.setMaxStack();
         cl.addMethod(execute.getMethod());
@@ -1065,6 +1073,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             if(pc == -1) throw new Exn("pc modifying insn in delay slot");
             int target = (pc&0xf0000000)|(jumpTarget << 2);
             emitInstruction(-1,nextInsn,-1);
+            // FIXME: Have a memcpy syscall and just override memcpy in libnestedvm
             if(optimizedMemcpy && (target == memcpy || target == memset)) {
                 a(InstructionConstants.ALOAD_0);
                 pushRegZ(R+4);
@@ -1722,7 +1731,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             memWrite();
             break;
         }
-        // FEATURE: This need to be atomic if we ever support threads (see SWC0/SC)
+        // This need to be atomic if we ever support threads (see SWC0/SC)
         case 48: // LWC0/LL
             preSetReg(R+rt);
             memRead(R+rs,signedImmediate);
@@ -1735,7 +1744,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             setReg();
             break;
         
-        /* FEATURE: This needs to fail (set rt to 0) if the memory location was modified
+        /* This needs to fail (set rt to 0) if the memory location was modified
          * between the LL and SC if we every support threads.
          */
         case 56: // SWC0/SC

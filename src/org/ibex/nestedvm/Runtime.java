@@ -8,14 +8,11 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.Arrays;
 
-// FEATURE: Look over the public API, make sure we're exposing a bare minimum
-// (we might make this an interface in the future)
-
 public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** Number of bits to shift to get the page number (1<<<pageShift == pageSize) */
     protected final int pageShift;
     /** Bottom of region of memory allocated to the stack */
-    protected final int stackBottom;
+    private final int stackBottom;
     
     /** Readable main memory pages */
     protected int[][] readPages;
@@ -73,7 +70,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     boolean closeOnExec[] = new boolean[OPEN_MAX];
     
     /** Pointer to a SecurityManager for this process */
-    protected SecurityManager sm;
+    SecurityManager sm;
     public void setSecurityManager(SecurityManager sm) { this.sm = sm; }
     
     /** Pointer to a callback for the call_java syscall */
@@ -456,7 +453,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return start;
     }
     
-    protected String[] createEnv(String[] extra) { if(extra == null) extra = new String[0]; return extra; }
+    String[] createEnv(String[] extra) { if(extra == null) extra = new String[0]; return extra; }
     
     /** Sets word number <i>index</i> in the _user_info table to <i>word</i>
      * The user_info table is a chunk of memory in the program's memory defined by the
@@ -506,7 +503,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return state != PAUSED;
     }
     
-    protected static String[] concatArgv(String argv0, String[] rest) {
+    static String[] concatArgv(String argv0, String[] rest) {
     	    String[] argv = new String[rest.length+1];
     	    System.arraycopy(rest,0,argv,1,rest.length);
         argv[0] = argv0;
@@ -564,7 +561,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** Hook for subclasses to do their own startup */
-    protected void _started() {  }
+    void _started() {  }
     
     public final int call(String sym, Object[] args) throws CallException, FaultException {
         if(state != PAUSED && state != CALLJAVA) throw new IllegalStateException("call() called in inappropriate state");
@@ -651,18 +648,11 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         return cpustate.r[V1];
     }
-    
-    /** Determines if the process can access <i>fileName</i>. The default implementation simply logs 
-        the request and allows it */
-    protected boolean allowFileAccess(String fileName, boolean write) {
-        //System.err.println("Allowing " + (write?"write":"read-only") + " access to " + fileName);
-        return true;
-    }
-    
+        
     /** Allocated an entry in the FileDescriptor table for <i>fd</i> and returns the number.
         Returns -1 if the table is full. This can be used by subclasses to use custom file
         descriptors */
-    public int addFD(FD fd) {
+    public final int addFD(FD fd) {
         if(state == EXITED || state == EXECED) throw new IllegalStateException("addFD called in inappropriate state");
         int i;
         for(i=0;i<OPEN_MAX;i++) if(fds[i] == null) break;
@@ -673,7 +663,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
 
     /** Closes file descriptor <i>fdn</i> and removes it from the file descriptor table */
-    public boolean closeFD(int fdn) {
+    public final boolean closeFD(int fdn) {
         if(state == EXITED || state == EXECED) throw new IllegalStateException("closeFD called in inappropriate state");
         if(fdn < 0 || fdn >= OPEN_MAX) return false;
         if(fds[fdn] == null) return false;
@@ -683,7 +673,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** Duplicates the file descriptor <i>fdn</i> and returns the new fs */
-    public int dupFD(int fdn) {
+    public final int dupFD(int fdn) {
     		int i;
     		if(fdn < 0 || fdn >= OPEN_MAX) return -1;
     		if(fds[fdn] == null) return -1;
@@ -893,7 +883,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     /** The sbrk syscall. This can also be used by subclasses to allocate memory.
         <i>incr</i> is how much to increase the break by */
-    public int sbrk(int incr) {
+    public final int sbrk(int incr) {
         if(incr < 0) return -ENOMEM;
         if(incr==0) return heapEnd;
         incr = (incr+3)&~3;
@@ -919,7 +909,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
 
     /** The getpid syscall */
     private int sys_getpid() { return getPid(); }
-    protected int getPid() { return 1; }
+    int getPid() { return 1; }
     
     public static interface CallJavaCB { public int call(int a, int b, int c, int d); }
     
@@ -958,7 +948,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
 
     
     /** Hook for subclasses to do something when the process exits  */
-    protected void _exited() {  }
+    void _exited() {  }
     
     private int sys_exit(int status) {
         exitStatus = status;
@@ -1081,7 +1071,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** Helper function to read a cstring from main memory */
-    public String cstring(int addr) throws ReadFaultException {
+    public final String cstring(int addr) throws ReadFaultException {
         StringBuffer sb = new StringBuffer();
         for(;;) {
             int word = memRead(addr&~3);
@@ -1116,7 +1106,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         Seekable seekable() { return null; }
         
         /** Should return true if this is a tty */
-        // FEATURE: get rid of the isatty syscall and just do with newlib's dumb isatty.c
+        // FIXME: get rid of the isatty syscall and just do with newlib's dumb isatty.c
         public boolean isatty() { return false; }
         
         private FStat cachedFStat = null;
@@ -1190,13 +1180,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public FStat _fstat() { return new FStat(); }
     }
     
-    protected static class StdinFD extends InputStreamFD {
+    static class StdinFD extends InputStreamFD {
         public StdinFD(InputStream is) { super(is); }
         public void _close() { /* noop */ }
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
         public boolean isatty() { return true; }
     }
-    protected static class StdoutFD extends OutputStreamFD {
+    
+    static class StdoutFD extends OutputStreamFD {
         public StdoutFD(OutputStream os) { super(os); }
         public void _close() { /* noop */ }
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
@@ -1210,7 +1201,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public static final int S_IFREG = 0100000;
         
         public int dev() { return -1; }
-        // FEATURE: inode numbers are calculated inconsistently throught the runtime
+        // FIXME: inode numbers are calculated inconsistently throught the runtime
         public int inode() { return hashCode() & 0xfffff; }
         public int mode() { return 0; }
         public int type() { return S_IFIFO; }
@@ -1225,12 +1216,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public int blocks() { return (size()+blksize()-1)/blksize(); }        
     }
     
-    protected static class HostFStat extends FStat {
+    static class HostFStat extends FStat {
         private final File f;
         private final boolean executable; 
-        public HostFStat(File f) {
+        public HostFStat(File f) { this(f,false); }
+        public HostFStat(File f, boolean executable) {
             this.f = f;
-            executable = executable();
+            this.executable = executable;
         }
         public int dev() { return 1; }
         public int inode() { return f.getName().hashCode() & 0xffff; }
@@ -1245,21 +1237,21 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             return mode;
         }
         public int size() { return (int) f.length(); }
-        public int mtime() { return (int)(f.lastModified()/1000); }
-        
-        boolean executable() { return false; }
+        public int mtime() { return (int)(f.lastModified()/1000); }        
     }
     
     // Exceptions
-    public class ReadFaultException extends FaultException {
+    public static class ReadFaultException extends FaultException {
         public ReadFaultException(int addr) { super(addr); }
     }
-    public class WriteFaultException extends FaultException {
+    public static class WriteFaultException extends FaultException {
         public WriteFaultException(int addr) { super(addr); }
     }
-    public abstract class FaultException extends ExecutionException {
-        public int addr;
-        public FaultException(int addr) { super("fault at: " + toHex(addr)); this.addr = addr; }
+    public static class FaultException extends ExecutionException {
+        public final int addr;
+        public final RuntimeException cause;
+        public FaultException(int addr) { super("fault at: " + toHex(addr)); this.addr = addr; cause = null; }
+        public FaultException(RuntimeException e) { super(e.toString()); addr = -1; cause = e; }
     }
     public static class ExecutionException extends Exception {
         private String message = "(null)";
@@ -1323,7 +1315,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return _byteBuf;
     }
     
-    protected static String getSystemProperty(String key) {
+    static String getSystemProperty(String key) {
         try {
             return System.getProperty(key);
         } catch(SecurityException e) {
@@ -1348,7 +1340,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return buf;
     }
     
-    protected static byte[] getBytes(String s) {
+    static byte[] getBytes(String s) {
         try {
             return s.getBytes("ISO-8859-1");
         } catch(UnsupportedEncodingException e) {
@@ -1356,7 +1348,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     }
     
-    protected final static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
-    protected final static int min(int a, int b) { return a < b ? a : b; }
-    protected final static int max(int a, int b) { return a > b ? a : b; }
+    final static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
+    final static int min(int a, int b) { return a < b ? a : b; }
+    final static int max(int a, int b) { return a > b ? a : b; }
 }

@@ -98,6 +98,9 @@ int main(int argc, char **argv) {
     } else if(argc > 1 && strcmp(argv[1],"nullderef")==0) {
         volatile int *mem = 0;
         *mem = 1;
+    } else if(argc > 2 && strcmp(argv[1],"crashme") == 0) {
+        volatile int *mem = (int*) atoi(argv[2]);
+        *mem = 1;
     } else { 
         printf("%d\n", 0xffffff);
         printf("%u\n", 0xffffffU);

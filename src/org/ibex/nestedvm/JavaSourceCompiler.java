@@ -878,14 +878,14 @@ public class JavaSourceCompiler extends Compiler {
                 memWrite("addr","tmp");
                 break;
             }
-            // FEATURE: Need to be atomic if threads
+            // Need to be atomic if threads
             case 48: // LWC0/LL
                 memRead("r"+rs+"+"+signedImmediate,"r"+rt);
                 break;
             case 49: // LWC1
                 memRead("r"+rs+"+"+signedImmediate,"f"+rt);
                 break;
-            // FEATURE: Needs to be atomic if threads
+            // Needs to be atomic if threads
             case 56: // SWC1/SC
                 memWrite("r"+rs+"+"+signedImmediate,"r"+rt);
                 p("r" + rt + "=1;");

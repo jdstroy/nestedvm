@@ -4,16 +4,19 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 
+// FIXME: Fix readdir in support_aux.c
+// FIXME: Make plain old "mips-unknown-elf-gcc -o foo foo.c" work (modify spec file or whatever)
+
 // FEATURE: Remove System.{out,err}.printlns and throw Errors where applicable
 
-// FEATURE: BusyBox's ASH doesn't like \r\n at the end of lines
+// FIXME: BusyBox's ASH doesn't like \r\n at the end of lines
 // is ash just broken or are many apps like this? if so workaround in nestedvm
 
 public abstract class UnixRuntime extends Runtime implements Cloneable {
     /** The pid of this "process" */
     private int pid;
     private UnixRuntime parent;
-    protected int getPid() { return pid; }
+    public final int getPid() { return pid; }
     
     private static final GlobalState defaultGD = new GlobalState();
     private GlobalState gd = defaultGD;
@@ -29,7 +32,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private Vector activeChildren;
     private Vector exitedChildren;
     
-    public UnixRuntime(int pageSize, int totalPages) {
+    protected UnixRuntime(int pageSize, int totalPages) {
         super(pageSize,totalPages);
                 
         // FEATURE: Do the proper mangling for non-unix hosts
@@ -59,7 +62,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return false;
     }
     
-    protected String[] createEnv(String[] extra) {
+    String[] createEnv(String[] extra) {
         String[] defaults = new String[5];
         int n=0;
         if(extra == null) extra = new String[0];
@@ -78,7 +81,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private static class ProcessTableFullExn extends RuntimeException { }
     
-    protected void _started() {
+    void _started() {
         UnixRuntime[] tasks = gd.tasks;
         synchronized(gd) {
             if(pid != 0) {
@@ -114,7 +117,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
     }
     
-    protected FD _open(String path, int flags, int mode) throws ErrnoException {
+    FD _open(String path, int flags, int mode) throws ErrnoException {
         return gd.open(this,normalizePath(path),flags,mode);
     }
 
@@ -191,7 +194,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     
-    protected void _exited() {
+    void _exited() {
         if(children != null) synchronized(children) {
             for(Enumeration e = exitedChildren.elements(); e.hasMoreElements(); ) {
                 UnixRuntime child = (UnixRuntime) e.nextElement();
@@ -431,9 +434,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected static final int LSTAT = 3;
         protected static final int MKDIR = 4;
         
-        // Make this protected (need to fix _exit)
-        private final UnixRuntime[] tasks;
-        private int nextPID = 1;
+        final UnixRuntime[] tasks;
+        int nextPID = 1;
         
         private final MP[][] mps = new MP[128][];
         private FS root;
@@ -627,8 +629,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
         
     public abstract static class FS {
-		// FEATURE: inode stuff
-        // FEATURE: Implement whatever is needed to get newlib's opendir and friends to work - that patch is a pain
+		// FIXME: inode stuff
         protected static FD directoryFD(String[] files, int hashCode)  {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(bos);
@@ -661,6 +662,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public abstract void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException;
     }
         
+    // FEATURE: chroot support in here
     private String normalizePath(String path) {
         boolean absolute = path.startsWith("/");
         int cwdl = cwd.length();
@@ -703,20 +705,21 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         //System.err.println("normalize: " + path + " -> " + new String(out,0,outp) + " (cwd: " + cwd + ")");
         return new String(out,0,outp);
     }
-         
-    // FEATURE: override Runtime.hostFStat to add executable type checking
-    // hostFStat
-    /*             try {
-                FileInputStream fis = new FileInputStream(f);
-                switch(fis.read()) {
-                    case '\177': _executable = fis.read() == 'E' && fis.read() == 'L' && fis.read() == 'F'; break;
-                    case '#': _executable = fis.read() == '!';
-                }
-                fis.close();
-            } catch(IOException e) { }
-    */
+    
+    FStat hostFStat(final File f) {
+        boolean e = false;
+        try {
+            FileInputStream fis = new FileInputStream(f);
+            switch(fis.read()) {
+                case '\177': e = fis.read() == 'E' && fis.read() == 'L' && fis.read() == 'F'; break;
+                case '#': e = fis.read() == '!';
+            }
+            fis.close();
+        } catch(IOException e2) { } 
+        return new HostFStat(f,e);
+    }
 
-    // FEATURE: inode stuff
+    // FIXME: inode stuff
     FD hostFSDirFD(File f) { return FS.directoryFD(f.list(),f.hashCode()); }
     
     public static class HostFS extends FS {

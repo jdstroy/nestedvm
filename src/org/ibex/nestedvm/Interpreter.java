@@ -600,14 +600,14 @@ public class Interpreter extends UnixRuntime {
                 memWrite(addr&~3,tmp);
                 break;
             }
-            // FEATURE: Needs to be atomic w/ threads
+            // Needs to be atomic w/ threads
             case 48: // LWC0/LL
                 r[rt] = memRead(r[rs] + signedImmediate);
                 break;
             case 49: // LWC1
                 f[rt] = memRead(r[rs] + signedImmediate);
                 break;
-            // FEATURE: Needs to be atomic w/ threads
+            // Needs to be atomic w/ threads
             case 56:
                 memWrite(r[rs] + signedImmediate,r[rt]);
                 r[rt] = 1;
