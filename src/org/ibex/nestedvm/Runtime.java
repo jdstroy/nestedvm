@@ -984,7 +984,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 for(i=arg;i<OPEN_MAX;i++) if(fds[i]==null) break;
                 if(i==OPEN_MAX) return -EMFILE;
                 fds[i] = fd.dup();
-                return 0;
+                return i;
             case F_GETFL:
                 return fd.flags();
             case F_SETFD:
