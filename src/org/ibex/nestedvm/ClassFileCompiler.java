@@ -1472,7 +1472,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             addiu(R+rs,signedImmediate);
             setTmp(); // addr
             
-            // FEATURE: DO the preMemRead(true) thing for the rest of the S* instructions
             preMemRead(true);
             pushTmp();
             memRead(true);
@@ -1512,19 +1511,13 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             break;
         }
         case 41: { // SH    
-            preMemWrite1();
-            
             addiu(R+rs,signedImmediate);
+            setTmp();
             
-            mg.add(DUP);
-            setTmp(); // addr
-            
-            preMemWrite2(true);
-            
-            preMemRead();
+            preMemRead(true);
             pushTmp();
             memRead(true);
-            
+                       
             mg.add(LDC,0xffff);
             pushTmp();
             
@@ -1558,15 +1551,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             break;            
         }
         case 42: { // SWL
-            preMemWrite1();
-            
             addiu(R+rs,signedImmediate);
-            mg.add(DUP);
-            setTmp(); // addr
-
-            preMemWrite2(true);
+            setTmp();
             
-            preMemRead();
+            preMemRead(true);            
             pushTmp();
             memRead(true);
             
@@ -1603,15 +1591,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             memWrite();
             break;
         case 46: { // SWR
-            preMemWrite1();
-            
             addiu(R+rs,signedImmediate);
-            mg.add(DUP);
-            setTmp(); // addr
+            setTmp();
             
-            preMemWrite2(true);
-            
-            preMemRead();
+            preMemRead(true);
             pushTmp();
             memRead(true);
             
