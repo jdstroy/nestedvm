@@ -143,7 +143,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                         lo = r[rs];
                         break;
                     case 24: { // MULT
-                        long hilo = (long)(r[rs]) * ((long)r[rt]);
+                        long hilo = ((long)r[rs]) * ((long)r[rt]);
                         hi = (int) (hilo >>> 32);
                         lo = (int) hilo;
                         break;

@@ -45,7 +45,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
     
     // Handy wrappers around the BCEL functions
     private InstructionList insnList;
-    private void selectMethod(MethodGen m) { insnList = m.getInstructionList();    }
+    private void selectMethod(MethodGen m) { insnList = m.getInstructionList(); }
     private void selectList(InstructionList l) { insnList = l; }
     private InstructionHandle a(Instruction i) { return insnList.append(i); }
     private BranchHandle a(BranchInstruction i) { return insnList.append(i); }
@@ -151,11 +151,11 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         int end = ((text.addr + text.size) >>> methodShift);
 
         // This data is redundant but BCEL wants it
-        int[] matches = new int[end-beg];
-        for(int i=beg;i<end;i++)  matches[i-beg] = i;
+        int[] matches = new int[end-beg+1];
+        for(int i=beg;i<=end;i++)  matches[i-beg] = i;
         TABLESWITCH ts = new TABLESWITCH(matches,new InstructionHandle[matches.length],null);
         a(ts);
-        for(int n=beg;n<end;n++){
+        for(int n=beg;n<=end;n++){
             InstructionHandle h = a(fac.createInvoke(fullClassName,"run_"+toHex(n<<methodShift),Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
             a(InstructionFactory.createBranchInstruction(GOTO,start));
             ts.setTarget(n-beg,h);
@@ -388,10 +388,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(InstructionConstants.ALOAD_0);
         if(unixRuntime)
             a(fac.createInvoke("org.ibex.nestedvm.UnixRuntime","runAndExec",Type.INT,
-                    new Type[]{Type.getType("Lorg/ibex/nestedvm/UnixRuntime;"),Type.STRING,new ArrayType(Type.STRING,1)},
-                    INVOKESTATIC));
+                new Type[]{Type.getType("Lorg/ibex/nestedvm/UnixRuntime;"),Type.STRING,new ArrayType(Type.STRING,1)},
+                INVOKESTATIC));
         else
-                a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
+            a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
         a(fac.createInvoke("java.lang.System","exit",Type.VOID,new Type[]{Type.INT},INVOKESTATIC));
         a(InstructionConstants.RETURN);
         main.setMaxLocals();
@@ -404,7 +404,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
     }
     
     private void addConstReturnMethod(String name, int val) {
-            MethodGen method = newMethod(ACC_PROTECTED,Type.INT, Type.NO_ARGS,name);
+        MethodGen method = newMethod(ACC_PROTECTED,Type.INT, Type.NO_ARGS,name);
         selectMethod(method);
         pushConst(val);
         a(InstructionConstants.IRETURN);
@@ -906,7 +906,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             case 32: // ADD
                 throw new Exn("ADD (add with oveflow trap) not suported");
             case 33: // ADDU
-                   preSetReg(R+rd);
+                preSetReg(R+rd);
                 if(rt != 0 && rs != 0) {
                     pushReg(R+rs);
                     pushReg(R+rt);
@@ -1017,7 +1017,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 setReg();
                 break;
             default:
-                throw new RuntimeException("Illegal instruction 0/" + subcode);
+                throw new Exn("Illegal instruction 0/" + subcode);
             }
             break;
         }
@@ -1058,7 +1058,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(b1 == null) unreachable = true;
                 break;
             default:
-                throw new RuntimeException("Illegal Instruction 1/" + rt);
+                throw new Exn("Illegal Instruction 1/" + rt);
             }
             break;
         }
@@ -1136,7 +1136,8 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             a(InstructionConstants.I2L);
             pushConst(0xffffffffL);
             a(InstructionConstants.LAND);
-            pushConst((long)signedImmediate);
+            // Yes, this is correct, you have to sign extend the immediate then do an UNSIGNED comparison
+            pushConst(signedImmediate&0xffffffffL);
             a(InstructionConstants.LCMP);
             
             b1 = a(InstructionFactory.createBranchInstruction(IFLT,null));
@@ -1228,8 +1229,8 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     break;
                 case 1: // SUB.X
                     preSetDouble(F+fd,d);
-                    pushDouble(F+fs,d);
                     pushDouble(F+ft,d);
+                    pushDouble(F+fs,d);
                     a(d ? InstructionConstants.DSUB : InstructionConstants.FSUB);
                     setDouble(d);                    
                     break;
