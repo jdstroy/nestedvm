@@ -50,7 +50,7 @@ tasks/build_newlib: tasks/build_gcc
 cross_root := $(usr)/mips-unknown-elf
 libc_a := $(cross_root)/lib/libc.a
 
-tasks/build_extraheaders: $(upstream)/patches/newlib-extraheaders.sh tasks/build_newlib
+tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
 	# Add extra nestedvm specific headers to include
 	cd $(cross_root)/include && sh $<
 	touch $@
