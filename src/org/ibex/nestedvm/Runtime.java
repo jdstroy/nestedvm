@@ -1061,6 +1061,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case SYS_getpagesize: return sys_getpagesize();
             case SYS_fcntl: return sys_fcntl(a,b,c);
             case SYS_sysconf: return sys_sysconf(a);
+            case SYS_getuid: return sys_getuid();
+            case SYS_geteuid: return sys_geteuid();
+            case SYS_getgid: return sys_getgid();
+            case SYS_getegid: return sys_getegid();
             
             case SYS_memcpy: memcpy(a,b,c); return a;
             case SYS_memset: memset(a,b,c); return a;
@@ -1081,6 +1085,11 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 return -ENOSYS;
         }
     }
+    
+    private int sys_getuid() { return 0; }
+    private int sys_geteuid() { return 0; }
+    private int sys_getgid() { return 0; }
+    private int sys_getegid() { return 0; }
     
     public int xmalloc(int size) { int p=malloc(size); if(p==0) throw new RuntimeException("malloc() failed"); return p; }
     public int xrealloc(int addr,int newsize) { int p=realloc(addr,newsize); if(p==0) throw new RuntimeException("realloc() failed"); return p; }

@@ -20,28 +20,6 @@ int _syscall_set_errno(struct _reent *ptr, int err) {
     return -1;
 }
 
-extern int _stat_r(struct _reent *, const char *, struct stat *);
-int _access_r(struct _reent *ptr, const char *pathname, int mode) {
-    struct stat statbuf;
-    if(_stat_r(ptr,pathname,&statbuf) < 0) return -1;
-    return 0;
-}
-
-/* NestedVM doesn't, and probably never will, support this security related stuff */
-uid_t getuid() { return 0; }
-gid_t getgid() { return 0; }
-uid_t geteuid() { return 0; }
-gid_t getegid() { return 0; }
-int getgroups(int gidsetlen, gid_t *gidset) {
-    if(gidsetlen) *gidset = 0;
-    return 1;
-}
-mode_t umask(mode_t new) { return 0022; }
-int _chmod_r(struct _reent *ptr, const char *f, mode_t mode) { return 0; }
-int _fchmod_r(struct _reent *ptr, int fd, mode_t mode) { return 0; }
-int _chown_r(struct _reent *ptr, const char *f, uid_t uid, gid_t gid) { return 0; }
-int _fchown_r(struct _reent *ptr, int fd, uid_t uid, gid_t gid) { return 0; }
-
 #define REENT_WRAPPER0R(f,rt) \
     extern rt _##f##_r(struct _reent *ptr); \
     rt f() { return _##f##_r(_REENT); }
@@ -114,6 +92,7 @@ REENT_WRAPPER3(setpriority,int,int,int)
 REENT_WRAPPER3(connect,int,const struct sockaddr *,socklen_t)
 REENT_WRAPPER3(socket,int,int,int)
 REENT_WRAPPER3(_resolve_hostname,const char *,char*,size_t*)
+REENT_WRAPPER3(_resolve_ip,int,char*,size_t)
 REENT_WRAPPER3(accept,int,struct sockaddr *,socklen_t*)
 REENT_WRAPPER5(getsockopt,int,int,int,void*,socklen_t*)
 REENT_WRAPPER5(setsockopt,int,int,int,const void*,socklen_t)
@@ -123,6 +102,17 @@ REENT_WRAPPER2(shutdown,int,int)
 REENT_WRAPPER6(sendto,int,const void*,size_t,int,const struct sockaddr*,socklen_t)
 REENT_WRAPPER6(recvfrom,int,void*,size_t,int,struct sockaddr*,socklen_t*)
 REENT_WRAPPER5(select,int,fd_set*,fd_set*,fd_set*,struct timeval*)
+REENT_WRAPPER4(send,int,const void*,size_t,int)
+REENT_WRAPPER4(recv,int,void*,size_t,int)
+REENT_WRAPPER2(getgroups,int,gid_t*)
+REENT_WRAPPER3(getsockname,int,struct sockaddr*,int*)
+REENT_WRAPPER3(getpeername,int,struct sockaddr*,int*)
+REENT_WRAPPER1(setuid,uid_t)
+REENT_WRAPPER1(seteuid,uid_t)
+REENT_WRAPPER1(setgid,gid_t)
+REENT_WRAPPER1(setegid,gid_t)
+REENT_WRAPPER2(setgroups,int,const gid_t *)
+REENT_WRAPPER0R(setsid,pid_t)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
@@ -541,8 +531,8 @@ int nochdir, noclose;
             _exit(0);
 	}
     
-	/*if (setsid() == -1)
-		return (-1);*/
+	if (setsid() == -1)
+		return (-1);
     
 	if (!nochdir)
 		(void)chdir("/");
