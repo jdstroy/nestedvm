@@ -286,6 +286,33 @@ void herror(const char *string) {
     fprintf(stderr,"%s: %s\n",string,hstrerror(h_errno));
 }
 
+extern int _resolve_ip(int addr, char *buf, size_t size);
+
+struct hostent *gethostbyaddr(const char *addr, int len, int type) {
+    static struct hostent hostent;
+    static char name[128];
+    static char *aliases[1];
+    static char *addr_list[1];
+    static char addr_list_buf[4];
+    int err,i;
+    
+    if(type != AF_INET || len != 4) return NULL;
+    memcpy(&i,addr,4);
+    memcpy(addr_list_buf,addr,4);
+    err = _resolve_ip(i,name,sizeof(name));
+    if(err != 0) { h_errno = err; return NULL; }
+    
+    hostent.h_name = name;
+    hostent.h_aliases = aliases;
+    aliases[0] = NULL;
+    hostent.h_addrtype = AF_INET;
+    hostent.h_length = sizeof(struct in_addr);
+    hostent.h_addr_list = addr_list;
+    addr_list[0] = addr_list_buf;
+    
+    return &hostent;
+}
+
 extern int _resolve_hostname(const char *, char *buf, size_t *size);
 
 struct hostent *gethostbyname(const char *hostname) {
@@ -515,6 +542,23 @@ struct utsname *name;
 	return (rval);
 }
 
+/* FreeBSD's gethostname */
+int
+gethostname(name, namelen)
+char *name;
+int namelen;
+{
+    int mib[2];
+    size_t size;
+    
+    mib[0] = CTL_KERN;
+    mib[1] = KERN_HOSTNAME;
+    size = namelen;
+    if (sysctl(mib, 2, name, &size, NULL, 0) == -1)
+        return (-1);
+    return (0);
+}
+
 /* FreeBSD's daemon() - modified for nestedvm */
 int
 daemon(nochdir, noclose)
@@ -545,4 +589,185 @@ int nochdir, noclose;
 			(void)close(fd);
 	}
 	return (0);
+}
+
+/* FreeBSD's inet_addr/inet_aton */
+
+/* 
+* Check whether "cp" is a valid ASCII representation
+ * of an Internet address and convert to a binary address.
+ * Returns 1 if the address is valid, 0 if not.
+ * This replaces inet_addr, the return value from which
+ * cannot distinguish between failure and a local broadcast address.
+ */
+int
+inet_aton(cp, addr)
+register const char *cp;
+struct in_addr *addr;
+{
+	u_long parts[4];
+	in_addr_t val;
+	char *c;
+	char *endptr;
+	int gotend, n;
+    
+	c = (char *)cp;
+	n = 0;
+	/*
+	 * Run through the string, grabbing numbers until
+	 * the end of the string, or some error
+	 */
+	gotend = 0;
+	while (!gotend) {
+		errno = 0;
+		val = strtoul(c, &endptr, 0);
+        
+		if (errno == ERANGE)	/* Fail completely if it overflowed. */
+			return (0);
+		
+		/* 
+            * If the whole string is invalid, endptr will equal
+		 * c.. this way we can make sure someone hasn't
+		 * gone '.12' or something which would get past
+		 * the next check.
+		 */
+		if (endptr == c)
+			return (0);
+		parts[n] = val;
+		c = endptr;
+        
+		/* Check the next character past the previous number's end */
+		switch (*c) {
+            case '.' :
+                /* Make sure we only do 3 dots .. */
+                if (n == 3)	/* Whoops. Quit. */
+                    return (0);
+                n++;
+                c++;
+                break;
+                
+            case '\0':
+                gotend = 1;
+                break;
+                
+            default:
+                if (isspace((unsigned char)*c)) {
+                    gotend = 1;
+                    break;
+                } else
+                    return (0);	/* Invalid character, so fail */
+		}
+        
+	}
+    
+	/*
+	 * Concoct the address according to
+	 * the number of parts specified.
+	 */
+    
+	switch (n) {
+        case 0:				/* a -- 32 bits */
+            /*
+             * Nothing is necessary here.  Overflow checking was
+             * already done in strtoul().
+             */
+            break;
+        case 1:				/* a.b -- 8.24 bits */
+            if (val > 0xffffff || parts[0] > 0xff)
+                return (0);
+            val |= parts[0] << 24;
+            break;
+            
+        case 2:				/* a.b.c -- 8.8.16 bits */
+            if (val > 0xffff || parts[0] > 0xff || parts[1] > 0xff)
+                return (0);
+            val |= (parts[0] << 24) | (parts[1] << 16);
+                break;
+                
+            case 3:				/* a.b.c.d -- 8.8.8.8 bits */
+                if (val > 0xff || parts[0] > 0xff || parts[1] > 0xff ||
+                    parts[2] > 0xff)
+                    return (0);
+                val |= (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8);
+                    break;
+	}
+    
+	if (addr != NULL)
+		addr->s_addr = htonl(val);
+	return (1);
+}
+
+/*
+ * ASCII internet address interpretation routine.
+ * The value returned is in network order.
+ */
+in_addr_t		/* XXX should be struct in_addr :( */
+inet_addr(cp)
+register const char *cp;
+{
+	struct in_addr val;
+    
+	if (inet_aton(cp, &val))
+		return (val.s_addr);
+	return (INADDR_NONE);
+}
+
+int
+getgrouplist(uname, agroup, groups, grpcnt)
+const char *uname;
+gid_t agroup;
+register gid_t *groups;
+int *grpcnt;
+{
+	register struct group *grp;
+	register int i, ngroups;
+	int ret, maxgroups;
+    
+	ret = 0;
+	ngroups = 0;
+	maxgroups = *grpcnt;
+	/*
+	 * When installing primary group, duplicate it;
+	 * the first element of groups is the effective gid
+	 * and will be overwritten when a setgid file is executed.
+	 */
+	groups[ngroups++] = agroup;
+	if (maxgroups > 1)
+		groups[ngroups++] = agroup;
+	/*
+	 * Scan the group file to find additional groups.
+	 */
+	setgrent();
+	while ((grp = getgrent())) {
+		for (i = 0; i < ngroups; i++) {
+			if (grp->gr_gid == groups[i])
+				goto skip;
+		}
+		for (i = 0; grp->gr_mem[i]; i++) {
+			if (!strcmp(grp->gr_mem[i], uname)) {
+				if (ngroups >= maxgroups) {
+					ret = -1;
+					break;
+				}
+				groups[ngroups++] = grp->gr_gid;
+				break;
+			}
+		}
+skip: ;
+	}
+	endgrent();
+	*grpcnt = ngroups;
+	return (ret);
+}
+
+int
+initgroups(uname, agroup)
+const char *uname;
+gid_t agroup;
+{
+    gid_t groups[32], ngroups;
+    
+    ngroups = 32;
+    getgrouplist(uname, agroup, groups, &ngroups);
+    return (setgroups(ngroups, groups));
 }
