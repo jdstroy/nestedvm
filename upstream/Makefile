@@ -51,6 +51,36 @@ clean_%:
 	rm -rf "build/$(*)"*
 	rm -f "tasks/build_$*" "tasks/patch_$*" "tasks/extract_$*"
 
+tasks/download_tex: ; touch $@
+tasks/extract_tex:
+	mkdir -p build/tex
+	cd build/tex; wget -N http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web
+	cd build/tex; wget -N http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.ch
+	cd build/tex; wget -N http://www.gnu-pascal.de/crystal/gpc/en/attachments/5593/tangle.p.gz && gunzip tangle.p.gz
+	touch $@
+
+gpc := $(usr)/bin/mips-unknown-elf-gpc
+gpc_flags := --big-endian -w -lgpc -lc $(usr)/mips-unknown-elf/lib/support*.o
+gpc_flags += -Wl,-T,$(usr)/mips-unknown-elf/lib/linker.ld
+
+# FIXME ugly path hacks evil bad
+nestedvm := java -cp $(usr)/../build/bcel/bcel-5.1.jar:$(usr)/../../nestedvm.jar org.ibex.nestedvm.Compiler -outformat class
+
+tasks/build_tex: tasks/full_toolchain tasks/extract_tex
+	cd build/tex; $(gpc) tangle.p $(gpc_flags) -o tangle.mips
+	cd build/tex; $(nestedvm) -o unixruntime -outfile Tangle.class Tangle tangle.mips
+	cd build/tex; java -cp .:$(usr)/../../nestedvm.jar Tangle \
+			--gpc-rts=-nPascalfile:tex.unpatched.p    \
+			--gpc-rts=-npool:tex.pool                 \
+			--gpc-rts=-nwebfile:tex.web               \
+			--gpc-rts=-nchangefile:tex.ch
+	cd build/tex; cat tex.unpatched.p | sed s_STANDARDTEXT_TEXT_ | sed 's_\\^DIV_\\^ DIV_g' > tex.p
+	cd build/tex; PATH=$$PATH:../../install/bin; $(gpc) tex.p $(gpc_flags) -o tex.mips
+	cd build/tex; $(nestedvm) -o unixruntime -outfile TeX.class TeX tex.mips
+	#ln -s tex.pool 'TeXformats:TEX.POOL                     '
+	#ln -s trip.tfm 'TeXfonts:trip.tfm                       '
+	#ln -s trip.tex 'trip.tex                                '
+
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
 	mkdir -p download
@@ -105,12 +135,12 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 	if [ ! -e "$(usr)/mips-unknown-elf/include/getopt.h" ]; then \
 		echo '#include <unistd.h>' > "$(usr)/mips-unknown-elf/include/getopt.h"; \
 	fi
-	
+
 	mips-unknown-elf-gcc -dumpspecs \
 		| sed '/startfile:$$/{n;s/crt0%O%s/crt0%O%s support%O%s support_aux%O%s/;};' \
 		| sed '/link_command:$$/{n;s/%{T\*}/%{T*} %{!T:-T linker.ld%s}/;};' \
 		> "$(usr)/lib/gcc-lib/mips-unknown-elf/$(version_gcc)/specs"
-		
+
 	mkdir -p $(usr)
 	mkdir -p build/gcc-obj && cd build/gcc-obj && \
 		echo | ../gcc-$(version_gcc)/configure --prefix=$(usr) $(configure_gcc_step2) && \
