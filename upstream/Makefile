@@ -163,7 +163,7 @@ version_boehmgc = 6.3alpha2
 url_boehmgc = http://www.hpl.hp.com/personal/Hans_Boehm/gc/gc_source/gc$(version_boehmgc).tar.gz
 patches_boehmgc = boehm-gc.patch
 
-version_busybox = 0.60.5
+version_busybox = 1.00-pre9
 url_busybox = http://busybox.net/downloads/busybox-$(version_busybox).tar.gz
 patches_busybox = busybox.patch
 
@@ -236,5 +236,5 @@ tasks/build_busybox: tasks/patch_busybox tasks/full_toolchain
 	cd build && \
 		rm -f busybox && \
 		ln -s busybox-$(version_busybox) busybox
-	cd build/busybox && $(MAKE) SHELL=/bin/bash LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -g"
+	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
 	touch $@

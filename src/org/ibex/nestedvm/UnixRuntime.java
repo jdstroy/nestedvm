@@ -642,6 +642,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
 
         public synchronized Object exec(UnixRuntime r, String path) throws ErrnoException {
+            // FIXME: Hideous hack to make a standalone busybox possible
+            if(path.equals("bin/busybox") && r.getClass().getName().endsWith("BusyBox"))
+                return r.getClass();
             FStat fstat = stat(r,path);
             if(fstat == null) return null;
             long mtime = fstat.mtime();
