@@ -289,53 +289,63 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     private int exec(String path, String[] argv, String[] envp) {
-        final UnixRuntime r;
+        if(argv.length == 0) argv = new String[]{""};
+        Seekable s;
+        FD fd;
         
-        throw new Error("FIXME exec() not finished");
-        //Class klass = fs.getClass(path);
-        //if(klass != null) return exec(klass,argv,envp);
-        
-        /*try {
-             Seekable s = fs.getSeekable(path);
-             boolean elf = false;
-             boolean script = false;
-             switch(s.read()) {
-                case '\177': elf = s.read() == 'E' && s.read() == 'L' && s.read() == 'F'; break;
-                case '#': script = s.read() == '!';
-            }
-            s.close();
-            if(script) {
-                // FIXME #! support
-                throw new Error("FIXME can't exec scripts yet");
-                // append args, etc
-                // return exec(...)
-            } else if(elf) {
-                klass = fs.(path);
-                if(klass == null) return -ENOEXEC;
-                return exec(klass,argv,envp);
-            } else {
-            	    return -ENOEXEC;
-            }
-        }*/
-        // FEATURE: Way too much overlap in the handling of ioexeptions everhwere
-        /*catch(ErrnoException e) { return -e.errno; }
+        try {
+            fd = fs.open(path,RD_ONLY,0);
+            System.err.println(fd + "  " + path);
+            if(fd == null) return -ENOENT;
+            s = fd.seekable();
+            if(s == null) return -ENOEXEC;
+        }
+        catch(ErrnoException e) { return -e.errno; }
         catch(FileNotFoundException e) {
             if(e.getMessage() != null && e.getMessage().indexOf("Permission denied") >= 0) return -EACCES;
             return -ENOENT;
         }
         catch(IOException e) { return -EIO; }
-        catch(FaultException e) { return -EFAULT; }*/
-    }
-    
-    private int exec(Class c, String[] argv, String[] envp) {
-        UnixRuntime r;
         
         try {
-        	    r = (UnixRuntime) c.newInstance();
-        } catch(Exception e) {
-        	    return -ENOMEM;
+            int p = 0;
+            byte[] buf = new byte[4096];
+            OUTER: for(;;) {
+            	    int n = s.read(buf,p,buf.length-p);
+                if(n == -1) break;
+                for(;n > 0; n--) if(buf[p++] == '\n' || p == 4096) break OUTER;
+            }
+            if(buf[0] == '!' && buf[1] == '#') {
+            	    String cmd = new String(buf,2,p-2);
+                String argv1 = null;
+                if((p = cmd.indexOf(' ')) != -1) {
+                    do { p++; } while(cmd.charAt(p)==' ');
+                	    argv1 = cmd.substring(p);
+                    cmd = cmd.substring(0,p-1);
+                }
+                String[] newArgv = new String[argv.length + argv1 != null ? 2 : 1];
+                p = 0;
+                newArgv[p++] = argv[0];
+                if(argv1 != null) newArgv[p++] = argv1;
+                newArgv[p++] = path;
+                for(int i=1;i<argv.length;i++) newArgv[p++] = argv[i];
+                fd.close();
+                return exec(cmd,newArgv,envp);
+            } else if(buf[0] == '\177' && buf[1] == 'E' && buf[2] == 'L' && buf[3] == 'F') {
+                s.seek(0);
+            	    UnixRuntime r = new Interpreter(s);
+                fd.close();
+                return exec(r,argv,envp);
+            } else {
+            	    return -ENOEXEC;
+            }
+        } catch(IOException e) {
+        	    e.printStackTrace();
+            return -ENOEXEC;
         }
-        
+    }
+    
+    private int exec(UnixRuntime r, String[] argv, String[] envp) {        
         for(int i=0;i<OPEN_MAX;i++) if(closeOnExec[i]) closeFD(i);
         r.fds = fds;
         r.closeOnExec = closeOnExec;
@@ -650,6 +660,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         // NOTE: createNewFile is a Java2 function
         public FD _open(String path, int flags, int mode) throws IOException {
             final File f = hostFile(path);
+            System.err.println(path + " -> " + f + " " + f.exists());
             if(f.isDirectory()) {
                 if((flags&3)!=RD_ONLY) throw new ErrnoException(EACCES);
                 return directoryFD(f.list(),path.hashCode());

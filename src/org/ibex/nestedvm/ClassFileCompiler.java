@@ -390,6 +390,8 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         main.setMaxStack();
         cl.addMethod(main.getMethod());
         
+        if(printStats)
+            System.out.println("Constant Pool Size: " + cp.getSize());
         cl.getJavaClass().dump(os);
     }
     

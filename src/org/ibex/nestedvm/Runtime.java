@@ -1070,6 +1070,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         /** Seek in the filedescriptor. Whence is SEEK_SET, SEEK_CUR, or SEEK_END. Should return -1 on error or the new position. */
         public int seek(int n, int whence)  throws IOException  { return -1; }
         
+        /** Return a Seekable object representing this file descriptor (can be read only) 
+            This is required for exec() */
+        Seekable seekable() { return null; }
+        
         /** Should return true if this is a tty */
         // FEATURE: get rid of the isatty syscall and just do with newlib's dumb isatty.c
         public boolean isatty() { return false; }
@@ -1100,6 +1104,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         protected abstract FStat _fstat();
 
+        Seekable seekable() { return data; }
+        
         public int seek(int n, int whence) throws IOException {
             switch(whence) {
                 case SEEK_SET: break;
