@@ -926,6 +926,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         
         public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
+            // FIXME: horrendous, ugly hack needed by TeX... sorry Brian...
+            path = path.trim();
             final File f = hostFile(path);
             return r.hostFSOpen(f,flags,mode,this);
         }
