@@ -94,7 +94,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         int tmp, addr; // temporaries
         
         r[ZERO] = 0;
-    
+        
         switch(op) {
             case 0: {
                 switch(subcode) {
