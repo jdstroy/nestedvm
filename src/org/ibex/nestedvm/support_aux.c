@@ -74,6 +74,7 @@ REENT_WRAPPER2(chmod,const char *,mode_t)
 REENT_WRAPPER2(fchmod,int,mode_t)
 REENT_WRAPPER2(lstat,const char *,struct stat *)
 REENT_WRAPPER4(getdents,int, char *, size_t,long *)
+REENT_WRAPPER1(dup,int)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
@@ -95,6 +96,10 @@ char *_getcwd_r(struct _reent *ptr, char *buf, size_t size) {
         size *= 2;
         if(ptr->_errno != ERANGE) return NULL;
     }
+}
+
+pid_t _wait_r(struct _reent *ptr, int *status) {
+    return _waitpid_r(ptr,-1,status,0);
 }
 
 DIR *opendir(const char *path) {

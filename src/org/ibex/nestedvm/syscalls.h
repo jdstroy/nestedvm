@@ -36,3 +36,4 @@
 #define SYS_getdents 36
 #define SYS_memcpy 37
 #define SYS_memset 38
+#define SYS_dup 39

@@ -41,6 +41,7 @@ public interface UsermodeConstants {
     public static final int SYS_getdents = 36;
     public static final int SYS_memcpy = 37;
     public static final int SYS_memset = 38;
+    public static final int SYS_dup = 39;
     public static final int EPERM = 1; /* Not super-user */
     public static final int ENOENT = 2; /* No such file or directory */
     public static final int ESRCH = 3; /* No such process */

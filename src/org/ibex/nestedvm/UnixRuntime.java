@@ -101,6 +101,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_fork: return sys_fork();
             case SYS_pipe: return sys_pipe(a);
             case SYS_dup2: return sys_dup2(a,b);
+            case SYS_dup: return sys_dup(a);
             case SYS_waitpid: return sys_waitpid(a,b,c);
             case SYS_stat: return sys_stat(a,b);
             case SYS_lstat: return sys_lstat(a,b);
@@ -432,6 +433,15 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(fds[newd] != null) fds[newd].close();
         fds[newd] = fds[oldd].dup();
         return 0;
+    }
+    
+    private int sys_dup(int oldd) {
+        if(oldd < 0 || oldd >= OPEN_MAX) return -EBADFD;
+        if(fds[oldd] == null) return -EBADFD;
+        FD fd = fds[oldd].dup();
+        int newd = addFD(fd);
+        if(newd < 0) { fd.close(); return -ENFILE; }
+        return newd;
     }
     
     private int sys_stat(int cstring, int addr) throws FaultException, ErrnoException {
