@@ -164,7 +164,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         int start = tramp.size();
         tramp.add(ALOAD_0);
         tramp.add(GETFIELD,new FieldRef(me,"state",Type.INT));
-        int stateCheck = tramp.add(IFNE);
+        tramp.add(IFEQ,tramp.size()+2);
+        tramp.add(RETURN);
         
         tramp.add(ALOAD_0);
         tramp.add(ALOAD_0);
@@ -204,9 +205,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"toString",Type.STRING,Type.NO_ARGS));
         tramp.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
         tramp.add(ATHROW);
-        
-        tramp.setArg(stateCheck,tramp.size());
-        tramp.add(RETURN);
                 
         try {
             tramp.finish();
@@ -529,6 +527,21 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     private void leaveMethod() {
         mg.add(GOTO,returnTarget);
     }
+    
+    private void link(int mypc) {
+        preSetReg(R+RA);
+        if(lessConstants){
+            int ref = (mypc+8 + 32768) & ~65535;
+            int diff = (mypc+8) - ref;
+            if(diff < -32768 || diff > 32767) throw new Error("should never happen " + diff);
+            mg.add(LDC,ref);
+            mg.add(LDC,diff);
+            mg.add(IADD);
+        } else {
+            mg.add(LDC,mypc+8);
+        }
+        setReg();
+    }
 
     private void branch(int pc, int target) {
         if((pc&methodMask) == (target&methodMask)) {
@@ -659,13 +672,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             case 9: // JALR
                 if(pc == -1) throw new Exn("pc modifying insn in delay slot");
                 emitInstruction(-1,nextInsn,-1);
+                link(pc);
                 preSetPC();
                 pushRegWZ(R+rs);
                 setPC();
-                
-                preSetReg(R+RA);
-                mg.add(LDC,pc+8);
-                setReg();
                 leaveMethod();
                 unreachable = true;
                 break;
@@ -956,9 +966,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 pushRegWZ(R+rs);
                 b1 = mg.add(IFGE);
                 emitInstruction(-1,nextInsn,-1);
-                preSetReg(R+RA);
-                mg.add(LDC,pc+8);
-                setReg();
+                link(pc);
                 branch(pc,pc+branchTarget*4+4);
                 mg.setArg(b1,mg.size());
                 break;
@@ -970,9 +978,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                     b1 = mg.add(IFLT);
                 }
                 emitInstruction(-1,nextInsn,-1);
-                preSetReg(R+RA);
-                mg.add(LDC,pc+8);
-                setReg();
+                link(pc);
                 branch(pc,pc+branchTarget*4+4);
                 if(b1 != -1) mg.setArg(b1,mg.size());
                 if(b1 == -1) unreachable = true;
@@ -993,9 +999,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             if(pc == -1) throw new Exn("pc modifying insn in delay slot");
             int target = (pc&0xf0000000)|(jumpTarget << 2);
             emitInstruction(-1,nextInsn,-1);
-            preSetReg(R+RA);
-            mg.add(LDC,pc+8);
-            setReg();
+            link(pc);
             branch(pc, target);
             unreachable = true;
             break;
