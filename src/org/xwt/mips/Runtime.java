@@ -435,7 +435,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
             }
         } catch(FaultException e) {
             // should never happen
-            throw new Error(e);
+            throw new Error(e.toString());
         }
         return start;
     }
