@@ -6,7 +6,7 @@ url_gcc-core = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_
 url_gcc-c++ = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
 url_gcc-g77 = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
 
-patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch
+patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
 configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
@@ -139,7 +139,7 @@ tasks/patch_%: tasks/extract_%
 	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
 	cd build/$*-$(version_$*) &&  \
 	for p in $(patches_$*) end; do \
-		[ "$$p" = "end" ] || $(PATCH) -p0 < ../../patches/$$p || exit 1; \
+		[ "$$p" = "end" ] || $(PATCH) -p0 -l < ../../patches/$$p || exit 1; \
 	done
 	touch $@
 

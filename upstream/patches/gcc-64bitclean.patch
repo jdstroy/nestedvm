@@ -1,0 +1,12 @@
+--- ../gcc-3.3.3.orig/gcc/config/mips/mips.c    2004-07-16
+12:58:11.873718000 -0500
++++ gcc/config/mips/mips.c      2004-07-16 14:41:44.477442899 -0500
+@@ -6731,7 +6731,7 @@
+       if (regs_ever_live[regno] && !call_used_regs[regno])
+        {
+          fp_reg_size += FP_INC * UNITS_PER_FPREG;
+-         fmask |= ((1 << FP_INC) - 1) << (regno - FP_REG_FIRST);
++         fmask |= ((1L << FP_INC) - 1L) << (regno - FP_REG_FIRST);
+        }
+     }
+ 
