@@ -76,7 +76,7 @@ export PATH
 #
 # General Build Stuff
 #
-all: $(java_classes) $(mips_objects)
+all: $(java_classes) $(tasks)/build_libc
 ifdef NATIVE_MIPS2JAVA_COMPILER
 all: build/mips2java$(EXE_EXT) $(mips_objects)
 endif
@@ -132,7 +132,7 @@ build/%.o: src/%.s $(tasks)/build_gcc
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) -x assembler-with-cpp -c -o $@ $<
 
-tmp/%.s: %.c $(tasks)/build_gcc
+tmp/%.s: src/%.c $(tasks)/build_gcc
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) $(MIPS_CFLAGS) $($(notdir $*)_CFLAGS) -c -S -o $@ $<
 
