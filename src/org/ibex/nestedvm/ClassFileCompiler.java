@@ -1,6 +1,8 @@
 package org.ibex.nestedvm;
 
 import java.io.*;
+import java.util.Hashtable;
+
 import org.ibex.nestedvm.util.*;
 
 import org.apache.bcel.generic.*;
@@ -1808,18 +1810,34 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         }
     }
     
-    private String regField(int reg) {
-        String field;
+    private static final String[] regField = {
+            "r0","r1","r2","r3","r4","r5","r6","r7",
+            "r8","r9","r10","r11","r12","r13","r14","r15",
+            "r16","r17","r18","r19","r20","r21","r22","r23",
+            "r24","r25","r26","r27","r28","r29","r30","r31",
+            
+            "f0","f1","f2","f3","f4","f5","f6","f7",
+            "f8","f9","f10","f11","f12","f13","f14","f15",
+            "f16","f17","f18","f19","f20","f21","f22","f23",
+            "f24","f25","f26","f27","f28","f29","f30","f31",
+            
+            "hi","lo","fcsr"
+    };
+    
+    private static String regField(int reg) {
+        return regField[reg];
+                                   
+        /*String field;
         switch(reg) {
             case HI: field = "hi"; break;
             case LO: field = "lo"; break;
             case FCSR: field = "fcsr"; break;
             default:
-                if(reg > R && reg < R+32) field="r"+(reg-R);
-                else if(reg >= F && reg < F+32) field="f"+(reg-F);
+                if(reg > R && reg < R+32) regFieldR[reg-R];
+                else if(reg >= F && reg < F+32) return regFieldF[
                 else throw new IllegalArgumentException(""+reg);
         }
-        return field;
+        return field;*/
     }
     
     private boolean doLocal(int reg) {
@@ -1941,9 +1959,12 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         return h;
     }
         
+    private Hashtable intCache = new Hashtable();
+    
     private InstructionHandle pushConst(int n) {
-        if(n >= 0 && n <= 5) {
+        if(n >= -1 && n <= 5) {
             switch(n) {
+                case -1: return a(InstructionConstants.ICONST_M1);
                 case 0: return a(InstructionConstants.ICONST_0);
                 case 1: return a(InstructionConstants.ICONST_1);
                 case 2: return a(InstructionConstants.ICONST_2);
@@ -1952,8 +1973,6 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 case 5: return a(InstructionConstants.ICONST_5);
                 default: return null;
             }
-        } else if(n == -1) {
-            return a(InstructionConstants.ICONST_M1);
         } else if(n >= -128 && n <= 127) {
             return a(new BIPUSH((byte) n));
         } else if(n >= -32768 && n <= 32767) {
