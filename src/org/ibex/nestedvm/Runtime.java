@@ -740,7 +740,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         if((flags & (O_EXCL|O_CREAT)) == (O_EXCL|O_CREAT)) {
             try {
-                if(Platform.atomicCreateFile(f)) throw new ErrnoException(EEXIST);
+                if(!Platform.atomicCreateFile(f)) throw new ErrnoException(EEXIST);
             } catch(IOException e) {
                 throw new ErrnoException(EIO);
             }
