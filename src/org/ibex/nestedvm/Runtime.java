@@ -978,7 +978,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     void exit(int status, boolean fromSignal) {
         if(fromSignal && fds[2] != null) {
             try {
-                byte[] msg = getBytes("Process exited on signal " + (status - 128));
+                byte[] msg = getBytes("Process exited on signal " + (status - 128) + "\n");
                 fds[2].write(msg,0,msg.length);
             } catch(ErrnoException e) { }
         }
