@@ -1,4 +1,4 @@
-package org.xwt.mips;
+package org.ibex.nestedvm;
 
 import java.io.*;
 

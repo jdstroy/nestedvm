@@ -1,6 +1,6 @@
-package org.xwt.mips;
+package org.ibex.nestedvm;
 
-import org.xwt.mips.util.*;
+import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 
@@ -383,7 +383,7 @@ public abstract class UnixRuntime extends Runtime {
                 dos.write(b,0,b.length);
             }
             final byte[] data = bos.toByteArray();
-            return new SeekableFD(new SeekableByteArray(data,false),RD_ONLY) {
+            return new SeekableFD(new Seekable.ByteArray(data,false),RD_ONLY) {
                 protected FStat _fstat() { return  new FStat() {
                     public int length() { return data.length; }
                     public int type() { return S_IFDIR; }
@@ -506,7 +506,7 @@ public abstract class UnixRuntime extends Runtime {
                 if((flags&3)!=RD_ONLY) throw new ErrnoException(EACCES);
                 return directoryFD(f.list(),path.hashCode());
             }
-            final SeekableFile sf = new SeekableFile(path,(flags&3)!=RD_ONLY);
+            final Seekable.File sf = new Seekable.File(path,(flags&3)!=RD_ONLY);
             if((flags&O_TRUNC)!=0) sf.setLength(0);
             return new SeekableFD(sf,mode) {
                 protected FStat _fstat() { return new HostFStat(f) {

@@ -1,7 +1,7 @@
-package org.xwt.mips;
+package org.ibex.nestedvm;
 
 import java.io.*;
-import org.xwt.mips.util.*;
+import org.ibex.nestedvm.util.*;
 
 import org.apache.bcel.generic.*;
 
@@ -66,8 +66,8 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         return new MethodGen(flags,ret,args,null,name,fullClassName,new FixedInstructionList(),cp);
     }
     
-    public ClassFileCompiler(String path, String className, OutputStream os) throws IOException { this(new SeekableFile(path),className,os); }
-    public ClassFileCompiler(SeekableData binary, String className, OutputStream os) throws IOException {
+    public ClassFileCompiler(String path, String className, OutputStream os) throws IOException { this(new Seekable.File(path),className,os); }
+    public ClassFileCompiler(Seekable binary, String className, OutputStream os) throws IOException {
         super(binary,className);
         this.os = os;
     }
@@ -133,7 +133,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         
         // Trampoline
         MethodGen tramp = newMethod(ACC_PRIVATE,Type.VOID, Type.NO_ARGS, "trampoline");
-        tramp.addException("org.xwt.mips.Runtime$ExecutionException");
+        tramp.addException("org.ibex.nestedvm.Runtime$ExecutionException");
         selectMethod(tramp);
         
         InstructionHandle start = a(InstructionConstants.ALOAD_0);
@@ -162,7 +162,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         }
         
         ts.setTarget(a(InstructionConstants.POP)); // default case
-        a(fac.createNew("org.xwt.mips.Runtime$ExecutionException"));
+        a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
         a(InstructionConstants.DUP);
         a(fac.createNew("java.lang.StringBuffer"));
         a(InstructionConstants.DUP);
@@ -179,7 +179,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(new PUSH(cp,')'));
         a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.CHAR},INVOKEVIRTUAL));
         a(fac.createInvoke("java.lang.StringBuffer","toString",Type.STRING,Type.NO_ARGS,INVOKEVIRTUAL));
-        a(fac.createInvoke("org.xwt.mips.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
+        a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
         a(InstructionConstants.ATHROW);
         
         stateCheck.setTarget(a(InstructionConstants.RETURN));
@@ -280,10 +280,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             cl.addMethod(lookupSymbol.getMethod());
         }
         
-        MethodGen setCPUState = newMethod(ACC_PROTECTED,Type.VOID,new Type[]{Type.getType("Lorg/xwt/mips/Runtime$CPUState;")},"setCPUState");
+        MethodGen setCPUState = newMethod(ACC_PROTECTED,Type.VOID,new Type[]{Type.getType("Lorg/ibex/nestedvm/Runtime$CPUState;")},"setCPUState");
         selectMethod(setCPUState);
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
         a(InstructionConstants.ASTORE_2);
         for(int i=1;i<32;i++) {
             a(InstructionConstants.ALOAD_0);
@@ -293,7 +293,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             a(fac.createFieldAccess(fullClassName,"r"+i,Type.INT, PUTFIELD));
         }
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","f",new ArrayType(Type.INT,1),GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","f",new ArrayType(Type.INT,1),GETFIELD));
         a(InstructionConstants.ASTORE_2);
         for(int i=0;i<32;i++) {
             a(InstructionConstants.ALOAD_0);
@@ -304,34 +304,34 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         }
         a(InstructionConstants.ALOAD_0);
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","hi",Type.INT,GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","hi",Type.INT,GETFIELD));
         a(fac.createFieldAccess(fullClassName,"hi",Type.INT, PUTFIELD));
         a(InstructionConstants.ALOAD_0);
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","lo",Type.INT,GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","lo",Type.INT,GETFIELD));
         a(fac.createFieldAccess(fullClassName,"lo",Type.INT, PUTFIELD));
         a(InstructionConstants.ALOAD_0);
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","fcsr",Type.INT,GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","fcsr",Type.INT,GETFIELD));
         a(fac.createFieldAccess(fullClassName,"fcsr",Type.INT, PUTFIELD));
         a(InstructionConstants.ALOAD_0);
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","pc",Type.INT,GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","pc",Type.INT,GETFIELD));
         a(fac.createFieldAccess(fullClassName,"pc",Type.INT, PUTFIELD));
         a(InstructionConstants.RETURN);
         setCPUState.setMaxLocals();
         setCPUState.setMaxStack();
         cl.addMethod(setCPUState.getMethod());
         
-        MethodGen getCPUState = newMethod(ACC_PROTECTED,Type.getType("Lorg/xwt/mips/Runtime$CPUState;"),Type.NO_ARGS,"getCPUState");
+        MethodGen getCPUState = newMethod(ACC_PROTECTED,Type.getType("Lorg/ibex/nestedvm/Runtime$CPUState;"),Type.NO_ARGS,"getCPUState");
         selectMethod(getCPUState);
-        a(fac.createNew("org.xwt.mips.Runtime$CPUState"));
+        a(fac.createNew("org.ibex.nestedvm.Runtime$CPUState"));
         a(InstructionConstants.DUP);
-        a(fac.createInvoke("org.xwt.mips.Runtime$CPUState","<init>",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
+        a(fac.createInvoke("org.ibex.nestedvm.Runtime$CPUState","<init>",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
         a(InstructionConstants.ASTORE_1);
         
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
         a(InstructionConstants.ASTORE_2);
         for(int i=1;i<32;i++) {
             a(InstructionConstants.ALOAD_2);
@@ -342,7 +342,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         }
         
         a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","f",new ArrayType(Type.INT,1),GETFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","f",new ArrayType(Type.INT,1),GETFIELD));
         a(InstructionConstants.ASTORE_2);
         for(int i=0;i<32;i++) {
             a(InstructionConstants.ALOAD_2);
@@ -354,19 +354,19 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         a(InstructionConstants.ALOAD_1);
         a(InstructionConstants.ALOAD_0);
         a(fac.createFieldAccess(fullClassName,"hi",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","hi",Type.INT,PUTFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","hi",Type.INT,PUTFIELD));
         a(InstructionConstants.ALOAD_1);
         a(InstructionConstants.ALOAD_0);
         a(fac.createFieldAccess(fullClassName,"lo",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","lo",Type.INT,PUTFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","lo",Type.INT,PUTFIELD));
         a(InstructionConstants.ALOAD_1);
         a(InstructionConstants.ALOAD_0);
         a(fac.createFieldAccess(fullClassName,"fcsr",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","fcsr",Type.INT,PUTFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","fcsr",Type.INT,PUTFIELD));
         a(InstructionConstants.ALOAD_1);
         a(InstructionConstants.ALOAD_0);
         a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.xwt.mips.Runtime$CPUState","pc",Type.INT,PUTFIELD));
+        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","pc",Type.INT,PUTFIELD));
         
         a(InstructionConstants.ALOAD_1);
         a(InstructionConstants.ARETURN);
@@ -425,7 +425,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             selectList(clinitExtras);
             a(new PUSH(cp,sb.toString()));
             a(new PUSH(cp,segSize/4));
-            a(fac.createInvoke("org.xwt.mips.Runtime","decodeData",new ArrayType(Type.INT,1),new Type[]{Type.STRING,Type.INT},INVOKESTATIC));
+            a(fac.createInvoke("org.ibex.nestedvm.Runtime","decodeData",new ArrayType(Type.INT,1),new Type[]{Type.STRING,Type.INT},INVOKESTATIC));
             a(fac.createPutStatic(fullClassName,fieldname,new ArrayType(Type.INT,1)));
 
             selectList(initExtras);
@@ -566,7 +566,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         // move the default jump target (lookupswitch) to before the throw
         insnList.move(defaultHandle,insnList.getEnd());
         if(debugCompiler) {
-            a(fac.createNew("org.xwt.mips.Runtime$ExecutionException"));
+            a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
             a(InstructionConstants.DUP);
             a(fac.createNew("java.lang.StringBuffer"));
             a(InstructionConstants.DUP);
@@ -576,13 +576,13 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
             a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.INT},INVOKEVIRTUAL));
             a(fac.createInvoke("java.lang.StringBuffer","toString",Type.STRING,Type.NO_ARGS,INVOKEVIRTUAL));
-            a(fac.createInvoke("org.xwt.mips.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
+            a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
             a(InstructionConstants.ATHROW);
         } else {
-            a(fac.createNew("org.xwt.mips.Runtime$ExecutionException"));
+            a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
             a(InstructionConstants.DUP);
             a(new PUSH(cp,"Jumped to invalid address"));
-            a(fac.createInvoke("org.xwt.mips.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
+            a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
             a(InstructionConstants.ATHROW);
         }
 
@@ -769,10 +769,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 
                 break;
             case 13: // BREAK
-                a(fac.createNew("org.xwt.mips.Runtime$ExecutionException"));
+                a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
                 a(InstructionConstants.DUP);
                 a(new PUSH(cp,"BREAK Code " + toHex(breakCode)));
-                a(fac.createInvoke("org.xwt.mips.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
+                a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
                 a(InstructionConstants.ATHROW);
                 unreachable = true;
                 break;

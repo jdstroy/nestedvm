@@ -2,9 +2,9 @@
 // Based on org.xwt.imp.MIPS by Adam Megacz
 // Portions Copyright 2003 Adam Megacz
 
-package org.xwt.mips;
+package org.ibex.nestedvm;
 
-import org.xwt.mips.util.*;
+import org.ibex.nestedvm.util.*;
 import java.io.*;
 
 public class Interpreter extends UnixRuntime {
@@ -633,7 +633,7 @@ public class Interpreter extends UnixRuntime {
     }
     
     // Image loading function
-    private void loadImage(SeekableData data) throws IOException {
+    private void loadImage(Seekable data) throws IOException {
         if(state != UNINITIALIZED) throw new IllegalStateException("loadImage called on initialized runtime");
         
         ELF elf = new ELF(data);
@@ -710,12 +710,12 @@ public class Interpreter extends UnixRuntime {
     
     // This is package private for fork() which does all kinds of ugly things behind the scenes
     Interpreter() { super(4096,65536,true); }
-    public Interpreter(SeekableData data) throws IOException { this(); loadImage(data); }
+    public Interpreter(Seekable data) throws IOException { this(); loadImage(data); }
     public Interpreter(String filename) throws IOException {
-        this(new SeekableFile(filename,false));
+        this(new Seekable.File(filename,false));
         image = filename;
     }
-    public Interpreter(InputStream is) throws IOException { this(new SeekableInputStream(is)); }
+    public Interpreter(InputStream is) throws IOException { this(new Seekable.InputStream(is)); }
     
     // Debug functions
     // NOTE: This probably requires a jdk > 1.1, however, it is only used for debugging

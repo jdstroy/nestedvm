@@ -1,10 +1,9 @@
-package org.xwt.mips;
+package org.ibex.nestedvm.util;
 
-import org.xwt.mips.util.*;
 import java.io.*;
 
 public class ELF {
-    private SeekableData data;
+    private Seekable data;
     
     public ELFIdent ident;
     public ELFHeader header;
@@ -74,10 +73,10 @@ public class ELF {
         public byte abiversion;
                 
         ELFIdent() throws IOException {
-            if(readIntBE() != ELF_MAGIC) throw new ELFException("Bad Magic (is: " );
+            if(readIntBE() != ELF_MAGIC) throw new ELFException("Bad Magic");
             
             klass = readByte();
-            if(klass != ELFCLASS32) throw new ELFException("org.xwt.mips.ELF does not suport 64-bit binaries");
+            if(klass != ELFCLASS32) throw new ELFException("org.ibex.nestedvm.util.ELF does not suport 64-bit binaries");
             
             data = readByte();
             if(data != ELFDATA2LSB && data != ELFDATA2MSB) throw new ELFException("Unknown byte order");
@@ -202,8 +201,8 @@ public class ELF {
         public boolean isBSS() { return name.equals(".bss") || name.equals(".sbss"); }
     }
     
-    public ELF(String file) throws IOException, ELFException { this(new SeekableFile(file,false)); }
-    public ELF(SeekableData data) throws IOException, ELFException {
+    public ELF(String file) throws IOException, ELFException { this(new Seekable.File(file,false)); }
+    public ELF(Seekable data) throws IOException, ELFException {
         this.data = data;
         ident = new ELFIdent();
         header = new ELFHeader();
@@ -348,7 +347,7 @@ public class ELF {
     private static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
     
     public static void main(String[] args) throws IOException {
-        ELF elf = new ELF(new SeekableInputStream(new FileInputStream(args[0])));
+        ELF elf = new ELF(new Seekable.InputStream(new FileInputStream(args[0])));
         System.out.println("Type: " + toHex(elf.header.type));
         System.out.println("Machine: " + toHex(elf.header.machine));
         System.out.println("Entry: " + toHex(elf.header.entry));

@@ -42,8 +42,10 @@ tasks/build_gcc: tasks/build_binutils
 tasks/build_newlib: tasks/build_gcc
 
 tasks/build_libc: tasks/build_newlib tasks/build_regex tasks/build_openbsdglob
+	# HACK
 	rm -f $(usr)/mips-unknown-elf/lib/crt0.o
-	ln -s $(root)/build/org/xwt/mips/crt0.o $(usr)/mips-unknown-elf/lib/crt0.o 
+	ln -s $(root)/build/org/ibex/nestedvm/crt0.o $(usr)/mips-unknown-elf/lib/crt0.o 
+	
 	echo '#include <unistd.h>' > $(usr)/mips-unknown-elf/include/getopt.h
 	touch $@
 

@@ -1,12 +1,11 @@
 // Copyright 2003 Adam Megacz, see the COPYING file for licensing [GPL]
 
-package org.xwt.mips;
+package org.ibex.nestedvm;
 
 import java.util.*;
 import java.io.*;
 
-import org.xwt.mips.util.SeekableData;
-import org.xwt.mips.util.SeekableFile;
+import org.ibex.nestedvm.util.*;
 
 public abstract class Compiler implements Registers {    
     /** The ELF binary being read */
@@ -64,7 +63,7 @@ public abstract class Compiler implements Registers {
     
     protected boolean nullPointerCheck = false;
     
-    protected String runtimeClass = "org.xwt.mips.Runtime";
+    protected String runtimeClass = "org.ibex.nestedvm.Runtime";
     
     protected String hashClass = "java.util.Hashtable";
     
@@ -144,7 +143,7 @@ public abstract class Compiler implements Registers {
         }
         if(className == null || mipsBinaryFileName == null) usage();
         
-        SeekableData mipsBinary = new SeekableFile(mipsBinaryFileName);
+        Seekable mipsBinary = new Seekable.File(mipsBinaryFileName);
         
         Writer w = null;
         OutputStream os = null;
@@ -185,7 +184,7 @@ public abstract class Compiler implements Registers {
         }
     }
         
-    public Compiler(SeekableData binary, String fullClassName) throws IOException {
+    public Compiler(Seekable binary, String fullClassName) throws IOException {
         this.fullClassName = fullClassName;
         elf = new ELF(binary);
         
@@ -249,7 +248,7 @@ public abstract class Compiler implements Registers {
             findBranchesInText(text.addr,new DataInputStream(text.getInputStream()),text.size,jumpableAddresses);            
         }
 
-        if(unixRuntime && runtimeClass.startsWith("org.xwt.mips.")) runtimeClass = "org.xwt.mips.UnixRuntime";
+        if(unixRuntime && runtimeClass.startsWith("org.ibex.nestedvm.")) runtimeClass = "org.ibex.nestedvm.UnixRuntime";
         
         for(int i=0;i<elf.sheaders.length;i++) {
             String name = elf.sheaders[i].name;

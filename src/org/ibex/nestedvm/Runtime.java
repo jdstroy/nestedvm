@@ -2,9 +2,9 @@
 // Based on org.xwt.imp.MIPS by Adam Megacz
 // Portions Copyright 2003 Adam Megacz
 
-package org.xwt.mips;
+package org.ibex.nestedvm;
 
-import org.xwt.mips.util.*;
+import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.Arrays;
 
@@ -646,7 +646,7 @@ public abstract class Runtime implements UsermodeConstants,Registers {
             if(!f.createNewFile()) throw new ErrnoException(EEXIST);
         if(!f.exists() && (flags&O_CREAT) == 0) return null;
         if(f.isDirectory()) return null;
-        final SeekableFile sf = new SeekableFile(path,mode!=RD_ONLY);
+        final Seekable.File sf = new Seekable.File(path,mode!=RD_ONLY);
         if((flags&O_TRUNC)!=0) sf.setLength(0);
         return new SeekableFD(sf,flags) {
             protected FStat _fstat() { return new HostFStat(f) {
@@ -1052,11 +1052,11 @@ public abstract class Runtime implements UsermodeConstants,Registers {
     /** FileDescriptor class for normal files */
     public abstract static class SeekableFD extends FD {
         private final int flags;
-        private final SeekableData data;
+        private final Seekable data;
         public boolean readable() { return (flags&3) != WR_ONLY; }
         public boolean writable() { return (flags&3) != RD_ONLY; }
         
-        SeekableFD(SeekableData data, int flags) { this.data = data; this.flags = flags; }
+        SeekableFD(Seekable data, int flags) { this.data = data; this.flags = flags; }
         
         protected abstract FStat _fstat();
 

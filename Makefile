@@ -1,9 +1,11 @@
+.SECONDARY:
+
 # 
 # What to build
 #
 
 # Java sources that are part of the compiler/interpreter
-java_sources = $(wildcard src/org/xwt/mips/*.java) $(wildcard src/org/xwt/mips/util/*.java)
+java_sources = $(wildcard src/org/ibex/nestedvm/*.java) $(wildcard src/org/ibex/nestedvm/util/*.java)
 
 # C sources that are part of the compiler/interpreter
 mips_sources = crt0.c support_aux.c
@@ -34,8 +36,8 @@ mips_optflags = -O3 -g \
 MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
 MIPS_LD = mips-unknown-elf-gcc
 MIPS_LDFLAGS= \
-	$(flags) -L$(build)/org/xwt/mips --static \
-	-T $(mips2java_root)/src/org/xwt/mips/linker.ld -Wl,--gc-sections
+	$(flags) -L$(build)/org/ibex/nestedvm --static \
+	-T $(mips2java_root)/src/org/ibex/nestedvm/linker.ld -Wl,--gc-sections
 MIPS_STRIP = mips-unknown-elf-strip
 
 # Java compiler/VM settings
@@ -56,7 +58,7 @@ EXE_EXT =
 #####
 
 java_classes = $(java_sources:src/%.java=build/%.class)
-mips_objects = $(mips_sources:%.c=build/org/xwt/mips/%.o) $(mips_asm_sources:%.s=build/org/xwt/mips/%.o)
+mips_objects = $(mips_sources:%.c=build/org/ibex/nestedvm/%.o) $(mips_asm_sources:%.s=build/org/ibex/nestedvm/%.o)
 
 usr = $(mips2java_root)/upstream/install
 PATH := $(usr)/bin:$(PATH)
@@ -88,10 +90,10 @@ $(unistd_h): $(tasks)/build_newlib
 
 # This works around a gcj -C bug
 ifeq ($(firstword $(JAVAC)),gcj)
-build/org/xwt/mips/util/.Dummy.class:
+build/org/ibex/nestedvm/util/.Dummy.class:
 	mkdir -p `dirname $@`
 	touch $@
-$(java_classes): build/org/xwt/mips/util/.Dummy.class
+$(java_classes): build/org/ibex/nestedvm/util/.Dummy.class
 endif
 
 $(java_classes): $(java_sources) $(bcel_jar)
@@ -104,7 +106,7 @@ $(bcel_jar): upstream/tasks/extract_bcel
 # FIXME: We're cramming more than we need into the binary here
 build/mips2java$(EXE_EXT): $(java_sources) $(java_gen_sources)
 	@mkdir -p `dirname $@`
-	$(GCJ) -s -o $@ --main=org.xwt.mips.Compiler $(java_sources) $(java_gen_sources)
+	$(GCJ) -s -o $@ --main=org.ibex.nestedvm.Compiler $(java_sources) $(java_gen_sources)
 
 #
 # MIPS Binary compilation
@@ -134,15 +136,15 @@ build/%.mips.stripped: build/%.mips
 # MIPS Compiler generated class compilation
 ifdef DO_JAVASOURCE
 
-build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class 
-	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
+build/%.java: build/%.mips build/org/ibex/nestedvm/JavaSourceCompiler.class 
+	$(JAVA) -cp $(classpath) org.ibex.nestedvm.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
 
-build/%.class: build/%.java build/org/xwt/mips/Runtime.class
+build/%.class: build/%.java build/org/ibex/nestedvm/Runtime.class
 	$(JAVAC) $(JAVAC_NODEBUG_FLAGS) -classpath build -d build $<
 else
 
-build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class
-	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
+build/%.class: build/%.mips build/org/ibex/nestedvm/ClassFileCompiler.class
+	$(JAVA) -cp $(classpath) org.ibex.nestedvm.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
 
 
 endif
@@ -152,12 +154,12 @@ build/%.class: src/%.java
 	$(JAVAC) -classpath build -d build $<
 
 clean:
-	rm -rf build/tests build/org/xwt/mips *.jar build/mips2java$(EXE_EXT)
+	rm -rf build/tests build/org/ibex/nestedvm *.jar build/mips2java$(EXE_EXT)
 
 #
 # env.sh
 #
-env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class
+env.sh: Makefile $(tasks)/full_toolchain build/org/ibex/nestedvm/Compiler.class
 	@rm -f "$@~"
 	@echo 'PATH="$(mips2java_root)/build:$(usr)/bin:$$PATH"; export PATH' >> $@~
 	@echo 'CC=mips-unknown-elf-gcc; export CC' >> $@~
@@ -181,26 +183,26 @@ runtime_util_classes = SeekableData SeekableByteArray SeekableFile SeekableInput
 runtime_classes = Runtime Registers UsermodeConstants  $(runtime_util_classes:%=util/%)
 unixruntime_classes = $(runtime_classes) UnixRuntime
 
-runtime.jar: $(runtime_classes:%=build/org/xwt/mips/%.class)
-	cd build && jar cf ../$@ $(runtime_classes:%=org/xwt/mips/%*.class)
+runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
+	cd build && jar cf ../$@ $(runtime_classes:%=org/ibex/nestedvm/%*.class)
 
-unixruntime.jar: $(unixruntime_classes:%=build/org/xwt/mips/%.class)
-	cd build && jar cf ../$@ $(unixruntime_classes:%=org/xwt/mips/%*.class)
+unixruntime.jar: $(unixruntime_classes:%=build/org/ibex/nestedvm/%.class)
+	cd build && jar cf ../$@ $(unixruntime_classes:%=org/ibex/nestedvm/%*.class)
 
 # This is only for Brian to use... don't mess with it
-rebuild-constants: src/org/xwt/mips/syscalls.h $(errno_h) $(unistd_h)
+rebuild-constants: src/org/ibex/nestedvm/syscalls.h $(errno_h) $(unistd_h)
 	@mkdir -p `dirname $@`
 	cat $^ | ( \
 		echo "// THIS FILE IS AUTOGENERATED! DO NOT EDIT!"; \
 		echo "// run \"make rebuild-constants\" if it needs to be updated"; \
 		echo ""; \
-		echo "package org.xwt.mips;"; \
+		echo "package org.ibex.nestedvm;"; \
 		echo "public interface UsermodeConstants {"; \
 		tr '\t' ' ' | sed -n ' \
 			s/  */ /g; \
 			s/ *# *define \([A-Z_][A-Za-z0-9_]*\) \([0-9][0-9x]*\)/    public static final int \1 = \2;/p'; \
 		echo "}"; \
-	) > src/org/xwt/mips/UsermodeConstants.java
+	) > src/org/ibex/nestedvm/UsermodeConstants.java
 	
 #
 # Tests
@@ -208,13 +210,13 @@ rebuild-constants: src/org/xwt/mips/syscalls.h $(errno_h) $(unistd_h)
 # to build or run mips2java
 #
 
-build/tests/Env.class: build/org/xwt/mips/Runtime.class build/org/xwt/mips/Interpreter.class
+build/tests/Env.class: build/org/ibex/nestedvm/Runtime.class build/org/ibex/nestedvm/Interpreter.class
 
 # Generic Hello Worldish test
 test: build/tests/Test.class
 	$(JAVA) -cp build tests.Test "arg 1" "arg 2" "arg 3"
-inttest: build/tests/Test.mips build/org/xwt/mips/Interpreter.class
-	$(JAVA) -cp build org.xwt.mips.Interpreter build/tests/Test.mips "arg 1" "arg 2" "arg 3"
+inttest: build/tests/Test.mips build/org/ibex/nestedvm/Interpreter.class
+	$(JAVA) -cp build org.ibex.nestedvm.Interpreter build/tests/Test.mips "arg 1" "arg 2" "arg 3"
 cxxtest: build/tests/CXXTest.class
 	$(JAVA) -cp build tests.CXXTest
 
@@ -307,7 +309,7 @@ boehmgctest: build/tests/Env.class build/tests/GCTest.class
 # Speed tests
 #
 
-build/tests/SpeedTest.class: build/org/xwt/mips/Runtime.class
+build/tests/SpeedTest.class: build/org/ibex/nestedvm/Runtime.class
 
 tmp/thebride_1280.jpg:
 	@mkdir -p tmp
@@ -345,8 +347,8 @@ speedtest: build/tests/SpeedTest.class build/tests/DJpeg.class build/tests/FTBen
 		echo "Run \"make check\" to get the MS True Type fonts for the MSPackBench test"; \
 	fi
 
-intspeed: build/tests/DJpeg.mips  build/org/xwt/mips/Interpreter.class tmp/thebride_1280.jpg
-	time $(JAVA) -cp build org.xwt.mips.Interpreter build/tests/DJpeg.mips -targa  -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg
+intspeed: build/tests/DJpeg.mips  build/org/ibex/nestedvm/Interpreter.class tmp/thebride_1280.jpg
+	time $(JAVA) -cp build org.ibex.nestedvm.Interpreter build/tests/DJpeg.mips -targa  -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg
 	@echo "e90f6b915aee2fc0d2eb9fc60ace6203  tmp/thebride_1280.tga" | md5sum -c && echo "MD5 is OK"
 
 #
