@@ -3,7 +3,6 @@
 // Portions Copyright 2003 Adam Megacz
 
 // FEATURE: Add a patch to gcc that enabled -Wall -Werror by default
-// FIXME: Get a hotel for IVME :)
 
 package org.ibex.nestedvm;
 
