@@ -1,9 +1,7 @@
 package tests;
 
-import org.xwt.mips.Runtime;
-import org.xwt.mips.Interpreter;
+import org.ibex.nestedvm.Runtime;
 import java.io.*;
-import java.util.*;
 
 public class CallTest {
     public static void main(String[] args) throws Exception {
@@ -17,8 +15,9 @@ public class CallTest {
         System.out.println("Version is: " + System.getProperty("os.version"));
         Runtime rt;
         if(a1 == 99) // yeah.. this is ugly
-            rt = new Interpreter("build/tests/Test.mips");
+            rt = new org.ibex.nestedvm.Interpreter("build/tests/Test.mips");
         else
+        	//FIXME: Callback not subclass
             rt = new Test() {
                 protected int callJava(int a, int b, int c, int d) {
                     switch(a) {

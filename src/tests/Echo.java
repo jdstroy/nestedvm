@@ -2,7 +2,7 @@ package tests;
 
 import java.net.*;
 
-import org.xwt.mips.Runtime;
+import org.ibex.nestedvm.Runtime;
 
 public class Echo {
     private static final int PORT = 2000;
@@ -18,14 +18,15 @@ public class Echo {
         public void go() { new Thread(this).start(); }
         public void run() {
             try {
-                Runtime task = new EchoHelper();
-                int status = task.run(
-                    new String[]{"EchoHelper"},
-                    null,
-                    new Runtime.InputStreamFD(sock.getInputStream()),
-                    new Runtime.OutputStreamFD(sock.getOutputStream()),
-                    null
-                );
+                Runtime task = (Runtime) Class.forName("tests.EchoHelper").newInstance();
+                task.closeFD(0);
+                task.closeFD(1);
+                task.closeFD(2);
+                task.addFD(new Runtime.InputStreamFD(sock.getInputStream()));
+                task.addFD(new Runtime.OutputStreamFD(sock.getOutputStream()));
+                task.dupFD(1);
+                
+                int status = task.run(new String[]{"EchoHelper"} );
                 System.err.println("Exit status: " + status);
             } catch(Exception e) {
                 System.err.println(e);

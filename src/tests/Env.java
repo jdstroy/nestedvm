@@ -1,7 +1,6 @@
 package tests;
 
-import org.xwt.mips.Runtime;
-import org.xwt.mips.Interpreter;
+import org.ibex.nestedvm.Runtime;
 
 class Env {
     public static void main(String[] args) throws Exception {
@@ -21,7 +20,7 @@ class Env {
         
         Runtime rt;
         if(className.endsWith(".mips")) {
-            rt = new Interpreter(className);
+            rt = new org.ibex.nestedvm.Interpreter(className);
         } else {
             Class c = Class.forName(className);
             if(!Runtime.class.isAssignableFrom(c)) { System.err.println(className + " isn't a MIPS compiled class"); System.exit(1); }

@@ -1,7 +1,7 @@
 package tests;
 
-import org.xwt.mips.Runtime;
-import org.xwt.mips.Interpreter;
+import org.ibex.nestedvm.Runtime;
+import org.ibex.nestedvm.Interpreter;
 
 import javax.swing.*;
 import java.awt.*;
@@ -40,7 +40,7 @@ public class FreeTypeDemo {
             name = "Interpreter";
             rt = new Interpreter("build/FreeTypeDemoHelper.mips");
         } else {
-            rt = new FreeTypeDemoHelper();
+            rt = (Runtime) Class.forName("tests.FreeTypeDemoHelper").newInstance();
             name = "Compiler";
         }
         

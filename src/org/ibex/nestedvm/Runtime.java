@@ -626,6 +626,17 @@ public abstract class Runtime implements UsermodeConstants,Registers {
         fds[fdn] = null;        
         return true;
     }
+    
+    /** Duplicates the file descriptor <i>fdn</i> and returns the new fs */
+    public int dupFD(int fdn) {
+    		int i;
+    		if(fdn < 0 || fdn >= OPEN_MAX) return -1;
+    		if(fds[fdn] == null) return -1;
+    		for(i=0;i<OPEN_MAX;i++) if(fds[i] == null) break;
+        if(i==OPEN_MAX) return -1;
+        fds[i] = fds[fdn].dup();
+        return i;
+    }
 
     // FEATURE: These should be pulled in from UsermodeConstants but fcntl.h is hard to parse
     public static final int RD_ONLY = 0;

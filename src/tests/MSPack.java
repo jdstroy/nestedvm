@@ -1,6 +1,6 @@
 package tests;
 
-import org.xwt.mips.Runtime;
+import org.ibex.nestedvm.Runtime;
 import java.io.*;
 
 public class MSPack {
@@ -14,8 +14,12 @@ public class MSPack {
         byte[] cab = InputStreamToByteArray.convert(cabIS);        
         try {
             //Interpreter vm = new Interpreter("mspack.mips");
-            MSPackHelper vm = new MSPackHelper();
-        
+        		Runtime vm;
+        		try {
+        			 vm = (Runtime) Class.forName("tests.MSPackHelper").newInstance();
+        		} catch(Exception e) {
+        			throw new MSPackException("couldn't instansiate MSPackHelper");
+        		}
             int cabAddr = vm.sbrk(cab.length);
             if(cabAddr < 0) throw new MSPackException("sbrk failed");
         
