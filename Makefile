@@ -171,15 +171,16 @@ env.sh: Makefile $(tasks)/full_toolchain build/org/ibex/nestedvm/Compiler.class
 # Runtime.jar
 #
 
-runtime_util_classes = SeekableData SeekableByteArray SeekableFile SeekableInputStream
-runtime_classes = Runtime Registers UsermodeConstants  $(runtime_util_classes:%=util/%)
-unixruntime_classes = $(runtime_classes) UnixRuntime
+runtime_classes = Runtime Registers UsermodeConstants util/Seekable
 
 runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 	cd build && jar cf ../$@ $(runtime_classes:%=org/ibex/nestedvm/%*.class)
 
-unixruntime.jar: $(unixruntime_classes:%=build/org/ibex/nestedvm/%.class)
-	cd build && jar cf ../$@ $(unixruntime_classes:%=org/ibex/nestedvm/%*.class)
+.manifest:
+	echo -ne "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
+
+nestedvm.jar: $(java_classes) .manifest
+	cd build && jar cfm ../$@ ../.manifest $(java_classes:build/%.class=%*.class)
 
 # This is only for Brian to use... don't mess with it
 rebuild-constants: $(tasks)/build_newlib
