@@ -82,9 +82,6 @@ clean_%:
 gpc := $(usr)/bin/mips-unknown-elf-gpc
 gpc_flags := --big-endian -w -lgpc -lc $(usr)/mips-unknown-elf/lib/support*.o
 gpc_flags += -Wl,-T,$(usr)/mips-unknown-elf/lib/linker.ld
-g77 := $(usr)/bin/mips-unknown-elf-g77
-g77_flags := --big-endian -w -lg2c -lc $(usr)/mips-unknown-elf/lib/support*.o
-g77_flags += -Wl,-T,$(usr)/mips-unknown-elf/lib/linker.ld
 
 # FIXME ugly path hacks evil bad
 nestedvm := java -cp $(usr)/../build/bcel/bcel-5.1.jar:$(usr)/../../build org.ibex.nestedvm.Compiler -outformat class
@@ -113,6 +110,7 @@ tasks/build_tex: build/tex/tex.mips
 tasks/extract_texinputs: tasks/build_tex tasks/download_texinputs
 	cd build/tex; tar xvzf ../../download/texinputs-1.0.tgz
 	touch $@
+
 tasks/extract_linpack: tasks/download_linpack ; touch $@
 tasks/download_linpack:
 	mkdir -p build/linpack
