@@ -55,7 +55,8 @@ tasks/download_tex: ; touch $@
 tasks/extract_tex:
 	mkdir -p build/tex
 	cd build/tex; wget -N http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web
-	cd build/tex; wget -N http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.ch
+#	cd build/tex; wget -N http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.ch
+	cd build/tex; wget -N http://www.tug.org/tex-archive/systems/knuth/local/tex/initex.ch && mv initex.ch tex.ch
 	cd build/tex; wget -N http://www.gnu-pascal.de/crystal/gpc/en/attachments/5593/tangle.p.gz && gunzip tangle.p.gz
 	touch $@
 

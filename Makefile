@@ -173,13 +173,14 @@ env.sh: Makefile $(tasks)/full_toolchain build/org/ibex/nestedvm/Compiler.class
 
 runtime_classes = Runtime Registers UsermodeConstants util/Seekable
 
-tex.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class) upstream/build/build_tex
-	echo -e "Manifest-Version: 1.0\nMain-Class: org.ibex.core.Main\n" > .manifest
+tex.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class) upstream/tasks/build_tex
+	echo -e "Manifest-Version: 1.0\nMain-Class: TeX\n" > .manifest
 	cp upstream/build/tex/TeX.class build
 	cd build && jar cfm ../$@ ../.manifest \
+		TeX.class \
 		$(runtime_classes:%=org/ibex/nestedvm/%.class) \
-		org/ibex/nestedvm/Runtime\$$*.class \
-		org/ibex/nestedvm/util/Seekable\$$*.class
+		org/ibex/nestedvm/*.class \
+		org/ibex/nestedvm/util/*.class
 
 runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 	cd build && jar cf ../$@ \
