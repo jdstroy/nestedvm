@@ -669,9 +669,9 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         ELF elf = new ELF(data);
         symtab = elf.getSymtab();
         
-        if(elf.header.type != ELF.ELFHeader.ET_EXEC) throw new IOException("Binary is not an executable");
-        if(elf.header.machine != ELF.ELFHeader.EM_MIPS) throw new IOException("Binary is not for the MIPS I Architecture");
-        if(elf.ident.data != ELF.ELFIdent.ELFDATA2MSB) throw new IOException("Binary is not big endian");
+        if(elf.header.type != ELF.ET_EXEC) throw new IOException("Binary is not an executable");
+        if(elf.header.machine != ELF.EM_MIPS) throw new IOException("Binary is not for the MIPS I Architecture");
+        if(elf.ident.data != ELF.ELFDATA2MSB) throw new IOException("Binary is not big endian");
         
         entryPoint = elf.header.entry;
         
@@ -691,7 +691,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         int pageWords = (1<<pageShift) >> 2;
         for(int i=0;i<pheaders.length;i++) {
             ELF.PHeader ph = pheaders[i];
-            if(ph.type != ELF.PHeader.PT_LOAD) continue;
+            if(ph.type != ELF.PT_LOAD) continue;
             int memsize = ph.memsz;
             int filesize = ph.filesz;
             if(memsize == 0) continue;

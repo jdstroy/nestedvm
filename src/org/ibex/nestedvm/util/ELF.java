@@ -7,6 +7,34 @@ package org.ibex.nestedvm.util;
 import java.io.*;
 
 public class ELF {
+    private static final int ELF_MAGIC = 0x7f454c46; // '\177', 'E', 'L', 'F'
+
+    public static final int ELFCLASSNONE = 0;
+    public static final int ELFCLASS32 = 1;
+    public static final int ELFCLASS64 = 2;
+
+    public static final int ELFDATANONE = 0;
+    public static final int ELFDATA2LSB = 1;
+    public static final int ELFDATA2MSB = 2;     
+    
+    public static final int SHT_SYMTAB = 2;
+    public static final int SHT_STRTAB = 3;
+    public static final int SHT_NOBITS = 8;
+    
+    public static final int SHF_WRITE = 1;
+    public static final int SHF_ALLOC = 2;
+    public static final int SHF_EXECINSTR = 4;
+    
+    public static final int PF_X = 0x1;
+    public static final int PF_W = 0x2;
+    public static final int PF_R = 0x4;
+    
+    public static final int PT_LOAD = 1;
+
+    public static final short ET_EXEC = 2;
+    public static final short EM_MIPS = 8;
+
+    
     private Seekable data;
     
     public ELFIdent ident;
@@ -37,7 +65,7 @@ public class ELF {
     }
     private int readInt() throws IOException {
         int x = readIntBE();
-        if(ident!=null && ident.data == ELFIdent.ELFDATA2LSB) 
+        if(ident!=null && ident.data == ELFDATA2LSB) 
             x = ((x<<24)&0xff000000) | ((x<<8)&0xff0000) | ((x>>>8)&0xff00) | ((x>>24)&0xff);
         return x;
     }
@@ -49,7 +77,7 @@ public class ELF {
     }
     private short readShort() throws IOException {
         short x = readShortBE();
-        if(ident!=null && ident.data == ELFIdent.ELFDATA2LSB) 
+        if(ident!=null && ident.data == ELFDATA2LSB) 
             x = (short)((((x<<8)&0xff00) | ((x>>8)&0xff))&0xffff);
         return x;
     }
@@ -61,17 +89,7 @@ public class ELF {
     }
         
     public class ELFIdent {
-        private static final int ELF_MAGIC = 0x7f454c46; // '\177', 'E', 'L', 'F'
-
-        public static final int ELFCLASSNONE = 0;
-        public static final int ELFCLASS32 = 1;
-        public static final int ELFCLASS64 = 2;
-        public byte klass;
-
-
-        public static final int ELFDATANONE = 0;
-        public static final int ELFDATA2LSB = 1;
-        public static final int ELFDATA2MSB = 2;        
+        public byte klass;   
         public byte data;
         public byte osabi;
         public byte abiversion;
@@ -93,12 +111,8 @@ public class ELF {
     }
     
     public class ELFHeader {
-        public static final short ET_EXEC = 2;
-        public short type;
-        
-        public static final short EM_MIPS = 8;
+        public short type;        
         public short machine;
-        
         public int version;
         public int entry;
         public int phoff;
@@ -139,12 +153,6 @@ public class ELF {
         public int flags;
         public int align;
         
-        public static final int PF_X = 0x1;
-        public static final int PF_W = 0x2;
-        public static final int PF_R = 0x4;
-        
-        public static final int PT_LOAD = 1;
-        
         PHeader() throws IOException {
             type = readInt();
             offset = readInt();
@@ -177,10 +185,6 @@ public class ELF {
         public int info;
         public int addralign;
         public int entsize;
-        
-        public static final int SHT_SYMTAB = 2;
-        public static final int SHT_STRTAB = 3;
-        public static final int SHT_NOBITS = 8;
         
         SHeader() throws IOException {
             nameidx = readInt();
@@ -278,10 +282,10 @@ public class ELF {
         if(sectionReaderActive) throw new ELFException("Can't read the symtab while a section reader is active");
         
         SHeader sh = sectionWithName(".symtab");
-        if(sh == null || sh.type != SHeader.SHT_SYMTAB) return null;
+        if(sh == null || sh.type != SHT_SYMTAB) return null;
         
         SHeader sth = sectionWithName(".strtab");
-        if(sth == null || sth.type != SHeader.SHT_STRTAB) return null;
+        if(sth == null || sth.type != SHT_STRTAB) return null;
         
         byte[] strtab = new byte[sth.size];
         DataInputStream dis = new DataInputStream(sth.getInputStream());

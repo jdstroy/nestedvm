@@ -731,7 +731,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         if((flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)) != 0) {
             if(STDERR_DIAG)
                 System.err.println("WARNING: Unsupported flags passed to open(\"" + f + "\"): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
-           
             throw new ErrnoException(ENOTSUP);
         }
         boolean write = (flags&3) != RD_ONLY;
@@ -1023,7 +1022,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 return -ENOSYS;
         }
     }
-            
+          
     /** The syscall dispatcher.
         The should be called by subclasses when the syscall instruction is invoked.
         <i>syscall</i> should be the contents of V0 and <i>a</i>, <i>b</i>, <i>c</i>, and <i>d</i> should be 

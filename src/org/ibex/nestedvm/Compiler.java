@@ -194,9 +194,9 @@ public abstract class Compiler implements Registers {
         this.fullClassName = fullClassName;
         elf = new ELF(binary);
         
-        if(elf.header.type != ELF.ELFHeader.ET_EXEC) throw new IOException("Binary is not an executable");
-        if(elf.header.machine != ELF.ELFHeader.EM_MIPS) throw new IOException("Binary is not for the MIPS I Architecture");
-        if(elf.ident.data != ELF.ELFIdent.ELFDATA2MSB) throw new IOException("Binary is not big endian");
+        if(elf.header.type != ELF.ET_EXEC) throw new IOException("Binary is not an executable");
+        if(elf.header.machine != ELF.EM_MIPS) throw new IOException("Binary is not for the MIPS I Architecture");
+        if(elf.ident.data != ELF.ELFDATA2MSB) throw new IOException("Binary is not big endian");
     }
 
     abstract void _go() throws Exn, IOException;
@@ -251,7 +251,7 @@ public abstract class Compiler implements Registers {
         
         for(int i=0;i<elf.sheaders.length;i++) {
             String name = elf.sheaders[i].name;
-            if(elf.sheaders[i].addr != 0 && !(
+            if((elf.sheaders[i].flags & ELF.SHF_ALLOC) !=0 && !(
                 name.equals(".text")|| name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") ||
                 name.equals(".ctors") || name.equals(".dtors") || name.equals(".bss") || name.equals(".sbss")))
                     throw new Exn("Unknown section: " + name);
