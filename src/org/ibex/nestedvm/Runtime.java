@@ -1236,7 +1236,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public TerminalFD(OutputStream os) { this(null,os); }
         public TerminalFD(InputStream is, OutputStream os) { super(is,os); }
         public void _close() { /* noop */ }
-        public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
+        public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } public int mode() { return 0600; } }; }
     }
     
     // FEATURE: TextInputStream: This is pretty inefficient but it is only used for reading from the console on win32

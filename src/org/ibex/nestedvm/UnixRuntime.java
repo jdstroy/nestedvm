@@ -1059,7 +1059,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 for(int i=0;i<list.length;i++) {
                     MP mp = list[i];
                     int mpl = mp.path.length();
-                    if(normalizedPath.startsWith(mp.path) && (pl == mpl || (pl < mpl && normalizedPath.charAt(mpl) == '/')))
+                    if(normalizedPath.startsWith(mp.path) && (pl == mpl || normalizedPath.charAt(mpl) == '/'))
                         return dispatch(mp.fs,op,r,pl == mpl ? "" : normalizedPath.substring(mpl+1),arg1,arg2);
                 }
             }
@@ -1517,7 +1517,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(path.startsWith("fd/")) {
                 int n;
                 try {
-                    n = Integer.parseInt(path.substring(4));
+                    n = Integer.parseInt(path.substring(3));
                 } catch(NumberFormatException e) {
                     return null;
                 }
