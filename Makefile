@@ -22,6 +22,7 @@ flags = -march=mips1
 MIPS_CC = mips-unknown-elf-gcc
 MIPS_CXX = mips-unknown-elf-g++
 MIPS_G77 = mips-unknown-elf-g77
+MIPS_PC = mips-unknown-elf-gpc
 
 # Be VERY careful about changing any of these as they can break binary 
 # compatibility and create hard to find bugs
@@ -35,6 +36,8 @@ mips_optflags = -O3 -g \
 	-freduce-all-givs
 
 MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
+MIPS_CXXFLAGS = $(MIPS_CFLAGS)
+MIPS_PCFLAGS = $(MIPS_CFLAGS) --big-endian
 MIPS_LD = mips-unknown-elf-gcc
 MIPS_LDFLAGS= $(flags) --static -Wl,--gc-sections
 MIPS_STRIP = mips-unknown-elf-strip
@@ -132,7 +135,11 @@ build/%.mips: build/%.o $(tasks)/build_gcc $(tasks)/build_libc
 
 build/%.mips: src/%.cc $(tasks)/build_gcc_step2 $(tasks)/build_libc
 	@mkdir -p `dirname $@`
-	$(MIPS_CXX) $(MIPS_CFLAGS) $($(notdir $*)_CFLAGS) $(MIPS_LDFLAGS) $($(notdir $*)_LDFLAGS) -o $@ $<
+	$(MIPS_CXX) $(MIPS_CXXFLAGS) $($(notdir $*)_CXXFLAGS) $(MIPS_LDFLAGS) $($(notdir $*)_LDFLAGS) -o $@ $<
+
+build/%.mips: src/%.pas $(tasks)/build_gpc
+	@mkdir -p `dirname $@`
+	$(MIPS_PC) $(MIPS_PCFLAGS) $($(notdir $*)_PCFLAGS) $(MIPS_LDFLAGS) $($(notdir $*)_LDFLAGS) -o $@ $<
 
 build/%.mips.stripped: build/%.mips $(tasks)/build_linker
 	cp $< $@
@@ -265,6 +272,9 @@ build/tests/FDTest.class: build/tests/Test.class
 fdtest: build/tests/FDTest.class
 	$(JAVA) -cp build tests.FDTest
 
+# Pascal Test
+pascaltest: build/tests/PascalHello.class
+	$(JAVA) -cp build tests.PascalHello
 
 # Simple
 Simple_LDFLAGS = -nostdlib

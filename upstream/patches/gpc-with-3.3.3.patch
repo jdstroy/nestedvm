@@ -1,0 +1,25 @@
+--- gcc/p/diffs/gcc-3.3.diff~	2004-05-21 02:17:02.000000000 -0400
++++ gcc/p/diffs/gcc-3.3.diff	2004-05-21 02:17:02.000000000 -0400
+@@ -727,22 +727,3 @@
+         abort ();
+       }
+   
+-*** gcc/varasm.c	Sat Aug 16 19:06:03 2003
+---- gcc/varasm.c	Sat Aug 16 19:04:13 2003
+-***************
+-*** 2411,2417 ****
+-  	  if (get_set_constructor_bytes (t2, tmp2, len) != NULL_TREE)
+-  	    return 0;
+-  
+-! 	  return memcmp (tmp1, tmp2, len) != 0;
+-  	}
+-        else
+-  	{
+---- 2411,2417 ----
+-  	  if (get_set_constructor_bytes (t2, tmp2, len) != NULL_TREE)
+-  	    return 0;
+-  
+-! 	  return memcmp (tmp1, tmp2, len) == 0;
+-  	}
+-        else
+-  	{

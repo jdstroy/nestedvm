@@ -9,6 +9,11 @@ patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
 configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++"
 
+version_gpc = 20030830
+url_gpc = http://www.gnu-pascal.de/alpha/gpc-$(version_gpc).tar.gz
+patches_gpc = $(patches_gcc) gpc-with-3.3.3.patch gpc-noutils.patch
+configure_gpc = $(configure_gcc) --enable-languages="pascal"
+
 version_binutils = 2.14
 url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
 patches_binutils = binutils-no64.patch binutils-nocompilein.patch
@@ -189,6 +194,30 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 		echo | ../gcc-$(version_gcc)/configure --prefix=$(usr) $(configure_gcc_step2) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" GCC_FOR_TARGET=$(usr)/bin/mips-unknown-elf-gcc && \
 		$(MAKE) install
+	touch $@
+
+tasks/extract_gpc: tasks/download_gcc tasks/download_gpc
+	mkdir -p build/gpc.extract
+	cd build/gpc.extract && \
+		gzip -dc ../../download/gcc-core-$(version_gcc).tar.gz | tar xf - && \
+		gzip -dc ../../download/gpc-$(version_gpc).tar.gz      | tar xf - && \
+		test ! -e gcc-$(version_gcc)/gcc/p && \
+		mv gpc-$(version_gpc)/p gcc-$(version_gcc)/gcc/p
+	mv build/gpc.extract/gcc-$(version_gcc) build/gpc-$(version_gpc)
+	rm -rf build/gpc.extract
+	touch $@
+
+tasks/build_gpc: tasks/patch_gpc tasks/build_libc
+	mkdir -p $(usr)
+	# We need to preapply this patch because gpc's configury doesn't like 3.3.3
+	cd build/gpc-$(version_gpc) && cat gcc/version.c | grep -q GPC || $(PATCH) -p0 < gcc/p/diffs/gcc-3.3.diff
+	
+	# echo | is to dismiss the gcc version warning
+	mkdir -p build/gpc-obj && cd build/gpc-obj && \
+		echo | ../gpc-$(version_gpc)/configure --prefix=$(usr) $(configure_gpc) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		cd gcc && $(MAKE) pascal.install
+	
 	touch $@
 
 tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib

@@ -1,0 +1,22 @@
+--- gcc/p/Make-lang.in.orig	2004-05-21 03:22:35.000000000 -0400
++++ gcc/p/Make-lang.in	2004-05-21 03:24:03.000000000 -0400
+@@ -374,8 +374,8 @@
+ MAKEINFO_ES=LANG=es_ES LC_ALL=es_ES $(MAKEINFO) $(MAKEINFOFLAGS) $(GPC_DOC_DIRS_ES)
+ 
+ # Define the names for selecting Pascal in LANGUAGES.
+-Pascal pascal: xgpc$(exeext) gpc1$(exeext) gpcpp$(exeext) gpc-run pascal.utils \
+-               pascal.rts specs pascal.generated-files pascal.docdemos
++Pascal pascal: xgpc$(exeext) gpc1$(exeext) gpcpp$(exeext) gpc-run \
++               pascal.rts specs pascal.generated-files
+ 
+ # Tell GNU make to ignore these if they exist.
+ .PHONY: Pascal pascal
+@@ -1026,7 +1026,7 @@
+ 	fi; exit 0
+ 
+ pascal.install-normal: pascal.install-common pascal.install-compiler \
+- install-gpcpp pascal.install-utils pascal.install-lib pascal.install-man \
++ install-gpcpp pascal.install-lib pascal.install-man \
+  pascal.install-info pascal.install-units pascal.install-doc
+ 
+ # This target will install GPC into an existing GCC installation,
