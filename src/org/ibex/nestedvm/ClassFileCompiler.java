@@ -53,7 +53,15 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     public void setWarnWriter(PrintStream warn) { this.warn = warn; }
         
     protected void _go() throws Exn, IOException {
-        if(lessConstants) throw new Exn("ClassFileCompiler doesn't support -o lessconstants");
+        try {
+            __go();
+        } catch(ClassGen.Exn e) {
+            e.printStackTrace();
+            throw new Exn("Class generation exception: " + e.toString());
+        }
+    }
+    
+    private void __go() throws Exn, IOException {
         if(!pruneCases) throw new Exn("-o prunecases MUST be enabled for ClassFileCompiler");
 
         // Class

@@ -21,15 +21,33 @@ public class RuntimeCompiler {
         }
         String className = "nestedvm.runtimecompiled_" + id;
         System.err.println("RuntimeCompiler: Building " + className);
-        String options = "nosupportcall";
-        if(extraoptions != null) options += "," + extraoptions;
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ClassFileCompiler c = new ClassFileCompiler(data,className,baos);
-        c.parseOptions(options);
-        c.go();
-        baos.close();
-        byte[] bytecode = baos.toByteArray();
+        byte[] bytecode;
+        try {
+            bytecode = runCompiler(data,className,extraoptions,null);
+        } catch(Compiler.Exn e) {
+            if(e.getMessage() != null || e.getMessage().indexOf("constant pool full")  != -1)
+                bytecode = runCompiler(data,className,extraoptions,"lessconstants");
+            else
+                throw e;
+        }
         return singleClassLoader.fromBytes(className,bytecode);
+    }
+    
+    private static byte[] runCompiler(Seekable data, String name, String options, String moreOptions) throws IOException, Compiler.Exn {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        
+        try {
+            ClassFileCompiler c = new ClassFileCompiler(data,name,baos);
+            c.parseOptions("nosupportcall,maxinsnpermethod=256");
+            if(options != null) c.parseOptions(options);
+            if(moreOptions != null) c.parseOptions(moreOptions);
+            c.go();
+        } finally {
+            data.seek(0);
+        }
+        
+        baos.close();
+        return baos.toByteArray();        
     }
     
     private static class SingleClassLoader extends ClassLoader {
