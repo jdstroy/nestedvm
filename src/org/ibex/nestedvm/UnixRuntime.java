@@ -131,7 +131,7 @@ public abstract class UnixRuntime extends Runtime {
             case SYS_mkdir: return sys_mkdir(a,b);
             case SYS_getcwd: return sys_getcwd(a,b);
             case SYS_chdir: return sys_chdir(a);
-            case SYS_execve: return sys_execve(a,b.c);
+            case SYS_execve: return sys_execve(a,b,c);
 
             default: return super.syscall(syscall,a,b,c,d);
         }
