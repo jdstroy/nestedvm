@@ -1004,19 +1004,6 @@ Users preferring a simpler communication mechanism can also use Java Stream’s an
 
 \section{Appendix A: Testing Environment}
 
-All times are measured in seconds. These were all run on a dual 1ghz
-G4 running OS X 10.3.1 with Apple's latest VM (JDK 1.4.1\_01-27). Each
-*************
-/* C */
-void do_work(int n) {
-    int i;
-    int ret=0;
-    for(i=0;i<n;i++) ret += i;
-    return n;
-}
-
-\end{verbatim}}
-
 The MIPS binaries can also invoke a special method of Runtime called
 callJava().When the MIPS binary invokes the {\tt CALL\_JAVA} syscall
 (usually done through the {\tt \_call\_java()} function provided by
@@ -1089,12 +1076,8 @@ allow running large applications such as GCC under NestedVM.
 
 \section{Appendix A: Testing Environment}
 
-All times are measured in seconds. These were all run on a dual 1ghz
-G4 running OS X 10.3.1 with Apple's latest VM (JDK 1.4.1\_01-27). Each
-*************
 All times are measured in seconds. These were all run on a dual 1Ghz
 Macintosh G4 running Apple's latest JVM (Sun HotSpot JDK 1.4.1). Each
-^ ^ ^ ^ ^ ^ ^
 test was run 8 times within a single VM. The highest and lowest times
 were removed and the remaining 6 were averaged. In each case only the
 first run differed significantly from the rest.
