@@ -1262,13 +1262,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     
                     b1 = a(InstructionFactory.createBranchInstruction(IFGT,null));
                     a(d ? InstructionConstants.DCONST_0 : InstructionConstants.FCONST_0);
-                    if(d) {
-                        a(InstructionConstants.DUP2_X2);
-                        a(InstructionConstants.POP2);
-                    } else {
-                        a(InstructionConstants.POP);
-                    }
-                    a(InstructionConstants.DSUB);
+                    a(d ? InstructionConstants.DSUB : InstructionConstants.FSUB);
                     
                     b1.setTarget(setDouble(d));
                     
