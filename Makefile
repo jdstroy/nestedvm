@@ -103,11 +103,11 @@ build/mips2java$(EXE_EXT): $(java_sources) $(java_gen_sources)
 #
 # MIPS Binary compilation
 #
-build/%.o: src/%.c $(tasks)/full_toolchain
+build/%.o: src/%.c $(tasks)/build_gcc
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) $(MIPS_CFLAGS) $($(notdir $*)_CFLAGS) -c -o $@ $<
 
-build/%.o: src/%.s $(tasks)/full_toolchain
+build/%.o: src/%.s $(tasks)/build_gcc
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) -x assembler-with-cpp -c -o $@ $<
 
