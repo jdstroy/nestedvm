@@ -439,6 +439,23 @@ compiletests: $(patsubst %,build/tests/%.class,FTBench MSPackBench DJpeg Test Fr
 	@true
 
 
+#
+# Darcs stuff
+#
+
+commit:
+	@if [ -d _darcs ]; then darcs push; \
+	else echo "You need darcs to commit"; false; \
+	fi
+
+update:
+	@if [ -d _darcs ]; then darcs pull; \
+	else wget -nH -rl 16 -N -X _darcs http://nestedvm.darcs.brianweb.net; \
+	fi
+
+#
+# Paper stuff
+#
 charts := $(shell find doc/charts -name \*.dat)
 
 # IVME Paper

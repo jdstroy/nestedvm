@@ -31,8 +31,8 @@ url_regex = ftp://ftp.zoo.toronto.edu/pub/regex.shar
 
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
 
-darcs_gcclass = http://darcs.brianweb.net/gcclass
-darcs_classgen = http://darcs.brianweb.net/classgen
+darcs_gcclass = http://gcclass.darcs.brianweb.net/
+darcs_classgen = http://classgen.darcs.brianweb.net/
 
 .SECONDARY: # This is broken in gmake < 3.79.1
 
@@ -70,15 +70,24 @@ tasks/extract_%: tasks/download_%
 tasks/extract_darcs_%:
 	mkdir -p build
 	if [ -z "$(darcs_$*)" ]; then echo "No darcs url for $*" >&2; false; fi
-	cd build && darcs get --verbose "$(darcs_$*)"
+	if [ -d "$(root)/_darcs" ]; then \
+		cd build && darcs get --repo-name="$*" --verbose "$(darcs_$*)"; \
+	else \
+		mkdir -p "build/$*" && cd "build/$*"; \
+		wget -nH -rl 16 -N -X _darcs $(darcs_$*); \
+	fi
 	touch $@
 
 update_darcs_%: tasks/extract_darcs_%
-	cd "build/$*" && darcs pull
+	if [ -d "build/$*/darcs" ]; then \
+		cd "build/$*" && darcs pull; \
+	else
+		cd "build/$*" && wget -nH -rl 16 -N -X _darcs $(darcs_$*); \
+	fi
 	rm "tasks/build_darcs_$*" # to force a rebuild
 
 tasks/build_darcs_%: tasks/extract_darcs_%
-	cd "build/$*" && make
+	cd "build/$*" && $(MAKE)
 	touch $@
 
 tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
