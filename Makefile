@@ -182,6 +182,16 @@ runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 nestedvm.jar: $(java_classes) .manifest
 	cd build && jar cfm ../$@ ../.manifest $(java_classes:build/%.class=%*.class)
 
+compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_gcclass
+	mkdir -p tmp/pruned
+	java -cp upstream/build/gcclass/build:$(bcel_jar) com.brian_web.gcclass.GCClass \
+		build tmp/pruned \
+		org.ibex.nestedvm.RuntimeCompiler.main 'org.ibex.nestedvm.Runtime.decodeData' \
+		'org.ibex.nestedvm.UnixRuntime.<init>' 'org.ibex.nestedvm.Runtime.initPages' \
+		'org.ibex.nestedvm.Runtime.clearPages' 'org.ibex.nestedvm.Runtime.syscall' \
+		'org.ibex.nestedvm.Runtime$$CPUState.dup'
+	cd tmp/pruned && jar cfm ../../$@ ../../.manifest .
+
 # This is only for Brian to use... don't mess with it
 rebuild-constants: $(tasks)/build_newlib
 	@mkdir -p `dirname $@`

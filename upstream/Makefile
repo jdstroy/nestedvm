@@ -237,3 +237,8 @@ tasks/build_busybox: tasks/patch_busybox tasks/full_toolchain
 		ln -s busybox-$(version_busybox) busybox
 	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
 	touch $@
+
+tasks/build_gcclass:
+	cd build &&  darcs get --verbose http://darcs.brianweb.net/gcclass
+	cd build/gcclass && make
+	touch $@
