@@ -85,7 +85,7 @@ update_darcs_%: tasks/extract_darcs_%
 	else \
 		cd "build/$*" && wget -np -nH --cut-dirs=1 -rl 16 -N -X _darcs $(darcs_$*); \
 	fi
-	rm "tasks/build_darcs_$*" # to force a rebuild
+	rm -f "tasks/build_darcs_$*" # to force a rebuild
 
 tasks/build_darcs_%: tasks/extract_darcs_%
 	cd "build/$*" && $(MAKE)

@@ -90,7 +90,9 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
 
         // <clinit>
         clinit = cg.addMethod("<clinit>",Type.VOID,Type.NO_ARGS,ACC_PRIVATE|ACC_STATIC);
-        
+
+        // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.UnixRuntime.<init>
+
         // <init>
         init = cg.addMethod("<init>",Type.VOID,Type.NO_ARGS,ACC_PUBLIC);        
         init.add(ALOAD_0);
@@ -235,6 +237,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         tramp.add(LDC,")");
         tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"append",Type.STRINGBUFFER,new Type[]{Type.STRING}));
         tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"toString",Type.STRING,Type.NO_ARGS));
+        // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime$ExecutionException.<init>
         tramp.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
         tramp.add(ATHROW);
                 
@@ -274,6 +277,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             ls.add(IRETURN);
         }
         
+        // Kind of a hack, referencing dup() gets us all the fields for free
+        // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime$CPUState.dup
         Type.Object cpuStateType = new Type.Object("org.ibex.nestedvm.Runtime$CPUState");
         MethodGen setCPUState = cg.addMethod("setCPUState",Type.VOID,new Type[]{cpuStateType},ACC_PROTECTED);
         MethodGen getCPUState = cg.addMethod("getCPUState",Type.VOID,new Type[]{cpuStateType},ACC_PROTECTED);
@@ -350,6 +355,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         execute.add(NEW, new Type.Object("org.ibex.nestedvm.Runtime$FaultException"));
         execute.add(DUP);
         execute.add(ALOAD_1);
+        // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime$FaultException.<init>
         execute.add(INVOKESPECIAL,new MethodRef("org.ibex.nestedvm.Runtime$FaultException","<init>",Type.VOID,new Type[]{new Type.Object("java.lang.RuntimeException")}));
         execute.add(ATHROW);
         
@@ -364,8 +370,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         main.add(ALOAD_0);
         if(unixRuntime) {
             Type.Object ur = new Type.Object("org.ibex.nestedvm.UnixRuntime");
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.runAndExec
             main.add(INVOKESTATIC,new MethodRef(ur,"runAndExec",Type.INT,new Type[]{ur,Type.STRING,Type.arrayType(Type.STRING)}));
         } else {
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.run
             main.add(INVOKEVIRTUAL,new MethodRef(me,"run",Type.INT,new Type[]{Type.STRING,Type.arrayType(Type.STRING)}));
         }
         main.add(INVOKESTATIC,new MethodRef(new Type.Object("java.lang.System"),"exit",Type.VOID,new Type[]{Type.INT}));
@@ -407,13 +415,14 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             
             clinit.add(LDC,sb.toString());
             clinit.add(LDC,segSize/4);
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.decodeData
             clinit.add(INVOKESTATIC,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime"),"decodeData",Type.arrayType(Type.INT),new Type[]{Type.STRING,Type.INT}));
             clinit.add(PUTSTATIC,new FieldRef(me,fieldname,Type.arrayType(Type.INT)));
-
             init.add(ALOAD_0);
             init.add(GETSTATIC,new FieldRef(me,fieldname,Type.arrayType(Type.INT)));
             init.add(LDC,addr);
             init.add(LDC,readOnly ? 1 : 0);
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.initPages
             init.add(INVOKEVIRTUAL,new MethodRef(me,"initPages",Type.VOID,new Type[]{Type.arrayType(Type.INT),Type.INT,Type.BOOLEAN}));
             
             addr += segSize;
@@ -430,6 +439,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         init.add(ALOAD_0);
         init.add(LDC,addr);
         init.add(LDC,count);
+        // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.clearPages
         init.add(INVOKEVIRTUAL,new MethodRef(me,"clearPages",Type.VOID,new Type[]{Type.INT,Type.INT}));
     }
     
@@ -751,6 +761,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 pushRegZ(R+A3);
                 pushRegZ(R+T0);
                 pushRegZ(R+T1);
+                // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.syscall
                 mg.add(INVOKEVIRTUAL,new MethodRef(me,"syscall",Type.INT,new Type[]{Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT}));
                 setReg();
                 
@@ -1962,6 +1973,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             mg.add(DUP);
             mg.add(ALOAD_0);
             mg.add(SWAP);
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.nullPointerCheck
             mg.add(INVOKEVIRTUAL,new MethodRef(me,"nullPointerCheck",Type.VOID,new Type[]{Type.INT}));
         }
         
@@ -1995,6 +2007,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         } else if(fastMem) {
             mg.add(IASTORE);
         } else {
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.unsafeMemWrite
             mg.add(INVOKEVIRTUAL,new MethodRef(me,"unsafeMemWrite",Type.VOID,new Type[]{Type.INT,Type.INT}));
         }
         
@@ -2066,6 +2079,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         } else {
             if(preMemReadDoPreWrite)
                 mg.add(DUP2);
+            // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.unsafeMemRead
             mg.add(INVOKEVIRTUAL,new MethodRef(me,"unsafeMemRead",Type.INT,new Type[]{Type.INT}));
         }
     }

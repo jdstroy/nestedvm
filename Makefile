@@ -221,18 +221,16 @@ nestedvm.jar: $(java_classes) .manifest
 	cd build && jar cfm ../$@ ../.manifest $(java_classes:build/%.class=%*.class)
 	cd $(CLASSGEN_PATH) && jar uf $(mips2java_root)/$@ .
 
-compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcclass
+.gcclass_hints: $(java_sources)
+	sed -n 's/.*GCCLASS_HINT: \([^ ]*\) \([^ ]*\).*/hint:\1:\2/p' $(java_sources) > $@
+
+compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcclass .gcclass_hints
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
 	java -cp \
 		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
 	com.brian_web.gcclass.GCClass \
-		"$(classpath)" tmp/pruned \
-		org.ibex.nestedvm.RuntimeCompiler.main 'org.ibex.nestedvm.Runtime.decodeData' \
-		'org.ibex.nestedvm.UnixRuntime.<init>' 'org.ibex.nestedvm.Runtime.initPages' \
-		'org.ibex.nestedvm.Runtime.clearPages' 'org.ibex.nestedvm.Runtime.syscall' \
-		'org.ibex.nestedvm.Runtime$$CPUState.dup' \
-		org.ibex.nestedvm.util.Platform\$$Jdk{11,12,13,14}.'<init>'
+		"$(classpath)" tmp/pruned org.ibex.nestedvm.RuntimeCompiler.main `cat .gcclass_hints`
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest .
 
 sizecheck: compact_runtime_compiler.jar
@@ -399,15 +397,12 @@ ntlmtest: build/tests/NtlmAuth.class
 	@test -e smb.conf || cp upstream/build/samba/examples/smb.conf.default smb.conf
 	$(JAVA) -cp "$(classpath)" tests.NtlmAuth --username=brian --password=test --diagnostics -d 5
 
-ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_darcs_gcclass
+ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_darcs_gcclass .gcclass_hints
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
 	java -cp \
 		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
-	com.brian_web.gcclass.GCClass \
-		"$(classpath)" tmp/pruned \
-		tests.NtlmAuth.main \
-		$(patsubst %,org.ibex.nestedvm.util.Platform\$$Jdk%.'<init>', 11 12 13 14)
+		com.brian_web.gcclass.GCClass "$(classpath)" tmp/pruned tests.NtlmAuth.main `cat .gcclass_hints`
 	printf "Manifest-Version: 1.0\nMain-Class: tests.NtlmAuth\n" > .manifest.ntlm
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest.ntlm .
 	rm -f  .manifest.ntlm
