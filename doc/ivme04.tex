@@ -40,25 +40,22 @@ Complete Translation of Unsafe Native Code to Safe Bytecode
 Existing techniques for using code written in an unsafe language
 within a safe virtual machine generally involve transformations from
 one source code language (such as C, Pascal, or Fortran) to another
-(such as Java) which is the compiled into virtual machine bytecodes.
+(such as Java) which is then compiled into virtual machine bytecodes.
 
 We present an alternative approach which translate MIPS binaries
 produced by any compiler into safe virtual machine bytecodes.  This
-approach offers four key advantages over existing techniques:
-
-\begin{itemize}
-\item Language-agnostic
-\item Bug-for-bug compiler compatability
-\item No post-translation human intervention
-\item No build process modifications
-\end{itemize}
+approach offers four key advantages over existing techniques: it is
+language agnostic, it offers bug-for-bug compiler compatability,
+requires no post-translation human intervention, and introduces no
+build process modifications.
 
 We also present NestedVM, an implementation of this technique, and
-discuss six examples: LINPACK (Fortran), which was used as one of our
-performance tests, \TeX\ (Pascal), which was used to typeset this
-document, {\tt libjpeg}, {\tt libmspack}, and FreeType (all C source),
-which are currently in production use as part of the Ibex Project, and
-{\tt gcc}, which was used to compile all of the aforementioned.
+discuss its application to six software packages: LINPACK (Fortran),
+which was used as one of our performance tests, \TeX\ (Pascal), which
+was used to typeset this document, {\tt libjpeg}, {\tt libmspack}, and
+FreeType (all C source), which are currently in production use as part
+of the Ibex Project, and {\tt gcc}, which was used to compile all of
+the aforementioned.
 
 Performance measurements indicate a best case performance within 3x of
 native code and worst case typically within 10x, making it an
@@ -70,11 +67,11 @@ attractive solution for code which is not performance-critical.
 
 Unsafe languages such as C \cite{KR} and C++ \cite{soustroup} have
 been in use much longer than any of today's widely accepted safe
-languages such as Java \cite{java} and C\# \cite{csharp}.  Consequently, there is
-a huge library of software written in these languages.  Although safe
-languages offer substantial benefits, their comparatively young age
-often puts them at a disadvantage when breadth of existing support
-code is an important criterion.
+languages such as Java \cite{java} and C\# \cite{csharp}.
+Consequently, there is a huge library of software written in these
+languages.  Although safe languages offer substantial benefits, their
+comparatively young age often puts them at a disadvantage when breadth
+of existing support code is an important criterion.
 
 The typical solution to this dilemma is to use a native interface such
 as JNI \cite{jni} or CNI \cite{cni} to invoke unsafe code from within a
@@ -83,27 +80,40 @@ are a number of situations in which this is not an acceptable
 solution.  These situations can be broadly classified into two
 categories: {\it security concerns} and {\it portability concerns}.
 
-Using Java as an example, JNI and CNI are prohibited in a number of
-contexts, including applets environments and servlet containers with a
+Security is often a major concern when integrating native code.  Using
+Java as an example, JNI and CNI are prohibited in a number of
+contexts, including applet environments and servlet containers with a
 {\tt SecurityManager}.  Additionally, even in the context of trusted
 code, {\tt native} methods invoked via JNI are susceptible to buffer
 overflow and heap corruption attacks which are not a concern for
-verified bytecode.
+verified, bounds-checked bytecode.
 
 The second class of disadvantages revolves around portability
 concerns; native interfaces require the native library to be compiled
-ahead of time, for every architecture on which they will be
-deployed.  This is unworkable for situations in which the full set of
-target architectures is not known at deployment time.  Additionally,
-some JVM platform variants such as J2ME \cite{j2me} simply do not offer
-support for native code.
+ahead of time for every architecture on which it will be deployed.
+This is unacceptable for scenarios in which the full set of target
+architectures is not known at deployment time.  Additionally, some JVM
+platform variants such as J2ME \cite{j2me} simply do not offer support
+for native code.
 
 The technique we present here uses typical compiler to compile unsafe
 code into a MIPS binary, which is then translated on an
 instruction-by-instruction basis into Java bytecode.  The technique
 presented here is general; we anticipate that it can be applied to
-other secure virtual machines such as Microsoft's .NET \cite{msil}, Perl
-Parrot \cite{parrot}, or Python bytecode \cite{python}.
+other secure virtual machines such as Microsoft's .NET \cite{msil},
+Perl Parrot \cite{parrot}, or Python bytecode \cite{python}.
+
+The remainder of this paper is divided as follows: in the next section
+we review the relevant set of program representations (safe source,
+unsafe source, binary, and bytecode) and survey existing work for
+performing transformations between them.  In the third section we
+introduce NestedVM and cover its two primary translation modes in
+detail.  Section four adresses the optimizations we employ and
+quantifies NestedVM's performance.  Section five describes the
+NestedVM runtime, which plays the role of the OS kernel.  We conclude
+with an analysis of NestedVM's weaknesses and potential for future
+improvements.
+
 
 \section{Approaches to Translation}
 
@@ -154,17 +164,10 @@ translations performed by a few familiar tools:
 \endpsmatrix
 \end{pdfpic}
 
-Techniques for translating unsafe code into VM bytecode generally fall
-into four categories, which we expand upon in the next two sections:
-
-\begin{itemize}
-\item source-to-source translation
-\item source-to-binary translation
-\item binary-to-source translation
-\item binary-to-binary translation
-\end{itemize}
-
-\section{Existing Work}
+Existing techniques for translating unsafe code into VM bytecode
+generally fall into two categories, which we expand upon in the
+remainder of this section: source-to-source translation and
+source-to-binary translation.
 
 \subsection{Source-to-Source Translation}
 
@@ -199,8 +202,6 @@ total translation but fail (yield an error) on a large class of input
 programs.
 
 
-\subsubsection{Incomplete Translation}
-
 Jazillian \cite{jazillian} is a commercial solution which produces
 extremely readable Java source code from C source code, but ony
 translates a small portion of the C language.  Jazillian is unique in
@@ -221,9 +222,6 @@ extensible, making it a platform for constructing application-specific
 translators rather than a single translation tool.  However,
 MoHCA-Java does not always generate complete Java code for all of the C++
 programs which it accepts.
-
-
-\subsubsection{Partial Domain Translation}
 
 The c2j \cite{c2j}, c2j++ \cite{c2jpp}, Cappucinno \cite{capp},
 and Ephedra \cite{ephedra} systems each provide support for complete
@@ -304,8 +302,9 @@ pointers.  It is unclear from the documentation how this is handled.
 \section{NestedVM}
 
 The principal difference between NestedVM and other approaches is that
-NestedVM {\it does not} attempt to deal with source code as an input.
-This leads immediately to three advantages:
+NestedVM {\it does not} attempt to deal with source code as an input,
+instead opting for {\it binary-to-source} and {\it binary-to-binary}
+translation.  This offers three immediate advantages:
 
 \begin{itemize}
 \item {\bf Language Agnostic}
@@ -561,7 +560,53 @@ Translating unsafe code for use within a JVM proceeds as follows:
 
 \end{enumerate}
 
-\subsubsection{Optimizations}
+
+\subsection{Binary-to-Binary}
+
+After implementing the binary-to-source compiler, a binary-to-binary
+translation mode was added.
+
+\begin{pdfpic}
+\newlength{\MyLength}
+\settowidth{\MyLength}{xmachine codex}
+\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+\psmatrix[colsep=2,rowsep=0,nrot=:U]
+  & \\[0pt]
+  [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  [name=b0]\MyBox{machine code}  & [name=b1]\MyBox{safe bytecode} \\[0pt]
+  & \\[0pt]
+  \psset{nodesep=5pt,arrows=->}
+  \ncline{s0}{b0}\bput{:U}{\tt gcc}
+  \ncline{b0}{b1}\naput{\tt NestedVM}
+\endpsmatrix
+\end{pdfpic}
+
+This mode has several advantages:
+
+\begin{itemize}
+      
+\item There are quite a few interesting bytecode sequences that cannot
+      be generated as a result of compiling Java source code.
+
+\item Directly generating {\tt .class} files Eliminates the
+      time-consuming {\tt javac} step.
+
+\item Direct compilation to {\tt .class} files opens up the
+      interesting possibility of dynamically translating MIPS binaries
+      and loading them via {\tt ClassLoader.fromBytes()} {\it at
+      deployment time}, eliminating the need to compile binaries ahead
+      of time.
+
+\end{itemize}
+
+\section{Optimization and Quantitative Performance}
+
+\subsection{Binary-to-Source mode}
 
 Generating Java source code instead of bytecode frees NestedVM from
 having to perform simple constant propagation optimizations, as most
@@ -697,49 +742,7 @@ degredation and a similarly small increase in the size of the {\tt
 directly to {\tt .class} files (without the intermediate {\tt .java}
 file) eliminates this problem entirely.
 
-
-\subsection{Binary-to-Binary}
-
-After implementing the binary-to-source compiler, a binary-to-binary
-translation mode was added.
-
-\begin{pdfpic}
-\newlength{\MyLength}
-\settowidth{\MyLength}{xmachine codex}
-\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
-\psmatrix[colsep=2,rowsep=0,nrot=:U]
-  & \\[0pt]
-  [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
-  & \\[0pt]
-  & \\[0pt]
-  & \\[0pt]
-  & \\[0pt]
-  & \\[0pt]
-  [name=b0]\MyBox{machine code}  & [name=b1]\MyBox{safe bytecode} \\[0pt]
-  & \\[0pt]
-  \psset{nodesep=5pt,arrows=->}
-  \ncline{s0}{b0}\bput{:U}{\tt gcc}
-  \ncline{b0}{b1}\naput{\tt NestedVM}
-\endpsmatrix
-\end{pdfpic}
-
-This mode has several advantages:
-
-\begin{itemize}
-      
-\item There are quite a few interesting bytecode sequences that cannot
-      be generated as a result of compiling Java source code.
-
-\item Directly generating {\tt .class} files Eliminates the
-      time-consuming {\tt javac} step.
-
-\item Direct compilation to {\tt .class} files opens up the
-      interesting possibility of dynamically translating MIPS binaries
-      and loading them via {\tt ClassLoader.fromBytes()} {\it at
-      deployment time}, eliminating the need to compile binaries ahead
-      of time.
-
-\end{itemize}
+\subsection{Binary-to-Binary mode}
 
 Most of the performance improvemen where made where in the handling of
 branch instructions and in taking advantage of the JVM stack to
@@ -825,7 +828,7 @@ ALOAD\_0} to prepare for a {\tt INVOKESPECIAL} call.  By simply
 lifting this bytecode outside of the {\tt switch} statement, each {\tt
 case} arm shrinks by one instruction.
 
-\subsubsection{Compiler Flags}
+\subsection{Compiler Flags}
 
 Although NestedVM perfectly emulates a MIPS R2000 CPU, its performance
 profile is nothing like that of actual silicon.  In particular, {\tt
@@ -888,7 +891,6 @@ summarized in the table below.
 
 \epsfig{file=chart3,width=3in}
 
-\section{Experiences}
 
 \subsection{FreeType, {\tt libmspack}, and {\tt libjpeg}}
 
@@ -1061,11 +1063,15 @@ address, which would require a {\tt case} statement for every
 instruction (rather than every jump target), which would degrade
 performance and increase the size of the resulting class file.
 
+
+\section{Conclusion}
+
+\subsection{Theoretical Limitations}
+
 Theoretical limitations: threads, reading from code, self-modifying
 code, COW?
 
-
-\section{Future Directions}
+\subsection{Future Directions}
 
 Although we have only implemented it for the Java Virtual Machine, our
 technique generalizes to other safe bytecode architectures.  In
@@ -1076,17 +1082,7 @@ Additionally, we would like to explore other uses for dynamic loading
 of translated MIPS binaries by combining NestedVM (which itself is
 written in Java) and the {\tt ClassLoader.fromBytes()} mechanism.
 
-
-\section{Conclusion}
-
-We have presented a novel technique for using libraries written in
-unsafe languages within a safe virtual machine without resorting to
-native interfaces.  We have implemented this technique in NestedVM,
-which is currently used by the Ibex project\footnote{{\tt
-http://www.ibex.org}} to perform font rasterization (via {\tt
-libfreetype}), JPEG decoding (via {\tt libjpeg}), and CAB archive
-extraction (via {\tt libmspack}), three libraries for which no
-equivalent Java classes exist.
+\subsection{Availability}
 
 NestedVM is available under an open source license, and can be
 obtained from
@@ -1094,7 +1090,7 @@ obtained from
     http://nestedvm.ibex.org
 \end{verbatim}
 
-
+\appendix
 \section{Appendix: Testing Methodology}
 
 All times are measured in seconds. These were all run on a dual 1Ghz
