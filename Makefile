@@ -178,7 +178,7 @@ runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 		$(runtime_classes:%=org/ibex/nestedvm/%.class) \
 		org/ibex/nestedvm/Runtime\$$*.class \
 		org/ibex/nestedvm/util/Seekable\$$*.class
-		
+
 .manifest:
 	echo -ne "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
 
@@ -214,7 +214,7 @@ rebuild-constants: $(tasks)/build_newlib
 			s/ *# *define \([A-Z_][A-Za-z0-9_]*\) \([0-9][0-9x]*\)/    public static final int \1 = \2;/p'; \
 		echo "}"; \
 	) > src/org/ibex/nestedvm/UsermodeConstants.java
-	
+
 #
 # Tests
 # These are simply here for convenience. They aren't required 
@@ -252,7 +252,7 @@ Paranoia_CFLAGS = "-Wno-error"
 Paranoia_LDFLAGS = -lm
 paranoiatest: build/tests/Paranoia.class
 	$(JAVA) -cp build tests.Paranoia
-	
+
 #
 # Freetype Stuff
 #
@@ -301,7 +301,7 @@ BusyBox_COMPILERFLAGS = -o unixruntime
 build/tests/BusyBox.mips: $(mips_objects) $(tasks)/build_busybox
 	@mkdir -p `dirname $@`
 	cp upstream/build/busybox/busybox $@
-	
+
 busyboxtest: build/tests/BusyBox.class
 	$(JAVA) -cp $(classpath) tests.BusyBox ash
 
@@ -373,9 +373,16 @@ compiletests: $(patsubst %,build/tests/%.class,FTBench MSPackBench DJpeg Test Fr
 	@true
 
 
-# IVME Paper
-doc/nestedvm.ivme04.pdf: doc/nestedvm.ivme04.tex doc/acmconf.cls
-	cd doc; pdflatex nestedvm.ivme04.tex && ./pst2pdf && pdflatex nestedvm.ivme04.tex
+charts := $(shell find doc/charts -name \*.dat)
 
-pdf: doc/nestedvm.ivme04.pdf
-	open doc/nestedvm.ivme04.pdf
+# IVME Paper
+doc/charts/%.pdf: doc/charts/%.dat doc/charts/%.gnuplot
+	cd doc/charts; gnuplot $*.gnuplot
+	cd doc/charts; chmod +x boxfill.pl; ./boxfill.pl -g -o unfilled.eps $*.eps
+	cd doc/charts; ps2pdf $*.eps
+
+doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf)
+	cd doc; pdflatex ivme04.tex && ./pst2pdf && pdflatex ivme04.tex
+
+pdf: doc/ivme04.pdf
+	open doc/ivme04.pdf

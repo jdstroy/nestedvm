@@ -31,28 +31,36 @@ Complete Translation of Unsafe Native Code to Safe Bytecode
 
 \maketitle
 
+{\it This document was typeset using D. E. Knuth's original \TeX 89
+     Pascal source code, which was both compiled and executed entirely
+     within a Java Virtual Machine.  No native code was utilized.}
+
 \begin{abstract}
 
 Most existing techniques for using code written in an unsafe language
 within a safe virtual machine involve transformations from one source
-code language (such as C) to another (such as Java) and then to
-virtual machine bytecodes.  We present an alternative approach which
-uses a standard compiler to turn unsafe source code into unsafe MIPS
-binaries, which are then translated into safe virtual machine
-bytecodes.  This approach offers four key advantages over existing
-techniques:
+code language (such as C, Pascal, or Fortran) to another (such as
+Java) and then to virtual machine bytecodes.  We present an
+alternative approach which can translate MIPS binaries produced by any
+compiler into safe virtual machine bytecodes.  This approach offers
+four key advantages over existing techniques:
 
 \begin{itemize}
-\item Total coverage of all language features
+\item Language-agnostic
+\item Bug-for-bug compiler compatability
 \item No post-translation human intervention
 \item No build process modifications
-\item Bug-for-bug compiler compatability
 \end{itemize}
 
-We have implemented this technique in NestedVM, a binary-to-source and
-binary-to-binary translator targeting the Java Virtual Machine.
-NestedVM-translated versions of the {\tt libfreetype}, {\tt libjpeg},
-and {\tt libmspack} libraries are currently in production use.
+We also present NestedVM, a complete implementation of this technique,
+which we have used to translate a number of programs.  Six examples
+are discussed in this paper: LINPACK (Fortran source), which was used
+as one of our performance tests, \TeX (Pascal source), which was used
+to typeset this document, {\tt libjpeg}, {\tt libmspack}, and FreeType
+(all C source), which are currently in production use as part of the
+Ibex Project, and {\tt gcc}, which was used to compile all of the
+aforementioned.
+
 Performance measurements indicate a best case performance within 3x of
 native code and worst case typically within 10x, making it an
 attractive solution for code which is not performance-critical.
@@ -535,7 +543,7 @@ sequences, a straightforward mapping of the general purpose hardware
 registers to 32 {\tt int} fields turned out to be optimal.
 
 
-\epsfig{file=chart1,width=3in}
+\epsfig{file=charts/chart1,width=3in}
 
 Unfortunately, Java imposes a 64kb limit on the size of the bytecode
 for a single method.  This presents a problem for NestedVM, and
