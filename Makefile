@@ -80,7 +80,7 @@ endif
 $(tasks)/build_libc: $(mips_object) upstream/misc/extraheaders.sh
 
 $(tasks)/%:
-	$(MAKE) -C upstream tasks/$* usr="$(usr)" MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_CFLAGS="$(MIPS_LDFLAGS)" MIPS_PCFLAGS="$(MIPS_PCFLAGS)"
+	$(MAKE) -C upstream tasks/$* usr="$(usr)" MIPS_CFLAGS="$(MIPS_CFLAGS)" MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_PCFLAGS="$(MIPS_PCFLAGS)"
 
 
 upstream_clean_%:
