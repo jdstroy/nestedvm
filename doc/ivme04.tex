@@ -108,14 +108,15 @@ we review the relevant set of program representations (safe source,
 unsafe source, binary, and bytecode) and survey existing work for
 performing transformations between them.  In the third section we
 introduce NestedVM and cover its two primary translation modes in
-detail.  Section four adresses the optimizations we employ and
-quantifies NestedVM's performance.  Section five describes the
-NestedVM runtime, which plays the role of the OS kernel.  We conclude
-with an analysis of NestedVM's weaknesses and potential for future
-improvements.
+detail.  Section four describes the NestedVM runtime, which plays the
+role of the OS kernel.  Section five adresses the optimizations we
+employ and quantifies NestedVM's performance.  Section six reviews our
+experiences in applying NestedVM to various popular software packages.
+We conclude with an analysis of NestedVM's weaknesses and potential
+for future improvements.
 
 
-\section{Approaches to Translation}
+\section{Existing Work}
 
 The four program representations of interest in this context, along
 with their specific types in the C-to-JVM instantiation of the
@@ -201,33 +202,36 @@ translation which is completed by a human, and those which perform a
 total translation but fail (yield an error) on a large class of input
 programs.
 
+\subsubsection{Human-Assisted Translation}
 
 Jazillian \cite{jazillian} is a commercial solution which produces
 extremely readable Java source code from C source code, but ony
 translates a small portion of the C language.  Jazillian is unique in
 that in addition to {\it language migration}, it also performs {\it
-API migration}; for example, Jazillian is intelligent enough
-to translate {\tt char*~s1~=~strcpy(s2)} into {\tt String~s1~=~s2}.
+API migration}; for example, Jazillian is intelligent enough to
+translate ``{\tt char*~s1~=~strcpy(s2)}'' into ``{\tt
+String~s1~=~s2}''.  Unfortunately such deep analysis is intractible
+for most of the C language and standard library; indeed, Jazillian's
+documentation notes that {\it ``This is not your father's language
+translator... Jazillian does not always produce code that works
+correctly.''}
 
-Unfortunately such deep analysis is intractible for most of the C
-language and standard library; Jazillian's documentation notes that
-{\it ``This is not your father's language translator.  It's not
-generating ugly code that's guaranteed to work out of the
-box... Jazillian does not always produce code that works correctly.''}
+MoHCA-Java \cite{mohca} is the other major tool in this category, and
+steps beyond Jazillian by providing tools for analysis of the source
+C++ abstract syntax tree.  Additionally, MoHCA-Java's analysis engine
+is extensible, making it a platform for constructing
+application-specific translators rather than a single translation
+tool.  However, MoHCA-Java does not always generate complete Java code
+for all of the C++ programs which it accepts.
 
-MoHCA-Java \cite{mohca} is the other major tool in this category, and steps
-beyond Jazillian by providing tools for analysis of the source C++
-abstract syntax tree.  Additionally, MoHCA-Java's analysis engine is
-extensible, making it a platform for constructing application-specific
-translators rather than a single translation tool.  However,
-MoHCA-Java does not always generate complete Java code for all of the C++
-programs which it accepts.
+\subsubsection{Partial-Domain Translation}
 
-The c2j \cite{c2j}, c2j++ \cite{c2jpp}, Cappucinno \cite{capp},
-and Ephedra \cite{ephedra} systems each provide support for complete
-translation of a {\it subset} of the source language (C or C++).  Each
-of the four tools supports a progressively greater subset than the one
-preceding it; however none covers the entire input language.
+The {\tt c2j} \cite{c2j}, {\tt c2j++} \cite{c2jpp}, Cappucinno
+\cite{capp}, and Ephedra \cite{ephedra} systems each provide support
+for complete translation of a {\it subset} of the source language (C
+or C++).  Each of the four tools supports a progressively greater
+subset than the one preceding it; however none covers the entire input
+language.
 
 Ephedra, the most advanced of the four, supports most of the C++
 language, and claims to produce ``human readable'' Java code as
@@ -270,33 +274,28 @@ language which has been modified to emit safe bytecode.
 \endpsmatrix
 \end{pdfpic}
 
-The primary occupant of this category is {\tt egcs-jvm}
-\cite{egcsjvm}, an experimental ``JVM backend'' for the GNU Compiler
-Collection ( {\tt gcc} ) \cite{gcc}.  Since {\tt gcc} employs a highly
-modular architecture, it {\it is} possible to add RTL code generators
-for nonstandard processors.  However, {\tt gcc}'s parsing, RTL
-generation, and optimization layers make fundamental assumptions (such
-as the availability of pointer math) which cannot be directly
-supported; thus the compiler still fails for a substantial class of
-input programs.
+An experimental ``JVM backend'' for the {\tt gcc} compiler, known as
+{\tt egcs-jvm} \cite{egcsjvm}, attempts this approach.  Since {\tt
+gcc} employs a highly modular architecture, it {\it is} possible to
+add RTL code generators for nonstandard processors.  However, {\tt
+gcc}'s parsing, RTL generation, and optimization layers make
+fundamental assumptions (such as the availability of pointer math)
+which cannot be directly supported; thus the compiler still fails for
+a substantial class of input programs.
 
 A Java backend for the {\tt lcc} [CITE] compiler, known as {\tt
-lcc-java} [CITE], but was not completed.  {\tt lcc-java} also lacks
-any form of system library ({\tt libc}), so very few C programs will
-run without custom modification, which would cause them to diverge
-from the upstream sources.  Finally, {\tt lcc-java}'s memory model is
-much more restricted; it uses a fixed-size array to represent all
-memory, and expands the array by allocating a new array and copying,
-which is extremely inefficient.  No attempt is made to take advantage
-of {\tt NullPointerException} checking (which costs nothing if the
-exception is not thrown since most JVMs use the MMU to detect this).
-Finally, {\tt lcc-java} targets Java source code, which places the
-vast majority of NestedVM's optimizations beyond its reach, and
-severely restricts the maximum program size {\tt lcc-java} can handle.
-
-Finally, {\tt lcc-java} maintains a separate memory area for the
-stack, which appears to limit the exchange of stack pointers and heap
-pointers.  It is unclear from the documentation how this is handled.
+lcc-java} [CITE], is also available.  Although this system is quite
+clean and elegantly designed, it lacks any form of system library
+({\tt libc}), so very few C programs will run without custom
+modification (which would cause them to diverge from the upstream
+sources).  The memory model employed by {\tt lcc-java} is also
+somewhat awkward; a separate {\tt int[]} is maintained for the stack
+and heap, leading to difficulties mingling pointers to these two
+memory regions.  Additionally, the heap is a single {\tt int[]}, which
+means that it must be copied in order to be expanded, and prevents
+{\tt lcc-java} from taking advantage of {\tt NullPointerException}
+checking, which costs nothing in the ``common case'' since nearly all
+JVMs use the host CPU's MMU to detect this condition.
 
 
 \section{NestedVM}
@@ -455,83 +454,53 @@ produce bytecode files:
 \begin{multicols}{2}
 {\footnotesize\begin{verbatim}
 private final static int r0 = 0;
-private int r1, r2, r3,...,r30;
+private int r1, r2, r3, /* ... */ r30;
 private int r31 = 0xdeadbeef;
 private int pc = ENTRY_POINT;
 
 public void run() {
-    for(;;) {
+    while (true)
         switch(pc) {
-            case 0x10000:
-                r29 = r29 - 32;
-            case 0x10004:
-                r1 = r4 + r5;
-            case 0x10008:
-                if(r1 == r6) {
-                    /* delay slot */
-                    r1 = r1 + 1;
-                    pc = 0x10018:
-                    continue;
-                }
-            case 0x1000C:
-                r1 = r1 + 1;
-            case 0x10010:
-                r31 = 0x10018;
-                pc = 0x10210;
-                continue;
-            case 0x10014:
-                /* nop */
-            case 0x10018:
-                pc = r31;
-                continue;
+            case 0x10000: r29 = r29 - 32;
+            case 0x10004: r1 = r4 + r5;
+            case 0x10008: if (r1 == r6) {
+                            /* delay slot */
+                            r1 = r1 + 1;
+                            pc = 0x10018:
+                            continue; }
+            case 0x1000C: r1 = r1 + 1;
+            case 0x10010: r31 = 0x10018;
+                          pc = 0x10210;
+                          continue;
+            case 0x10014: /* nop */
+            case 0x10018: pc = r31; continue;
             ...
-            case 0xdeadbeef:
-                System.err.println(``Exited.'');
-                System.exit(1);
-        }
-    }
-}
+            case 0xdeadbeef:  System.exit(1);
+...
 \end{verbatim}}
 \vspace{1in}
 {\footnotesize\begin{verbatim}
 public void run_0x10000() {
-    for(;;) {
-    switch(pc) {
-        case 0x10000:
-            ...
-        case 0x10004:
-            ...
-        ...
-        case 0x10010:
-            r31 = 0x10018;
-            pc = 0x10210;
-            return;
-        ...
-    }
-    }
-}
+    while (true) switch(pc) {
+        case 0x10000: ...
+        case 0x10004: ...
+        case 0x10010: r31 = 0x10018;
+                      pc = 0x10210;
+                      continue;
+....
 
 pubic void run_0x10200() {
-    for(;;) {
-    switch(pc) {
-        case 0x10200:
-            ...
-        case 0x10204:
-            ...
-    }
-    }
-}
+    while (true) switch(pc) {
+        case 0x10200: ...
+        case 0x10204: ...
+....
 
 public void trampoline() {
-    for(;;) {
-    switch(pc&0xfffffe00) {
-            case 0x10000: run_0x10000(); break;
-            case 0x10200: run_0x10200(); break;
-            case 0xdeadbe00:
-                ...
-        }
-    }
-}
+    while (true) switch(pc&0xfffffe00) {
+        case 0x10000:    run_0x10000(); break;
+        case 0x10200:    run_0x10200(); break;
+        case 0xdeadbe00: ...
+....
 \end{verbatim}}
 \end{multicols}
 \end{minipage}
@@ -604,7 +573,115 @@ This mode has several advantages:
 
 \end{itemize}
 
-\section{Optimization and Quantitative Performance}
+\section{The NestedVM Runtime}
+
+In addition to binary-to-source and binary-to-binary translation,
+NestedVM also includes a MIPS binary interpreter.  All three
+translation approaches expose the same API to both the translated
+binary and the surrounding VM (including peer Java code).
+
+The NestedVM Runtime (various subclasses of {\tt
+org.ibex.nestedvm.Runtime}) fill the role of an OS Kernel.
+Communication between MIPS code and the outside world is via the MIPS
+{\tt SYSCALL} instruction, just as the {\tt libc}-kernel interface is
+on real MIPS implementations.
+
+Two implemenations of the runtime are offered; a simple runtime with
+the minimum support required to comply with ANSI C, and a more
+sophisticated runtime which emulates a large portion of the POSIX API.
+
+\subsection{The ANSI C Runtime}
+
+The ANSI C runtime offers typical file I/O operations including {\tt
+open()}, {\tt close()}, {\tt read()}, {\tt write()}, and {\tt seek()}.
+File descriptors are implemented much as they are in OS kernels; a
+table of open files is maintained and descriptors act as an index into
+that table.  Each file is represented as a Java {\tt RandomAccessFile}
+in order to match the semantics of {\tt seek()}.
+
+Process-level memory management is done through the {\tt sbrk()}
+system call, which extends the process heap by adding more pages to
+the memory page table.  Fast memory clear and copy operations can be
+performed with {\tt memset()} and {\tt memcpy()}, which invoke the
+Java {\tt System.arraycopy()} method, which is generally much faster
+than a {\tt for()} loop.
+
+The {\tt exit()} call records the exit status, marks the VM instance
+as terminated and halts execution.  The {\tt pause()} syscall
+implements a crude form of Java-MIPS communication by returning
+control to the Java code which spawned the MIPS process.
+
+\subsection{The Unix Runtime}
+
+The Unix runtime extends the simple ANSI file I/O model to include a
+single-root filesystem, and device nodes, as well as {\tt fcntl()}
+APIs to manipulate these.  Device nodes are generally simulated by
+mapping reads, writes, and {\tt fcntl()}s on the device to the
+appropriate Java API.
+
+MIPS processes can ``mount'' other filesystems within the virtual
+filesystem made visible to the MIPS process.  Each filesystem is
+implemented by a Java class, which could, for example, offer access to
+the host filesystem (including {\tt state()}, {\tt lstat()}, {\tt
+mkdir}, and {\tt unlink()}, and {\tt getdents()}), the contents of a
+zip archive, or even a remote HTTP server.
+
+MIPS processes can also spawn subprocesses using the {\tt fork()} and
+{\tt exec()} calls, which create new Java threads to run the process.
+The {\tt fork()} call -- which is supposed to duplicate the memory
+image of a process -- is implemented in an elegant manner by calling
+the Java {\tt clone()} method (deep copy) on the VM object itself.
+Copy-on-write is not currently implemented.  The new instance is added
+to a static process table to facilitate interprocess communication.
+
+The {\tt waitpid()} API allows a parent process to block pending the
+completion of a child process, which is done quite easily with the
+Java {\tt wait()} method.
+
+The {\tt exec()} method actually loads a MIPS binary image from the
+filesystem, feeds it to the MIPS-to-bytecode translator, and then
+loads the resulting bytecode on the fly using {\tt
+ClassLoader.loadBytes()}.  The {\tt pipe()} system call permits
+parent-to-child IPC just as on a normal Unix system.
+
+Simple networking support is provided by the {\tt opensocket()}, {\tt
+listensocket()}, and {\tt accept()} methods, which are not currently
+compatible with the usual Berkeley sockets API.
+
+
+\subsection{Security Concerns}
+
+RuntimeExceptions don't escape, they care caught and turned into
+checked exceptions filesystem access does though security manager
+(NestedVM Runtime.SecurityManager, and the JVM's)
+
+
+\subsection{Threading}
+
+The NestedVM runtime currently does not support threading.  Providing
+robust support for ``true threads'', whereby each MIPS thread maps to
+a Java thread is probably not possible as the Java Memory Model
+[CITE], since all MIPS memory is stored in a set of {\tt int[]}'s and
+the Java Memory Model does not permit varying treatment or coherency
+policies at the granularity of a single array element.
+
+While this presents a major barrier for applications that use
+sophisticated locking schemes (such as {\it hash synchronization})
+which depend on atomic memory operations, it is probably possible to
+apply this threading model to ``well behaved'' multithreaded
+applications which depend only on OS-provided semaphores and mutexes
+for synchronization.
+
+Complex synchronization and incorrectly synchronized applications can
+be supported by implementing a variant of {\it user threads} within a
+single Java thread by providing a timer interrupt (via a Java
+asynchronous exception).  Unfortunately this requires that the
+compiled binary be able to restart from any arbitrary instruction
+address, which would require a {\tt case} statement for every
+instruction (rather than every jump target), which would degrade
+performance and increase the size of the resulting class file.
+
+\section{Optimization and Performance}
 
 \subsection{Binary-to-Source mode}
 
@@ -663,9 +740,9 @@ methods invoked from the trampoline.  Trial and error led to the
 onclusion that HotSpot \cite{hotspot} -- the most widely deployed JVM
 -- performs best when 128 MIPS instructions are mapped to each method.
 
-\epsfig{file=chart5,width=3in}
+\epsfig{file=charts/chart5,width=3in}
 
-\epsfig{file=chart6,width=3in}
+\epsfig{file=charts/chart6,width=3in}
 
 This phenomenon is due to two factors:
 
@@ -748,7 +825,7 @@ Most of the performance improvemen where made where in the handling of
 branch instructions and in taking advantage of the JVM stack to
 eliminate unnecessary {\tt LOAD}s and {\tt STORE}s to local variables.
 
-\epsfig{file=chart7,width=3in}
+\epsfig{file=charts/chart7,width=3in}
 
 The first optimization gained by direct bytecode generation came from
 the use of the JVM {\tt GOTO} instruction.  Despite the fact that the
@@ -887,10 +964,15 @@ could be used to improve performance:
 The effects of the various optimizations presented in this chapter are
 summarized in the table below.
 
-\epsfig{file=chart4,width=3in}
+\epsfig{file=charts/chart4,width=3in}
 
-\epsfig{file=chart3,width=3in}
+\epsfig{file=charts/chart3,width=3in}
 
+\epsfig{file=charts/chart8,width=3in}
+
+\epsfig{file=charts/chart9,width=3in}
+
+\section{Sample Applications}
 
 \subsection{FreeType, {\tt libmspack}, and {\tt libjpeg}}
 
@@ -955,113 +1037,6 @@ approximation.
 
 
 
-\section{The NestedVM Runtime}
-
-In addition to binary-to-source and binary-to-binary translation,
-NestedVM also includes a MIPS binary interpreter.  All three
-translation approaches expose the same API to both the translated
-binary and the surrounding VM (including peer Java code).
-
-The NestedVM Runtime (various subclasses of {\tt
-org.ibex.nestedvm.Runtime}) fill the role of an OS Kernel.
-Communication between MIPS code and the outside world is via the MIPS
-{\tt SYSCALL} instruction, just as the {\tt libc}-kernel interface is
-on real MIPS implementations.
-
-Two implemenations of the runtime are offered; a simple runtime with
-the minimum support required to comply with ANSI C, and a more
-sophisticated runtime which emulates a large portion of the POSIX API.
-
-\subsection{The ANSI C Runtime}
-
-The ANSI C runtime offers typical file I/O operations including {\tt
-open()}, {\tt close()}, {\tt read()}, {\tt write()}, and {\tt seek()}.
-File descriptors are implemented much as they are in OS kernels; a
-table of open files is maintained and descriptors act as an index into
-that table.  Each file is represented as a Java {\tt RandomAccessFile}
-in order to match the semantics of {\tt seek()}.
-
-Process-level memory management is done through the {\tt sbrk()}
-system call, which extends the process heap by adding more pages to
-the memory page table.  Fast memory clear and copy operations can be
-performed with {\tt memset()} and {\tt memcpy()}, which invoke the
-Java {\tt System.arraycopy()} method, which is generally much faster
-than a {\tt for()} loop.
-
-The {\tt exit()} call records the exit status, marks the VM instance
-as terminated and halts execution.  The {\tt pause()} syscall
-implements a crude form of Java-MIPS communication by returning
-control to the Java code which spawned the MIPS process.
-
-\subsection{The Unix Runtime}
-
-The Unix runtime extends the simple ANSI file I/O model to include a
-single-root filesystem, and device nodes, as well as {\tt fcntl()}
-APIs to manipulate these.  Device nodes are generally simulated by
-mapping reads, writes, and {\tt fcntl()}s on the device to the
-appropriate Java API.
-
-MIPS processes can ``mount'' other filesystems within the virtual
-filesystem made visible to the MIPS process.  Each filesystem is
-implemented by a Java class, which could, for example, offer access to
-the host filesystem (including {\tt state()}, {\tt lstat()}, {\tt
-mkdir}, and {\tt unlink()}, and {\tt getdents()}), the contents of a
-zip archive, or even a remote HTTP server.
-
-MIPS processes can also spawn subprocesses using the {\tt fork()} and
-{\tt exec()} calls, which create new Java threads to run the process.
-The {\tt fork()} call -- which is supposed to duplicate the memory
-image of a process -- is implemented in an elegant manner by calling
-the Java {\tt clone()} method (deep copy) on the VM object itself.
-Copy-on-write is not currently implemented.  The new instance is added
-to a static process table to facilitate interprocess communication.
-
-The {\tt waitpid()} API allows a parent process to block pending the
-completion of a child process, which is done quite easily with the
-Java {\tt wait()} method.
-
-The {\tt exec()} method actually loads a MIPS binary image from the
-filesystem, feeds it to the MIPS-to-bytecode translator, and then
-loads the resulting bytecode on the fly using {\tt
-ClassLoader.loadBytes()}.  The {\tt pipe()} system call permits
-parent-to-child IPC just as on a normal Unix system.
-
-Simple networking support is provided by the {\tt opensocket()}, {\tt
-listensocket()}, and {\tt accept()} methods, which are not currently
-compatible with the usual Berkeley sockets API.
-
-
-\subsection{Security Concerns}
-
-RuntimeExceptions don't escape, they care caught and turned into
-checked exceptions filesystem access does though security manager
-(NestedVM Runtime.SecurityManager, and the JVM's)
-
-
-\subsection{Threading}
-
-The NestedVM runtime currently does not support threading.  Providing
-robust support for ``true threads'', whereby each MIPS thread maps to
-a Java thread is probably not possible as the Java Memory Model
-[CITE], since all MIPS memory is stored in a set of {\tt int[]}'s and
-the Java Memory Model does not permit varying treatment or coherency
-policies at the granularity of a single array element.
-
-While this presents a major barrier for applications that use
-sophisticated locking schemes (such as {\it hash synchronization})
-which depend on atomic memory operations, it is probably possible to
-apply this threading model to ``well behaved'' multithreaded
-applications which depend only on OS-provided semaphores and mutexes
-for synchronization.
-
-Complex synchronization and incorrectly synchronized applications can
-be supported by implementing a variant of {\it user threads} within a
-single Java thread by providing a timer interrupt (via a Java
-asynchronous exception).  Unfortunately this requires that the
-compiled binary be able to restart from any arbitrary instruction
-address, which would require a {\tt case} statement for every
-instruction (rather than every jump target), which would degrade
-performance and increase the size of the resulting class file.
 
 
 \section{Conclusion}
