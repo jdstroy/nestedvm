@@ -11,34 +11,34 @@ import org.ibex.nestedvm.util.*;
 
 public abstract class Compiler implements Registers {    
     /** The ELF binary being read */
-    protected ELF elf;
+    ELF elf;
     
     /** The name of the class beging generated */
-    protected final String fullClassName;
+    final String fullClassName;
     
     /** The name of the binary this class is begin generated from */
-    protected String source = "unknown.mips.binary";
+    String source = "unknown.mips.binary";
     public void setSource(String source) { this.source = source; }
         
     /** Thrown when the compilation fails for some reason */
-    protected static class Exn extends Exception { public Exn(String s) { super(s); } }
+    static class Exn extends Exception { public Exn(String s) { super(s); } }
     
     // Set this to true to enable fast memory access 
     // When this is enabled a Java RuntimeException will be thrown when a page fault occures. When it is disabled
     // a FaultException will be throw which is easier to catch and deal with, however. as the name implies, this is slower
-    protected boolean fastMem = true;
+    boolean fastMem = true;
     
     // This MUST be a power of two. If it is not horrible things will happen
     // NOTE: This value can be much higher without breaking the classfile 
     // specs (around 1024) but Hotstop seems to do much better with smaller
     // methods. 
-    protected int maxInsnPerMethod = 128;
+    int maxInsnPerMethod = 128;
     
     // non-configurable
-    protected int maxBytesPerMethod;
-    protected int methodMask;
-    protected int methodShift;
-    protected void maxInsnPerMethodInit() throws Exn {
+    int maxBytesPerMethod;
+    int methodMask;
+    int methodShift;
+    void maxInsnPerMethodInit() throws Exn {
         if((maxInsnPerMethod&(maxInsnPerMethod-1)) != 0) throw new Exn("maxBytesPerMethod is not a power of two");
         maxBytesPerMethod = maxInsnPerMethod*4;
         methodMask = ~(maxBytesPerMethod-1);
@@ -46,44 +46,46 @@ public abstract class Compiler implements Registers {
     }
     
     // True to try to determine which case statement are needed and only include them
-    protected boolean pruneCases = true;
+    boolean pruneCases = true;
     
-    protected boolean assumeTailCalls = true;
+    boolean assumeTailCalls = true;
     
     // True to insert some code in the output to help diagnore compiler problems
-    protected boolean debugCompiler = false;
+    boolean debugCompiler = false;
     
     // True to print various statistics about the compilation
-    protected boolean printStats = false;
+    boolean printStats = false;
     
     // True to generate runtime statistics that slow execution down significantly
-    protected boolean runtimeStats = false;
+    boolean runtimeStats = false;
     
-    protected boolean supportCall = true;
+    boolean supportCall = true;
     
-    protected boolean nullPointerCheck = false;
+    boolean nullPointerCheck = false;
     
-    protected String runtimeClass = "org.ibex.nestedvm.Runtime";
+    String runtimeClass = "org.ibex.nestedvm.Runtime";
     
-    protected String hashClass = "java.util.Hashtable";
+    String hashClass = "java.util.Hashtable";
     
-    protected boolean unixRuntime;
+    boolean unixRuntime;
     
-    protected boolean lessConstants = false;
+    boolean lessConstants;
+    
+    boolean singleFloat;
             
-    protected int pageSize = 4096;
-    protected int totalPages = 65536;
-    protected int pageShift;
-    protected boolean onePage;
+    int pageSize = 4096;
+    int totalPages = 65536;
+    int pageShift;
+    boolean onePage;
     
-    protected void pageSizeInit() throws Exn {
+    void pageSizeInit() throws Exn {
         if((pageSize&(pageSize-1)) != 0) throw new Exn("pageSize not a multiple of two");
         if((totalPages&(totalPages-1)) != 0) throw new Exn("totalPages not a multiple of two");
         while(pageSize>>>pageShift != 1) pageShift++;
     }
     
     /** A set of all addresses that can be jumped too (only available if pruneCases == true) */
-    protected Hashtable jumpableAddresses;
+    Hashtable jumpableAddresses;
     
     /** Some important symbols */
     ELF.Symbol userInfo, gp;
@@ -184,7 +186,7 @@ public abstract class Compiler implements Registers {
         if(elf.ident.data != ELF.ELFIdent.ELFDATA2MSB) throw new IOException("Binary is not big endian");
     }
 
-    protected abstract void _go() throws Exn, IOException;
+    abstract void _go() throws Exn, IOException;
     
     private boolean used;
     public void go() throws Exn, IOException {
@@ -363,8 +365,8 @@ public abstract class Compiler implements Registers {
     }
     
     // Helper functions for pretty output
-    protected final static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
-    protected final static String toHex8(int n) {
+    final static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
+    final static String toHex8(int n) {
         String s = Long.toString(n & 0xffffffffL, 16);
         StringBuffer sb = new StringBuffer("0x");
         for(int i=8-s.length();i>0;i--) sb.append('0');
@@ -372,7 +374,7 @@ public abstract class Compiler implements Registers {
         return sb.toString();
     }
 
-    protected final static String toOctal3(int n) {
+    final static String toOctal3(int n) {
         char[] buf = new char[3];
         for(int i=2;i>=0;i--) {
             buf[i] = (char) ('0' + (n & 7));
@@ -512,7 +514,7 @@ public abstract class Compiler implements Registers {
     
     // This ugliness is to work around a gcj static linking bug (Bug 12908)
     // The best solution is to force gnu.java.locale.Calendar to be linked in but this'll do
-    protected static String dateTime() {
+    static String dateTime() {
         try {
             return new Date().toString();
         } catch(RuntimeException e) {
