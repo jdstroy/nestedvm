@@ -212,7 +212,7 @@ runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 		org/ibex/nestedvm/util/Seekable\$$*.class
 
 .manifest:
-	echo -ne "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
+	printf "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
 
 nestedvm.jar: $(java_classes) .manifest
 	cd build && jar cfm ../$@ ../.manifest $(java_classes:build/%.class=%*.class)
