@@ -77,7 +77,7 @@ all: build/mips2java$(EXE_EXT) $(mips_objects)
 endif
 
 # HACK: Ensure libc is kept up to date when our mips_objects change
-$(tasks)/build_libc: $(mips_object) upstream/misc/extraheaders.sh
+$(tasks)/build_libc: $(mips_objects) upstream/misc/extraheaders.sh
 
 $(tasks)/%:
 	$(MAKE) -C upstream tasks/$* usr="$(usr)" \
