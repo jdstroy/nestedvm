@@ -9,6 +9,7 @@ int main() {
         for(p=buf;*p && *p!='\n' && *p!='\r';p++);
         *p = '\0';
         fprintf(stdout,"You said: %s\n",buf);
+        fflush(stdout);
         fprintf(stderr,"They said: %s\n",buf);
         if(strcmp(buf,"exit")==0) break;
     }
