@@ -35,9 +35,7 @@ mips_optflags = -O3 -g \
 
 MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
 MIPS_LD = mips-unknown-elf-gcc
-MIPS_LDFLAGS= \
-	$(flags) -L$(build)/org/ibex/nestedvm --static \
-	-T $(mips2java_root)/src/org/ibex/nestedvm/linker.ld -Wl,--gc-sections
+MIPS_LDFLAGS= $(flags) --static -Wl,--gc-sections
 MIPS_STRIP = mips-unknown-elf-strip
 
 # Java compiler/VM settings

@@ -1,7 +1,6 @@
 ENTRY(_start)
-INPUT(support.o support_aux.o)
 GROUP(-lc -lgcc)
-/*GROUP(-lgcc)*/
+
 __DYNAMIC  =  0;
 
 SECTIONS {

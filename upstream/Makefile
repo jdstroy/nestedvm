@@ -36,17 +36,29 @@ export PATH
 PATCH = $(shell test `uname` = SunOS && echo gpatch || echo patch)
 
 tasks/full_toolchain: tasks/build_binutils tasks/build_gcc_step2 tasks/build_libc
+	for f in crt0.o support.o support_aux.o; do \
+		rm -f "$(usr)/mips-unknown-elf/lib/$$f"; \
+		ln -s "$(root)/build/org/ibex/nestedvm/$$f" "$(usr)/mips-unknown-elf/lib/$$f"; \
+	done
+
+	rm -f "$(usr)/mips-unknown-elf/lib/linker.ld"
+	ln -s "$(root)/src/org/ibex/nestedvm/linker.ld" "$(usr)/mips-unknown-elf/lib/linker.ld"
+
+	if [ ! -e "$(usr)/mips-unknown-elf/include/getopt.h" ]; then \
+		echo '#include <unistd.h>' > "$(usr)/mips-unknown-elf/include/getopt.h"; \
+	fi
+	
+	mips-unknown-elf-gcc -dumpspecs \
+		| sed '/startfile:$$/{n;s/crt0%O%s/crt0%O%s support%O%s support_aux%O%s/;};' \
+		| sed '/link_command:$$/{n;s/%{T\*}/%{T*} %{!T:-T linker.ld%s}/;};' \
+		> "$(usr)/lib/gcc-lib/mips-unknown-elf/$(version_gcc)/specs"
+		
 	touch $@
 
 tasks/build_gcc: tasks/build_binutils
 tasks/build_newlib: tasks/build_gcc
 
 tasks/build_libc: tasks/build_newlib tasks/build_regex tasks/build_openbsdglob
-	# HACK
-	rm -f $(usr)/mips-unknown-elf/lib/crt0.o
-	ln -s $(root)/build/org/ibex/nestedvm/crt0.o $(usr)/mips-unknown-elf/lib/crt0.o 
-	
-	echo '#include <unistd.h>' > $(usr)/mips-unknown-elf/include/getopt.h
 	touch $@
 
 clean_%:
