@@ -277,12 +277,9 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
 	touch $@
 
-tasks/extract_gcclass:
+tasks/build_gcclass:
 	cd build &&  darcs get --verbose http://darcs.brianweb.net/gcclass
-	touch $@
-	
-tasks/build_gcclass: tasks/extract_gcclass
-	cd build/gcclass && $(MAKE)
+	cd build/gcclass && make
 	touch $@
 
 # TeX Stuff
