@@ -188,11 +188,34 @@ int main(int argc, char **argv) {
         memcpy(buf,"Hello, World",sizeof("Hello, World"));
         printf("%s\n",buf);
     }
-    printf("cwd: %s\n",getcwd(NULL,0));
-    printf("isatty(0): %d\n",isatty(0));
-    printf("exiting\n");
+    
+    {
+        /*long long ll = 0xdeadbeefdeadc0deLL;
+        long l = 0xdeadbeef;
+        unsigned char *tmp;
+        
+        printf("long long: %lld %llX\n",ll,ll);
+        tmp = (char*)&ll;
+        for(i=0;i<sizeof(long long);i++) { printf("%X\n",tmp[i]); }
+        
+        printf("long: %ld %lX\n",l,l);
+        tmp = (char*)&l;
+        for(i=0;i<sizeof(long);i++) { printf("%X\n",tmp[i]); }*/
+        
+        long long rl(long long n);
+        long long l = rl(-1614907703);
+        printf("---> %lld \n",l);
+        if(l >=-64) printf("---> ERROR: %lld >= -64\n",l);
+    }
+    
+    //printf("cwd: %s\n",getcwd(NULL,0));
+    //printf("isatty(0): %d\n",isatty(0));
+    //printf("exiting\n");
     return 0;
 }
+
+long long zero = 0;
+long long rl(long long n) { return n + zero; }
 
 void suckram() {
     int total = 0;
