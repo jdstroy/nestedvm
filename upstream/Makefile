@@ -62,6 +62,9 @@ tasks/extract_tex:
 gpc := $(usr)/bin/mips-unknown-elf-gpc
 gpc_flags := --big-endian -w -lgpc -lc $(usr)/mips-unknown-elf/lib/support*.o
 gpc_flags += -Wl,-T,$(usr)/mips-unknown-elf/lib/linker.ld
+g77 := $(usr)/bin/mips-unknown-elf-g77
+g77_flags := --big-endian -w -lg2c -lc $(usr)/mips-unknown-elf/lib/support*.o
+g77_flags += -Wl,-T,$(usr)/mips-unknown-elf/lib/linker.ld
 
 # FIXME ugly path hacks evil bad
 nestedvm := java -cp $(usr)/../build/bcel/bcel-5.1.jar:$(usr)/../../nestedvm.jar org.ibex.nestedvm.Compiler -outformat class
@@ -80,6 +83,18 @@ tasks/build_tex: tasks/full_toolchain tasks/extract_tex
 	#ln -s tex.pool 'TeXformats:TEX.POOL                     '
 	#ln -s trip.tfm 'TeXfonts:trip.tfm                       '
 	#ln -s trip.tex 'trip.tex                                '
+	touch $@
+
+tasks/extract_linpack: tasks/download_linpack ; touch $@
+tasks/download_linpack:
+	mkdir -p build/linpack
+	cd build/linpack; wget -N http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
+	touch $@
+
+tasks/build_linpack: tasks/full_toolchain tasks/extract_linpack
+	cd build/linpack; $(g77) linpack_bench.f $(g77_flags) -o linpack.mips
+	cd build/linpack; $(nestedvm) -o unixruntime -outfile Linpack.class Linpack linpack.mips
+	touch $@
 
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
