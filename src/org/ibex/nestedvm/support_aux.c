@@ -1,3 +1,4 @@
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/dirent.h>
 #include <sys/types.h>
@@ -7,6 +8,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 
 int _syscall_set_errno(struct _reent *ptr, int err) {
     ptr->_errno = -err;
@@ -34,6 +36,11 @@ int _chmod_r(struct _reent *ptr, const char *f, mode_t mode) { return 0; }
 int _fchmod_r(struct _reent *ptr, int fd, mode_t mode) { return 0; }
 int _chown_r(struct _reent *ptr, const char *f, uid_t uid, gid_t gid) { return 0; }
 int _fchown_r(struct _reent *ptr, int fd, uid_t uid, gid_t gid) { return 0; }
+
+#define REENT_WRAPPER0R(f,rt) \
+    extern rt _##f##_r(struct _reent *ptr); \
+    rt f() { return _##f##_r(_REENT); }
+#define REENT_WRAPPER0(f) REENT_WRAPPER0R(f,int)
 
 #define REENT_WRAPPER1R(f,rt,t1) \
     extern rt _##f##_r(struct _reent *ptr, t1 a); \
@@ -70,12 +77,19 @@ REENT_WRAPPER2(symlink,const char *,const char *)
 REENT_WRAPPER3(readlink,const char *, char *,int)
 REENT_WRAPPER3(chown,const char *,uid_t,gid_t)
 REENT_WRAPPER3(fchown,int,uid_t,gid_t)
+REENT_WRAPPER3(lchown,const char *,uid_t,gid_t)
 REENT_WRAPPER2(chmod,const char *,mode_t)
 REENT_WRAPPER2(fchmod,int,mode_t)
 REENT_WRAPPER2(lstat,const char *,struct stat *)
 REENT_WRAPPER4(getdents,int, char *, size_t,long *)
 REENT_WRAPPER1(dup,int)
 REENT_WRAPPER2R(pathconf,long,const char *,int)
+REENT_WRAPPER0(vfork)
+REENT_WRAPPER1(chroot,const char *)
+REENT_WRAPPER3(mknod,const char *,mode_t,dev_t)
+REENT_WRAPPER2(ftruncate,int,off_t)
+REENT_WRAPPER1(usleep,unsigned int)
+REENT_WRAPPER2(mkfifo,const char *, mode_t)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
@@ -110,6 +124,47 @@ long _pathconf_r(struct _reent *ptr,const char *path, int name) {
             ptr->_errno = EINVAL;
             return -1;
     }
+}
+
+void sync() {
+    /* do nothing*/
+}
+
+int fsync(int fd) {
+    /* do nothing */
+    return 0;
+}
+
+char *ttyname(int fd) {
+    return isatty(fd) ? "/dev/console" : NULL;
+}
+
+int sigaction(int sig, const struct sigaction *act, struct sigaction *oact) {
+    _sig_func_ptr old;
+    _sig_func_ptr new;
+    if(act) {
+        if(act->sa_flags || act->sa_mask != ~((sigset_t)0)) { errno = EINVAL; return -1; }
+        old = signal(sig,act->sa_handler);
+    } else if(oact) {
+        old = signal(sig,SIG_DFL);
+        signal(sig,old);
+    }
+    if(oact) {
+        oact->sa_handler = old;
+        oact->sa_mask = 0;
+        oact->sa_mask = ~((sigset_t)0);
+    }
+    return 0;
+}
+
+int sigfillset(sigset_t *set) {
+    *set = ~((sigset_t)0);
+    return 0;
+}
+
+int sigemptyset(sigset_t *set) {
+    *set = (sigset_t) 0;
+    return 0;
 }
 
 DIR *opendir(const char *path) {
@@ -165,3 +220,118 @@ int closedir(DIR *dir) {
     free(dir);
     return close(fd);
 }
+
+/*
+ * Other People's Code 
+ */
+
+/* FreeBSD's dirname/basename */
+
+/* FIXME: Put these in a header */
+
+/*
+ * Copyright (c) 1997 Todd C. Miller <Todd.Miller@courtesan.com>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL
+ * THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+char *
+dirname(path)
+const char *path;
+{
+    static char bname[MAXPATHLEN];
+    register const char *endp;
+    
+    /* Empty or NULL string gets treated as "." */
+    if (path == NULL || *path == '\0') {
+        (void)strcpy(bname, ".");
+        return(bname);
+    }
+    
+    /* Strip trailing slashes */
+    endp = path + strlen(path) - 1;
+    while (endp > path && *endp == '/')
+        endp--;
+    
+    /* Find the start of the dir */
+    while (endp > path && *endp != '/')
+        endp--;
+    
+    /* Either the dir is "/" or there are no slashes */
+    if (endp == path) {
+        (void)strcpy(bname, *endp == '/' ? "/" : ".");
+        return(bname);
+    } else {
+        do {
+            endp--;
+        } while (endp > path && *endp == '/');
+    }
+    
+    if (endp - path + 2 > sizeof(bname)) {
+        errno = ENAMETOOLONG;
+        return(NULL);
+    }
+    (void)strncpy(bname, path, endp - path + 1);
+    bname[endp - path + 1] = '\0';
+    return(bname);
+}
+
+char *
+basename(path)
+const char *path;
+{
+    static char bname[MAXPATHLEN];
+    register const char *endp, *startp;
+    
+    /* Empty or NULL string gets treated as "." */
+    if (path == NULL || *path == '\0') {
+        (void)strcpy(bname, ".");
+        return(bname);
+    }
+    
+    /* Strip trailing slashes */
+    endp = path + strlen(path) - 1;
+    while (endp > path && *endp == '/')
+        endp--;
+    
+    /* All slashes becomes "/" */
+    if (endp == path && *endp == '/') {
+        (void)strcpy(bname, "/");
+        return(bname);
+    }
+    
+    /* Find the start of the base */
+    startp = endp;
+    while (startp > path && *(startp - 1) != '/')
+        startp--;
+    
+    if (endp - startp + 2 > sizeof(bname)) {
+        errno = ENAMETOOLONG;
+        return(NULL);
+    }
+    (void)strncpy(bname, startp, endp - startp + 1);
+    bname[endp - startp + 1] = '\0';
+    return(bname);
+}
+

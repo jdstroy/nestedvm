@@ -37,3 +37,11 @@
 #define SYS_memcpy 37
 #define SYS_memset 38
 #define SYS_dup 39
+#define SYS_vfork 40
+#define SYS_chroot 41
+#define SYS_mknod 42
+#define SYS_lchown 43
+#define SYS_ftruncate 44
+#define SYS_usleep 45
+#define SYS_getppid 46
+#define SYS_mkfifo 47

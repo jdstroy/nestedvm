@@ -42,6 +42,14 @@ public interface UsermodeConstants {
     public static final int SYS_memcpy = 37;
     public static final int SYS_memset = 38;
     public static final int SYS_dup = 39;
+    public static final int SYS_vfork = 40;
+    public static final int SYS_chroot = 41;
+    public static final int SYS_mknod = 42;
+    public static final int SYS_lchown = 43;
+    public static final int SYS_ftruncate = 44;
+    public static final int SYS_usleep = 45;
+    public static final int SYS_getppid = 46;
+    public static final int SYS_mkfifo = 47;
     public static final int EPERM = 1; /* Not super-user */
     public static final int ENOENT = 2; /* No such file or directory */
     public static final int ESRCH = 3; /* No such process */

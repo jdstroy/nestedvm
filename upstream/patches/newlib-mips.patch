@@ -237,3 +237,14 @@ diff -rNu ../newlib-1.11.0.orig/newlib/libc/include/sys/dirent.h ./newlib/libc/i
  #ifdef __cplusplus
  }
  #endif
+--- newlib/libc/include/sys/signal.h~	2004-05-07 02:06:28.000000000 -0400
++++ newlib/libc/include/sys/signal.h	2004-05-07 02:06:28.000000000 -0400
+@@ -145,7 +145,7 @@
+ int _EXFUN(kill, (int, int));
+ 
+ /* protos for functions found in winsup sources for CYGWIN */
+-#if defined(__CYGWIN__) || defined(__rtems__)
++#if defined(__CYGWIN__) || defined(__rtems__) || 1
+ #undef sigaddset
+ #undef sigemptyset
+ /* The first argument to kill should be pid_t.  Right now

@@ -14,7 +14,7 @@ configure_binutils = --target=mips-unknown-elf
 
 version_newlib = 1.11.0
 url_newlib = http://mirrors.rcn.net/pub/sourceware/newlib/newlib-$(version_newlib).tar.gz
-patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch
+patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-vasprintf.patch
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
 url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
@@ -97,7 +97,6 @@ tasks/patch_%: tasks/extract_%
 
 tasks/build_%: tasks/patch_%
 	mkdir -p $(usr)
-	@[ "$*" = "newlib" ] && rm -f $(usr)/mips-unknown-elf/lib/crt0.o || true
 	mkdir -p build/$*-obj && cd build/$*-obj && \
 		../$*-$(version_$*)/configure --prefix=$(usr) $(configure_$*) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \

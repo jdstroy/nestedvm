@@ -4,6 +4,8 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 
+// FEATURE: vfork
+
 public abstract class UnixRuntime extends Runtime implements Cloneable {
     /** The pid of this "process" */
     private int pid;
@@ -114,6 +116,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_exec: return sys_exec(a,b,c);
             case SYS_getdents: return sys_getdents(a,b,c,d);
             case SYS_unlink: return sys_unlink(a);
+            case SYS_getppid: return sys_getppid();
 
             default: return super._syscall(syscall,a,b,c,d);
         }
@@ -121,6 +124,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     FD _open(String path, int flags, int mode) throws ErrnoException {
         return gs.open(this,normalizePath(path),flags,mode);
+    }
+    
+    private int sys_getppid() {
+        return parent == null ? 1 : parent.pid;
     }
 
     /** The kill syscall.
