@@ -5,11 +5,11 @@
 \sloppy
 \usepackage{palatino}
 \usepackage{url}
-\usepackage{pdftricks}
-\begin{psinputs}
-  \usepackage{pstricks}
-  \usepackage{pst-node}
-\end{psinputs}
+%\usepackage{pdftricks}
+%\begin{psinputs}
+\usepackage{pstricks}
+\usepackage{pst-node}
+%\end{psinputs}
 \usepackage{parskip}
 \usepackage{tabularx}
 \usepackage{alltt}
@@ -122,7 +122,7 @@ The four program representations of interest in this context, along
 with their specific types in the C-to-JVM instantiation of the
 problem are shown in the following diagram:
 
-\begin{pdfpic}
+%\begin{pdfpic}
 \newlength{\MyLength}
 \settowidth{\MyLength}{machine code}
 \newcommand{\MyBox}[1]{\makebox[\MyLength][c]{#1}}
@@ -138,15 +138,15 @@ problem are shown in the following diagram:
   & \\[0pt]
   \psset{nodesep=5pt,arrows=->}
 \end{psmatrix}
-\end{pdfpic}
+%\end{pdfpic}
 
 To illustrate the context of this diagram, the following arcs show the
 translations performed by a few familiar tools:
 
-\begin{pdfpic}
-\newlength{\MyLength}
-\settowidth{\MyLength}{xmachine codex}
-\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+%\begin{pdfpic}
+%\newlength{\MyLength}
+%\settowidth{\MyLength}{xmachine codex}
+%\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
 \psmatrix[colsep=2,rowsep=0,nrot=:D]
   & \\[0pt]
   [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
@@ -163,7 +163,7 @@ translations performed by a few familiar tools:
   \ncline{s1}{b1}\aput{:U}{\tt javac}
   \ncline{b1}{b0}\aput{:D}{\tt gcj}\bput{:D}{JITs}
 \endpsmatrix
-\end{pdfpic}
+%\end{pdfpic}
 
 Existing techniques for translating unsafe code into VM bytecode
 generally fall into two categories, which we expand upon in the
@@ -175,10 +175,10 @@ source-to-binary translation.
 The most common technique employed is partial translation from unsafe
 source code to safe source code:
 
-\begin{pdfpic}
-\newlength{\MyLength}
-\settowidth{\MyLength}{xmachine codex}
-\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+%\begin{pdfpic}
+%\newlength{\MyLength}
+%\settowidth{\MyLength}{xmachine codex}
+%\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
 \psmatrix[colsep=2,rowsep=0,nrot=:U]
   & \\[0pt]
   & \\[0pt]
@@ -194,7 +194,7 @@ source code to safe source code:
   \ncline{s0}{s1}\aput{:U}{source-to}\bput{:U}{source}
   \ncline{s1}{b1}\aput{:U}{\tt javac}
 \endpsmatrix
-\end{pdfpic}
+%\end{pdfpic}
 
 A number of existing systems employ this technique; they can
 be divided into two categories: those which perform a partial
@@ -255,10 +255,10 @@ process.
 Source-to-binary translation involves a compiler for the unsafe
 language which has been modified to emit safe bytecode.
 
-\begin{pdfpic}
-\newlength{\MyLength}
-\settowidth{\MyLength}{xmachine codex}
-\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+%\begin{pdfpic}
+%\newlength{\MyLength}
+%\settowidth{\MyLength}{xmachine codex}
+%\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
 \psmatrix[colsep=2,rowsep=0,nrot=:U]
   & \\[0pt]
   [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
@@ -272,7 +272,7 @@ language which has been modified to emit safe bytecode.
   \psset{nodesep=5pt,arrows=->}
   \ncline{s0}{b1}\bput{:U}{source-to-binary}
 \endpsmatrix
-\end{pdfpic}
+%\end{pdfpic}
 
 An experimental ``JVM backend'' for the {\tt gcc} compiler, known as
 {\tt egcs-jvm} \cite{egcsjvm}, attempts this approach.  Since {\tt
@@ -382,7 +382,7 @@ carry a performance penalty on physical MIPS implementations.
 Our choice of a paged representation for memory carries only a small
 performance disadvantage:
 
-\epsfig{file=charts/chart5,width=3in}
+\epsfig{file=charts/chart5,height=2.7in,angle=-90}
 
 Additionally, this representation lets us to take advantage of the
 fact that on most JVM's, checking for a {\tt NullPointerException}
@@ -437,10 +437,10 @@ translation.  In this mode, NestedVM translates MIPS binaries into
 Java source code, which is then fed to a Java compiler in order to
 produce bytecode files:
 
-\begin{pdfpic}
-\newlength{\MyLength}
-\settowidth{\MyLength}{xmachine codex}
-\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+%\begin{pdfpic}
+%\newlength{\MyLength}
+%\settowidth{\MyLength}{xmachine codex}
+%\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
 \psmatrix[colsep=2,rowsep=0,nrot=:U]
   & \\[0pt]
   & \\[0pt]
@@ -456,7 +456,7 @@ produce bytecode files:
   \ncline{s1}{b1}\aput{:U}{\tt javac}
   \ncline{b0}{s1}\naput{\tt NestedVM}
 \endpsmatrix
-\end{pdfpic}
+%\end{pdfpic}
 
 \begin{figure*}[t]
 \begin{minipage}[c]{7in}%
@@ -539,10 +539,10 @@ Translating unsafe code for use within a JVM proceeds as follows:
 After implementing the binary-to-source compiler, a binary-to-binary
 translation mode was added.
 
-\begin{pdfpic}
-\newlength{\MyLength}
-\settowidth{\MyLength}{xmachine codex}
-\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+%\begin{pdfpic}
+%\newlength{\MyLength}
+%\settowidth{\MyLength}{xmachine codex}
+%\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
 \psmatrix[colsep=2,rowsep=0,nrot=:U]
   & \\[0pt]
   [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
@@ -557,7 +557,7 @@ translation mode was added.
   \ncline{s0}{b0}\bput{:U}{\tt gcc}
   \ncline{b0}{b1}\naput{\tt NestedVM}
 \endpsmatrix
-\end{pdfpic}
+%\end{pdfpic}
 
 This mode has several advantages:
 
@@ -707,7 +707,7 @@ local variables for registers did not offer much of a performance
 advantage, presumably since the JVM's JIT is intelligent enough to
 register-allocate temporaries for fields.
 
-\epsfig{file=charts/chart4,width=3in}
+\epsfig{file=charts/chart4,height=2.7in,angle=-90}
 
 Unfortunately, Java imposes a 64kb limit on the size of the bytecode
 for a single method.  This presents a problem for NestedVM, and
@@ -752,7 +752,7 @@ methods invoked from the trampoline.  Trial and error led to the
 conclusion that HotSpot \cite{hotspot} -- the most widely deployed JVM
 -- performs best when 128 MIPS instructions are mapped to each method.
 
-\epsfig{file=charts/chart1,width=3in}
+\epsfig{file=charts/chart1,height=2.7in,angle=-90}
 
 This phenomenon is due to two factors:
 
@@ -832,7 +832,7 @@ file) eliminates this problem entirely.
 
 Compiling directly to bytecode offers a substantial performance gain:
 
-\epsfig{file=charts/chart3,width=3in}
+\epsfig{file=charts/chart3,height=2.7in,angle=-90}
 
 Most of this improvement comes from the handling of branch
 instructions and from taking advantage of the JVM stack to eliminate
@@ -918,7 +918,7 @@ case} arm shrinks by one instruction.
 
 The net result is quite reasonably sized {\tt .class} files:
 
-\epsfig{file=charts/chart9,width=3in}
+\epsfig{file=charts/chart9,height=2.7in,angle=-90}
 
 
 \subsection{Compiler Flags}
@@ -981,7 +981,7 @@ source-to-MIPS compiler:
 The following chart quantifies the performance gain conferred by each
 of the major optimizations outlined in this section:
 
-\epsfig{file=charts/chart10,width=3in}
+\epsfig{file=charts/chart10,height=2.7in,angle=-90}
 
 
 
@@ -1000,11 +1000,11 @@ and {\tt verdan32.exe}. The {\tt libfreetype} test consisted of
 rendering ASCII characters 32-127 of {\tt Comic.TTF} at sizes from 8
 to 48 incrementing by 4 for a total of 950 glyphs.
 
-\epsfig{file=charts/chart8,width=3in}
+\epsfig{file=charts/chart8,height=2.7in,angle=-90}
 
-\epsfig{file=charts/chart7,width=3in}
+\epsfig{file=charts/chart7,height=2.7in,angle=-90}
 
-\epsfig{file=charts/chart6,width=3in}
+\epsfig{file=charts/chart6,height=2.7in,angle=-90}
 
 \section{Sample Applications}
 
@@ -1069,7 +1069,7 @@ for checking the ``cpu time'' of a process.  Unfortunately we had to
 substitute wall-clock time on an otherwise-quiescent machine as an
 approximation.
 
-\epsfig{file=charts/chart11,width=3in}
+\epsfig{file=charts/chart11,height=2.7in,angle=-90}
 
 
 
