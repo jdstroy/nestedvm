@@ -19,10 +19,10 @@ public abstract class Seekable {
     public int tryReadFully(byte[] buf, int off, int len) throws IOException {
         int total = 0;
         while(len > 0) {
-        	    int n = read(buf,off,len);
-        	    if(n == -1) break;
-        	    off += n;
-        	    len -= n;
+                int n = read(buf,off,len);
+                if(n == -1) break;
+                off += n;
+                len -= n;
             total += n;
         }
         return total == 0 ? -1 : total;

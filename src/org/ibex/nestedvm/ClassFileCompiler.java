@@ -391,7 +391,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     new Type[]{Type.getType("Lorg/ibex/nestedvm/UnixRuntime;"),Type.STRING,new ArrayType(Type.STRING,1)},
                     INVOKESTATIC));
         else
-        	    a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
+                a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
         a(fac.createInvoke("java.lang.System","exit",Type.VOID,new Type[]{Type.INT},INVOKESTATIC));
         a(InstructionConstants.RETURN);
         main.setMaxLocals();
@@ -404,7 +404,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
     }
     
     private void addConstReturnMethod(String name, int val) {
-    	    MethodGen method = newMethod(ACC_PROTECTED,Type.INT, Type.NO_ARGS,name);
+            MethodGen method = newMethod(ACC_PROTECTED,Type.INT, Type.NO_ARGS,name);
         selectMethod(method);
         pushConst(val);
         a(InstructionConstants.IRETURN);

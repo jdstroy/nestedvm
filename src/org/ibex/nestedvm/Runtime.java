@@ -102,7 +102,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     protected abstract void setCPUState(CPUState state);
     
     protected Object clone() throws CloneNotSupportedException {
-    	    Runtime r = (Runtime) super.clone();
+        Runtime r = (Runtime) super.clone();
         r._byteBuf = null;
         r.startTime = 0;
         r.fds = new FD[OPEN_MAX];
@@ -111,7 +111,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         r.readPages = new int[totalPages][];
         r.writePages = new int[totalPages][];
         for(int i=0;i<totalPages;i++) {
-        	    if(readPages[i] == null) continue;
+            if(readPages[i] == null) continue;
             if(writePages[i] == null) r.readPages[i] = readPages[i];
             else r.readPages[i] = r.writePages[i] = (int[])writePages[i].clone();
         }
@@ -152,8 +152,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         if(totalPages == 1) {
             readPages[0] = writePages[0] = new int[pageSize>>2];
         } else {
-        	    for(int i=(stackBottom >>> pageShift);i<writePages.length;i++) {
-        	    	    readPages[i] = writePages[i] = new int[pageSize>>2];
+            for(int i=(stackBottom >>> pageShift);i<writePages.length;i++) {
+                readPages[i] = writePages[i] = new int[pageSize>>2];
             }
         }
     
@@ -505,8 +505,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     static String[] concatArgv(String argv0, String[] rest) {
-    	    String[] argv = new String[rest.length+1];
-    	    System.arraycopy(rest,0,argv,1,rest.length);
+        String[] argv = new String[rest.length+1];
+        System.arraycopy(rest,0,argv,1,rest.length);
         argv[0] = argv0;
         return argv;
     }
@@ -539,8 +539,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         sp = top = writePages.length*(1<<pageShift);
         try {
-        	    sp = argsAddr = addStringArray(args,sp);
-        	    sp = envAddr = addStringArray(createEnv(environ),sp);
+            sp = argsAddr = addStringArray(args,sp);
+            sp = envAddr = addStringArray(createEnv(environ),sp);
         } catch(FaultException e) {
             throw new IllegalArgumentException("args/environ too big");
         }
@@ -573,17 +573,17 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         int sp = state.r[SP];
         int[] ia = new int[args.length];
         for(int i=0;i<args.length;i++) {
-        	    Object o = args[i];
+            Object o = args[i];
             byte[] buf = null;
             if(o instanceof String) {
-            	    buf = getBytes((String)o);
+                buf = getBytes((String)o);
             } else if(o instanceof byte[]) {
-            	    buf = (byte[]) o;
+                buf = (byte[]) o;
             } else if(o instanceof Number) {
-            	    ia[i] = ((Number)o).intValue();
+                ia[i] = ((Number)o).intValue();
             }
             if(buf != null) {
-            	    sp -= buf.length;
+                sp -= buf.length;
                 copyout(buf,sp,buf.length);
                 ia[i] = sp;
             }
@@ -675,10 +675,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     /** Duplicates the file descriptor <i>fdn</i> and returns the new fs */
     public final int dupFD(int fdn) {
-    		int i;
-    		if(fdn < 0 || fdn >= OPEN_MAX) return -1;
-    		if(fds[fdn] == null) return -1;
-    		for(i=0;i<OPEN_MAX;i++) if(fds[i] == null) break;
+        int i;
+        if(fdn < 0 || fdn >= OPEN_MAX) return -1;
+        if(fds[fdn] == null) return -1;
+        for(i=0;i<OPEN_MAX;i++) if(fds[i] == null) break;
         if(i==OPEN_MAX) return -1;
         fds[i] = fds[fdn].dup();
         return i;
@@ -753,9 +753,9 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         byte[] buf = byteBuf(count);
         copyin(addr,buf,count);
         try {
-        	    return fds[fdn].write(buf,0,count);
+            return fds[fdn].write(buf,0,count);
         } catch(ErrnoException e) {
-        	    if(e.errno == EPIPE) sys_exit(128+13);
+            if(e.errno == EPIPE) sys_exit(128+13);
             throw e;
         }
     }
@@ -916,14 +916,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 ret = callJavaCB.call(a,b,c,d);
             } catch(RuntimeException e) {
                 System.err.println("Error while executing callJavaCB");
-            	    e.printStackTrace();
+                    e.printStackTrace();
                 ret = 0;
             }
             state = RUNNING;
             return ret;
         } else {
-        		if(STDERR_DIAG) System.err.println("WARNING: calljava syscall invoked without a calljava callback set");
-        		return 0;
+            if(STDERR_DIAG) System.err.println("WARNING: calljava syscall invoked without a calljava callback set");
+            return 0;
         }
     }
         
@@ -962,7 +962,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case F_GETFL:
                 return fd.flags();
             case F_SETFD:
-            	    closeOnExec[fdn] = arg != 0;
+                closeOnExec[fdn] = arg != 0;
                 return 0;
             case F_GETFD:
                 return closeOnExec[fdn] ? 1 : 0;
@@ -979,14 +979,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         @see Runtime#state state */
     protected final int syscall(int syscall, int a, int b, int c, int d) {
         try {
-        	    return _syscall(syscall,a,b,c,d);
+            return _syscall(syscall,a,b,c,d);
         } catch(ErrnoException e) {
-        	    return -e.errno;
+            return -e.errno;
         } catch(FaultException e) {
-        	    return -EFAULT;
+            return -EFAULT;
         } catch(RuntimeException e) {
             e.printStackTrace();
-        	    throw new Error("Internal Error in _syscall()");
+            throw new Error("Internal Error in _syscall()");
         }
     }
     
@@ -1118,16 +1118,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         public int seek(int n, int whence) throws ErrnoException {
             try {
-            	    switch(whence) {
-            	    	    case SEEK_SET: break;
-            	    	    case SEEK_CUR: n += data.pos(); break;
-            	    	    case SEEK_END: n += data.length(); break;
-            	    	    default: return -1;
-            	    }
-            	    data.seek(n);
-            	    return n;
+                switch(whence) {
+                        case SEEK_SET: break;
+                        case SEEK_CUR: n += data.pos(); break;
+                        case SEEK_END: n += data.length(); break;
+                        default: return -1;
+                }
+                data.seek(n);
+                return n;
             } catch(IOException e) {
-            	    throw new ErrnoException(ESPIPE);
+                throw new ErrnoException(ESPIPE);
             }
         }
         
@@ -1136,19 +1136,19 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             // NOTE: There is race condition here but we can't fix it in pure java
             if((flags&O_APPEND) != 0) seek(0,SEEK_END);
             try {
-            	    return data.write(a,off,length);
+                return data.write(a,off,length);
             } catch(IOException e) {
-            	    throw new ErrnoException(EIO);
+                throw new ErrnoException(EIO);
             }
         }
         
         public int read(byte[] a, int off, int length) throws ErrnoException {
             if((flags&3) == WR_ONLY) throw new ErrnoException(EBADFD);
             try {
-            	    int n = data.read(a,off,length);
-            	    return n < 0 ? 0 : n;
+                int n = data.read(a,off,length);
+                return n < 0 ? 0 : n;
             } catch(IOException e) {
-            	    throw new ErrnoException(EIO);
+                throw new ErrnoException(EIO);
             }
         }
         
@@ -1161,10 +1161,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public OutputStreamFD(OutputStream os) { this.os = os; }
         public int write(byte[] a, int off, int length) throws ErrnoException {
             try {
-            	    os.write(a,off,length);
-            	    return length;
+                os.write(a,off,length);
+                return length;
             } catch(IOException e) {
-            	    throw new ErrnoException(EIO);
+                throw new ErrnoException(EIO);
             }
         }
         public void _close() { try { os.close(); } catch(IOException e) { /*ignore*/ }  }
@@ -1286,13 +1286,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public int pc;
         
         public CPUState dup() {
-        	    CPUState c = new CPUState();
+                CPUState c = new CPUState();
             c.hi = hi;
             c.lo = lo;
             c.fcsr = fcsr;
             c.pc = pc;
             for(int i=0;i<32;i++) {
-            	    c.r[i] = r[i];
+                    c.r[i] = r[i];
                 c.f[i] = f[i];
             }
             return c;
@@ -1300,7 +1300,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     public static class SecurityManager {
-    	    public boolean allowRead(File f) { return true; }
+        public boolean allowRead(File f) { return true; }
         public boolean allowWrite(File f) { return true; }
         public boolean allowStat(File f) { return true; }
     }

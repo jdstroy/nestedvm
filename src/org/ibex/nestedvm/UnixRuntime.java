@@ -64,7 +64,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(extra == null) extra = new String[0];
         if(!envHas("USER",extra) && getSystemProperty("user.name") != null)
             defaults[n++] = "USER=" + getSystemProperty("user.name");
-        if(!envHas("HOME",extra) && getSystemProperty("user.name") != null)
+        if(!envHas("HOME",extra) && getSystemProperty("user.home") != null)
             defaults[n++] = "HOME=" + getSystemProperty("user.home");
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
         if(!envHas("TERM",extra))  defaults[n++] = "TERM=vt100";
@@ -85,10 +85,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             } else {
                 int newpid = -1;
                 int nextPID = gs.nextPID;
-            	    for(int i=nextPID;i<tasks.length;i++) if(tasks[i] == null) { newpid = i; break; }
-            	    if(newpid == -1) for(int i=1;i<nextPID;i++) if(tasks[i] == null) { newpid = i; break; }
-            	    if(newpid == -1) throw new ProcessTableFullExn();
-            	    pid = newpid;
+                    for(int i=nextPID;i<tasks.length;i++) if(tasks[i] == null) { newpid = i; break; }
+                    if(newpid == -1) for(int i=1;i<nextPID;i++) if(tasks[i] == null) { newpid = i; break; }
+                    if(newpid == -1) throw new ProcessTableFullExn();
+                    pid = newpid;
                 gs.nextPID = newpid + 1;
             }
             tasks[pid] = this;
@@ -173,7 +173,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     }
                 } else {
                     // process group stuff, EINVAL returned above
-                	    throw new Error("should never happen");
+                        throw new Error("should never happen");
                 }
                 if(done == null) {
                     if(!blocking) return 0;
@@ -194,7 +194,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(children != null) synchronized(children) {
             for(Enumeration e = exitedChildren.elements(); e.hasMoreElements(); ) {
                 UnixRuntime child = (UnixRuntime) e.nextElement();
-                    gs.tasks[child.pid] = null;
+                gs.tasks[child.pid] = null;
             }
             exitedChildren.clear();
             for(Enumeration e = activeChildren.elements(); e.hasMoreElements(); ) {
@@ -221,7 +221,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     protected Object clone() throws CloneNotSupportedException {
-    	    UnixRuntime r = (UnixRuntime) super.clone();
+        UnixRuntime r = (UnixRuntime) super.clone();
         r.pid = 0;
         r.parent = null;
         r.children = null;
@@ -247,7 +247,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         try {
             r._started();
         } catch(ProcessTableFullExn e) {
-        	    return -ENOMEM;
+            return -ENOMEM;
         }
 
         //System.err.println("fork " + pid + " -> " + r.pid + " tasks[" + r.pid + "] = " + gd.tasks[r.pid]);
@@ -278,7 +278,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     public static int runAndExec(UnixRuntime r, String[] argv) { r.start(argv); return executeAndExec(r); }
     
     public static int executeAndExec(UnixRuntime r) {
-    	    for(;;) {
+        for(;;) {
             for(;;) {
                 if(r.execute()) break;
                 if(STDERR_DIAG) System.err.println("WARNING: Pause requested while executing runAndExec()");
@@ -289,7 +289,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
      
     private String[] readStringArray(int addr) throws ReadFaultException {
-    	    int count = 0;
+        int count = 0;
         for(int p=addr;memRead(p) != 0;p+=4) count++;
         String[] a = new String[count];
         for(int i=0,p=addr;i<count;i++,p+=4) a[i] = cstring(memRead(p));
@@ -297,7 +297,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     private int sys_exec(int cpath, int cargv, int cenvp) throws ErrnoException, FaultException {
-    	    return exec(normalizePath(cstring(cpath)),readStringArray(cargv),readStringArray(cenvp));
+        return exec(normalizePath(cstring(cpath)),readStringArray(cargv),readStringArray(cenvp));
     }
         
     private int exec(String normalizedPath, String[] argv, String[] envp) throws ErrnoException {
@@ -309,9 +309,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(o instanceof Class) {
             Class c = (Class) o;
             try {
-            	    return exec((UnixRuntime) c.newInstance(),argv,envp);
+                    return exec((UnixRuntime) c.newInstance(),argv,envp);
             } catch(Exception e) {
-            	    e.printStackTrace();
+                    e.printStackTrace();
                 return -ENOEXEC;
             }
         } else {
@@ -362,7 +362,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final FD writer = new Writer();
         
         public class Reader extends FD {
-			protected FStat _fstat() { return new FStat(); }
+            protected FStat _fstat() { return new FStat(); }
             public int read(byte[] buf, int off, int len) throws ErrnoException {
                 if(len == 0) return 0;
                 synchronized(Pipe.this) {
@@ -370,7 +370,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         try { Pipe.this.wait(); } catch(InterruptedException e) { /* ignore */ }
                     }
                     if(writePos == -1) return 0; // eof
-                	    len = Math.min(len,writePos-readPos);
+                    len = Math.min(len,writePos-readPos);
                     System.arraycopy(pipebuf,readPos,buf,off,len);
                     readPos += len;
                     if(readPos == writePos) Pipe.this.notify();
@@ -388,9 +388,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     if(readPos == -1) throw new ErrnoException(EPIPE);
                     if(pipebuf.length - writePos < Math.min(len,PIPE_BUF)) {
                         // not enough space to atomicly write the data
-                    	    while(readPos != -1 && readPos != writePos) {
-                    	    	    try { Pipe.this.wait(); } catch(InterruptedException e) { /* ignore */ }
-                    	    }
+                        while(readPos != -1 && readPos != writePos) {
+                            try { Pipe.this.wait(); } catch(InterruptedException e) { /* ignore */ }
+                        }
                         if(readPos == -1) throw new ErrnoException(EPIPE);
                         readPos = writePos = 0;
                     }
@@ -498,7 +498,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public GlobalState(int maxProcs, boolean defaultMounts) {
             tasks = new UnixRuntime[maxProcs+1];
             if(defaultMounts) {
-            	    addMount("/",new HostFS());
+                addMount("/",new HostFS());
                 addMount("/dev",new DevFS());
             }
         }
@@ -550,13 +550,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public synchronized void removeMount(String path) {
             if(!path.startsWith("/")) throw new IllegalArgumentException("Mount point doesn't start with a /");
             if(path.equals("/")) {
-            	    removeMount(-1);
+                removeMount(-1);
             } else {
                 path = path.substring(1);
                 int p;
                 for(p=0;p<mps.length;p++) if(mps[p].path.equals(path)) break;
                 if(p == mps.length) throw new IllegalArgumentException("mount point doesn't exist");
-               removeMount(p);
+                removeMount(p);
             }
         }
         
@@ -571,13 +571,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         private Object fsop(int op, UnixRuntime r, String normalizedPath, int arg1, int arg2) throws ErrnoException {
             int pl = normalizedPath.length();
             if(pl != 0) {
-            	    MP[] list;
+                MP[] list;
                 synchronized(this) { list = mps; }
                 for(int i=0;i<list.length;i++) {
-                	    MP mp = list[i];
-                	    int mpl = mp.path.length();
+                    MP mp = list[i];
+                    int mpl = mp.path.length();
                     if(normalizedPath.startsWith(mp.path) && (pl == mpl || (pl < mpl && normalizedPath.charAt(mpl) == '/')))
-                    	    return dispatch(mp.fs,op,r,pl == mpl ? "" : normalizedPath.substring(mpl+1),arg1,arg2);
+                        return dispatch(mp.fs,op,r,pl == mpl ? "" : normalizedPath.substring(mpl+1),arg1,arg2);
                 }
             }
             return dispatch(root,op,r,normalizedPath,arg1,arg2);
@@ -585,7 +585,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         private static Object dispatch(FS fs, int op, UnixRuntime r, String path, int arg1, int arg2) throws ErrnoException {
             switch(op) {
-            	    case OPEN: return fs.open(r,path,arg1,arg2);
+                case OPEN: return fs.open(r,path,arg1,arg2);
                 case STAT: return fs.stat(r,path);
                 case LSTAT: return fs.lstat(r,path);
                 case MKDIR: fs.mkdir(r,path,arg1); return null;
@@ -614,7 +614,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             CacheEnt ent = (CacheEnt) execCache.get(path);
             if(ent != null) {
                 //System.err.println("Found cached entry for " + path);
-            	    if(ent.time == mtime && ent.size == size) return ent.o;
+                if(ent.time == mtime && ent.size == size) return ent.o;
                 //System.err.println("Cache was out of date");
                 execCache.remove(path);
             }
@@ -638,7 +638,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         break;
                     case '#':
                         if(n == 1) {
-                        	    int n2 = s.read(buf,1,buf.length-1);
+                            int n2 = s.read(buf,1,buf.length-1);
                             if(n2 == -1) throw new ErrnoException(ENOEXEC);
                             n += n2;
                         }
@@ -646,7 +646,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         int p = 2;
                         n -= 2;
                         OUTER: for(;;) {
-                        	    for(int i=p;i<p+n;i++) if(buf[i] == '\n') { p = i; break OUTER; }
+                            for(int i=p;i<p+n;i++) if(buf[i] == '\n') { p = i; break OUTER; }
                             p += n;
                             if(p == buf.length) break OUTER;
                             n = s.read(buf,p,buf.length-p);
@@ -656,11 +656,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         for(arg=2;arg<p;arg++) if(buf[arg] == ' ') break;
                         if(arg < p) {
                             int cmdEnd = arg;
-                        	    while(arg < p && buf[arg] == ' ') arg++;
+                            while(arg < p && buf[arg] == ' ') arg++;
                             command[0] = new String(buf,2,cmdEnd);
                             command[1] = arg < p ? new String(buf,arg,p-arg) : null;
                         } else {
-                        	    command[0] = new String(buf,2,p-2);
+                            command[0] = new String(buf,2,p-2);
                         }
                         //System.err.println("command[0]: " + command[0] + " command[1]: " + command[1]);
                         break;
@@ -669,14 +669,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 }
             } catch(IOException e) {
                 fd.close();
-            	    throw new ErrnoException(EIO);
+                throw new ErrnoException(EIO);
             }
                         
             if(command == null) {
                 // its an elf binary
                 try {
                     s.seek(0);
-                	    Class c = RuntimeCompiler.compile(s);
+                    Class c = RuntimeCompiler.compile(s);
                     //System.err.println("Compile succeeded: " + c);
                     ent = new CacheEnt(mtime,size,c);
                 } catch(Compiler.Exn e) {
@@ -684,10 +684,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     throw new ErrnoException(ENOEXEC);
                 } catch(IOException e) {
                     if(STDERR_DIAG) e.printStackTrace();
-                	    throw new ErrnoException(EIO);
+                    throw new ErrnoException(EIO);
                 }
             } else {
-            	    ent = new CacheEnt(mtime,size,command);
+                ent = new CacheEnt(mtime,size,command);
             }
             
             fd.close();
@@ -725,15 +725,15 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(absolute) {
             do { inp++; } while(in[inp] == '/');
         } else if(cwdl != 0) {
-            	cwd.getChars(0,cwdl,out,0);
-            	outp = cwdl;
+            cwd.getChars(0,cwdl,out,0);
+            outp = cwdl;
         }
             
         path.getChars(0,path.length(),in,0);
         while(in[inp] != 0) {
             if(inp != 0) {
-            	    if(in[inp] != '/') { out[outp++] = in[inp++]; continue; }
-            	    while(in[inp] == '/') inp++;
+                if(in[inp] != '/') { out[outp++] = in[inp++]; continue; }
+                while(in[inp] == '/') inp++;
             }
             if(in[inp] == '\0') continue;
             if(in[inp] != '.') { out[outp++] = '/'; out[outp++] = in[inp++]; continue; }
@@ -796,7 +796,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(sep != '/') {
                 char buf[] = path.toCharArray();
                 for(int i=0;i<buf.length;i++) {
-                	    char c = buf[i];
+                    char c = buf[i];
                     if(c == '/') buf[i] = sep;
                     else if(c == sep) buf[i] = '/';
                 }
@@ -871,9 +871,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             int reclen;
             OUTER: for(;len > 0 && pos < size();pos++){
                 switch(pos) {
-                	    case -2:
+                    case -2:
                     case -1:
-                	    	    ino = pos == -1 ? parentInode() : myInode();
+                        ino = pos == -1 ? parentInode() : myInode();
                         if(ino == -1) continue;
                         reclen = 9 + (pos == -1 ? 2 : 1);
                         if(reclen > len) break OUTER;
@@ -987,7 +987,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     
                     public String name(int n) {
                         switch(n) {
-                        	    case 0: return "null";
+                            case 0: return "null";
                             case 1: return "zero";
                             case 2: return "fd";
                             default: return null;

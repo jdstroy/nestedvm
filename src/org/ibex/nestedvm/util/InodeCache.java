@@ -56,7 +56,7 @@ public class InodeCache {
         
         while((k = keys[dest]) != null) {
             if(k == PLACEHOLDER) {
-            	    if(placeholder == -1) placeholder = dest;
+                if(placeholder == -1) placeholder = dest;
             } else if(k.equals(key)) {
                 short inode = inodes[dest];
                 if(dest == mru) return inode;
@@ -130,8 +130,8 @@ public class InodeCache {
         reverse[dest] = (short) slot;
         inodes[slot] = (short) inode;
         if(mru != -1) {
-        	    prev[slot] = mru;
-        	    next[mru] = (short) slot;
+            prev[slot] = mru;
+            next[mru] = (short) slot;
         }
         mru = (short) slot;
         return (short) inode;
@@ -152,7 +152,7 @@ public class InodeCache {
         return null;
     }
     
-    private void dump() {
+    /*private void dump() {
         System.err.println("Size " + size);
         System.err.println("UsedSlots " + usedSlots);
         System.err.println("MRU " + mru);
@@ -184,20 +184,20 @@ public class InodeCache {
         String s;
         boolean good = false;
         try {
-        	    while((s = br.readLine()) != null) {
+            while((s = br.readLine()) != null) {
                 if(s.charAt(0) == '#') {
                     short n = Short.parseShort(s.substring(1));
-                	    System.err.println("" + n + " -> " + c.reverse(n));
+                        System.err.println("" + n + " -> " + c.reverse(n));
                 } else {
-                	    //System.err.println("Adding " + s);
-        	    	        short n = c.get(s);
-        	    	        System.err.println("Added " + s + " -> " + n);
-        	    	        //c.dump();
+                    //System.err.println("Adding " + s);
+                    short n = c.get(s);
+                    System.err.println("Added " + s + " -> " + n);
+                    //c.dump();
                 }
             }
             good = true;
         } finally {
             if(!good) c.stats();
         }
-    }
+    }*/
 }
