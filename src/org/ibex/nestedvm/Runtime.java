@@ -996,20 +996,23 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         <i>syscall</i> should be the contents of V0 and <i>a</i>, <i>b</i>, <i>c</i>, and <i>d</i> should be 
         the contenst of A0, A1, A2, and A3. The call MAY change the state
         @see Runtime#state state */
-    protected final int syscall(int syscall, int a, int b, int c, int d) {
+    protected final int syscall(int syscall, int a, int b, int c, int d, int e, int f) {
         try {
-            return _syscall(syscall,a,b,c,d);
-        } catch(ErrnoException e) {
-            return -e.errno;
-        } catch(FaultException e) {
+            int n = _syscall(syscall,a,b,c,d,e,f);
+            //if(n < 0) System.err.println("syscall: " + syscall + " returned " + n);
+            return n;
+        } catch(ErrnoException ex) {
+            //ex.printStackTrace();
+            return -ex.errno;
+        } catch(FaultException ex) {
             return -EFAULT;
-        } catch(RuntimeException e) {
-            e.printStackTrace();
+        } catch(RuntimeException ex) {
+            ex.printStackTrace();
             throw new Error("Internal Error in _syscall()");
         }
     }
     
-    int _syscall(int syscall, int a, int b, int c, int d) throws ErrnoException, FaultException {
+    int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
         switch(syscall) {
             case SYS_null: return 0;
             case SYS_exit: return sys_exit(a);

@@ -3,8 +3,7 @@ package org.ibex.nestedvm;
 import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
-import java.net.Socket;
-import java.net.ServerSocket;
+import java.net.*;
 
 // FEATURE: vfork
 
@@ -109,7 +108,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
     }
     
-    int _syscall(int syscall, int a, int b, int c, int d) throws ErrnoException, FaultException {
+    int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
         switch(syscall) {
             case SYS_kill: return sys_kill(a,b);
             case SYS_fork: return sys_fork();
@@ -126,11 +125,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_getdents: return sys_getdents(a,b,c,d);
             case SYS_unlink: return sys_unlink(a);
             case SYS_getppid: return sys_getppid();
-            case SYS_opensocket: return sys_opensocket(a,b);
-            case SYS_listensocket: return sys_listensocket(a);
-            case SYS_accept: return sys_accept(a);
+            case SYS_socket: return sys_socket(a,b,c);
+            case SYS_connect: return sys_connect(a,b,c);
+            case SYS_resolve_hostname: return sys_resolve_hostname(a,b,c);
+            case SYS_setsockopt: return sys_setsockopt(a,b,c,d,e);
+            case SYS_getsockopt: return sys_getsockopt(a,b,c,d,e);
+            case SYS_bind: return sys_bind(a,b,c);
+            case SYS_listen: return sys_listen(a,b);
+            case SYS_accept: return sys_accept(a,b,c);
+            case SYS_shutdown: return sys_shutdown(a,b);
+            case SYS_sysctl: return sys_sysctl(a,b,c,d,e,f);
 
-            default: return super._syscall(syscall,a,b,c,d);
+            default: return super._syscall(syscall,a,b,c,d,e,f);
         }
     }
     
@@ -165,7 +171,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case 28: // SIGWINCH
                 break;
             default:
-                return syscall(SYS_exit,128+signal,0,0,0);
+                // FEATURE: This is ugly, make a clean interface to sys_exit
+                return syscall(SYS_exit,128+signal,0,0,0,0,0);
         }
         return 0;
     }
@@ -524,15 +531,101 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return n;
     }
     
-    private static class SocketFD extends InputOutputStreamFD {
-        private final Socket s;
+    static class SocketFD extends FD {
+        public static final int TYPE_STREAM = 0;
+        public static final int TYPE_DGRAM = 1;
+        public static final int LISTEN = 2;
+        public int type() { return flags & 1; }
+        public boolean listen() { return (flags & 2) != 0; }
         
-        public SocketFD(Socket s) throws IOException {
-            super(s.getInputStream(),s.getOutputStream());
-            this.s = s;
+        int flags;
+        int options;
+        Object o;
+        InetAddress bindAddr;
+        int bindPort = -1;
+        DatagramPacket dp;
+        InputStream is;
+        OutputStream os; 
+        
+        public SocketFD(int type) { flags = type; }
+        
+        public void setOptions() {
+            try {
+                if(o != null && type() == TYPE_STREAM && !listen()) {
+                    ((Socket)o).setKeepAlive((options & SO_KEEPALIVE) != 0);
+                }
+            } catch(SocketException e) {
+                if(STDERR_DIAG) e.printStackTrace();
+            }
         }
         
-        public void _close() { try { s.close(); } catch(IOException e) { } }
+        public void _close() {
+            if(o != null) {
+                try {
+                    if(type() == TYPE_STREAM) {
+                        if(listen()) ((ServerSocket)o).close();
+                        else ((Socket)o).close();
+                    } else {
+                        ((DatagramSocket)o).close();
+                    }
+                } catch(IOException e) {
+                    /* ignore */
+                }
+            }
+        }
+        
+        public int read(byte[] a, int off, int length) throws ErrnoException {
+            if(type() == TYPE_STREAM) {
+                if(is == null) throw new ErrnoException(EPIPE);
+                try {
+                    int n = is.read(a,off,length);
+                    return n < 0 ? 0 : n;
+                } catch(IOException e) {
+                    throw new ErrnoException(EIO);
+                }
+            } else {
+                DatagramSocket ds = (DatagramSocket) o;
+                dp.setData(a,off,length);
+                try {
+                    ds.receive(dp);
+                } catch(IOException e) {
+                    throw new ErrnoException(EIO);
+                }
+                return dp.getLength();
+            }
+        }    
+        
+        public int write(byte[] a, int off, int length) throws ErrnoException {
+            if(type() == TYPE_STREAM) {
+                if(os == null) throw new ErrnoException(EPIPE);
+                try {
+                    os.write(a,off,length);
+                    return length;
+                } catch(IOException e) {
+                    throw new ErrnoException(EIO);
+                }
+            } else {
+                DatagramSocket ds = (DatagramSocket) o;
+                dp.setData(a,off,length);
+                try {
+                    ds.send(dp);
+                } catch(IOException e) {
+                    throw new ErrnoException(EIO);
+                }
+                return dp.getLength();
+            }
+        }
+
+        // FEATURE: Check that these are correct
+        public int flags() {
+            if(is != null && os != null) return O_RDWR;
+            if(is != null) return O_RDONLY;
+            if(os != null) return O_WRONLY;
+            return 0;
+        }
+        
+        // FEATURE: Populate this properly
+        public FStat _fstat() { return new FStat(); }
     }
     
     public int sys_opensocket(int cstring, int port) throws FaultException, ErrnoException {
@@ -580,7 +673,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         } catch(IOException e) {
             return -EIO;
         }
-    }
+    }*/
     
     //  FEATURE: Run through the fork/wait stuff one more time
     public static class GlobalState {    

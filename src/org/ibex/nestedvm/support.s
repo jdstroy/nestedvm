@@ -9,6 +9,9 @@
 #define a3 $7
 #define t0 $8
 #define t1 $9
+#define t2 $10
+#define t3 $11
+#define sp $29
 #define ra $31
 
 /* We intentionally don't take advantage of delay slots because
@@ -30,26 +33,42 @@ name:               \
     .end name;
 
 #define SYSCALL_R(name) SYSCALL_R2(_##name##_r,SYS_##name)
+#define SYSCALL_R_LONG(name) SYSCALL_R2_LONG(_##name##_r,SYS_##name)
+
 #define SYSCALL_R2(name,number) \
+    SYSCALL_R2_BEG(name,number) \
+    SYSCALL_R2_END(name)
+    
+    
+#define SYSCALL_R2_LONG(name,number)  \
+    SYSCALL_R2_BEG(name,number) \
+    lw a3,16(sp); \
+    lw t0,20(sp); \
+    lw t1,24(sp); \
+    SYSCALL_R2_END(name)
+
+#define SYSCALL_R2_BEG(name,number) \
     .section .text.name,"ax",@progbits; \
     .align 2;                  \
     .globl name;               \
     .ent name;                 \
 name:                          \
     li v0, number;             \
-    move t0, a0;               \
+    move t2, a0;               \
     move a0, a1;               \
     move a1, a2;               \
     move a2, a3;               \
+    
+#define SYSCALL_R2_END(name) \
     syscall;                   \
-    addu t1,v0,255;            \
-    sltu t1,t1,255;            \
-    bne t1,zero,$L##name##_errno;\
+    addu t3,v0,255;            \
+    sltu t3,t3,255;            \
+    bne t3,zero,$L##name##_errno;\
     nop;                       \
     j ra;                      \
     nop;                       \
 $L##name##_errno:              \
-    move a0, t0;               \
+    move a0, t2;               \
     move a1, v0;               \
     j _syscall_set_errno;      \
     nop;                       \
@@ -60,7 +79,7 @@ $L##name##_errno:              \
     .globl   _call_helper
     .ent     _call_helper
 _call_helper:
-    subu $sp,$sp,32
+    subu sp,sp,32
     
     /* addr */
     move $2,$4
@@ -72,8 +91,8 @@ _call_helper:
     move $7,$16
     
     /* args 5 and 6 */
-    sw $17,16($sp)
-    sw $18,20($sp)
+    sw $17,16(sp)
+    sw $18,20(sp)
     
     /* call the func */
     jal $31,$2
@@ -124,7 +143,7 @@ SYSCALL_R(readlink)
 SYSCALL_R(lstat)
 SYSCALL_R(symlink)
 SYSCALL_R(link)
-SYSCALL_R(getdents)
+SYSCALL_R_LONG(getdents)
 /*SYSCALL(memcpy)			  */
 /*SYSCALL(memset)			 */
 SYSCALL_R(dup)
@@ -136,6 +155,17 @@ SYSCALL_R(ftruncate)
 SYSCALL_R(usleep)
 SYSCALL(getppid)
 SYSCALL_R(mkfifo)
-SYSCALL_R2(__open_socket_r,SYS_opensocket)
-SYSCALL_R2(__listen_socket_r,SYS_listensocket)
-SYSCALL_R2(__accept_r,SYS_accept)
+SYSCALL_R(klogctl)
+SYSCALL_R(realpath)
+SYSCALL_R2_LONG(__sysctl_r,SYS_sysctl)
+SYSCALL_R(getpriority)
+SYSCALL_R(setpriority)
+SYSCALL_R(socket)
+SYSCALL_R(connect)
+SYSCALL_R2(__resolve_hostname_r,SYS_resolve_hostname)
+SYSCALL_R(accept)
+SYSCALL_R_LONG(setsockopt)
+SYSCALL_R_LONG(getsockopt)
+SYSCALL_R(listen)
+SYSCALL_R(bind)
+SYSCALL_R(shutdown)

@@ -221,7 +221,7 @@ rebuild-constants: $(tasks)/build_newlib
 		echo "public interface UsermodeConstants {"; \
 		tr '\t' ' ' | sed -n ' \
 			s/  */ /g; \
-			s/ *# *define \([A-Z_][A-Za-z0-9_]*\) \([0-9][0-9x]*\)/    public static final int \1 = \2;/p'; \
+			s/ *# *define \([A-Z_][A-Za-z0-9_]*\) \([0-9][0-9a-fA-Fx]*\)/    public static final int \1 = \2;/p'; \
 		echo "}"; \
 	) > src/org/ibex/nestedvm/UsermodeConstants.java
 

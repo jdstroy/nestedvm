@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <sys/sysctl.h>
+#include <sys/utsname.h>
+#include <nestedvm/sockets.h>
+#include <paths.h>
 
 int _syscall_set_errno(struct _reent *ptr, int err) {
     ptr->_errno = -err;
@@ -62,6 +66,16 @@ extern rt _##f##_r(struct _reent *ptr, t1 a, t2 b, t3 c, t4 d); \
 rt f(t1 a, t2 b, t3 c, t4 d) { return _##f##_r(_REENT,a,b,c,d); }
 #define REENT_WRAPPER4(f,t1,t2,t3,t4) REENT_WRAPPER4R(f,int,t1,t2,t3,t4)
 
+#define REENT_WRAPPER5R(f,rt,t1,t2,t3,t4,t5) \
+extern rt _##f##_r(struct _reent *ptr, t1 a, t2 b, t3 c, t4 d, t5 e); \
+rt f(t1 a, t2 b, t3 c, t4 d, t5 e) { return _##f##_r(_REENT,a,b,c,d,e); }
+#define REENT_WRAPPER5(f,t1,t2,t3,t4,t5) REENT_WRAPPER5R(f,int,t1,t2,t3,t4,t5)
+
+#define REENT_WRAPPER6R(f,rt,t1,t2,t3,t4,t5,t6) \
+extern rt _##f##_r(struct _reent *ptr, t1 a, t2 b, t3 c, t4 d, t5 e, t6 f); \
+rt f(t1 a, t2 b, t3 c, t4 d, t5 e, t6 f) { return _##f##_r(_REENT,a,b,c,d,e,f); }
+#define REENT_WRAPPER6(f,t1,t2,t3,t4,t5,t6) REENT_WRAPPER6R(f,int,t1,t2,t3,t4,t5,t6)
+
 REENT_WRAPPER2(mkdir,const char *,mode_t)
 REENT_WRAPPER2(access,const char *,int)
 REENT_WRAPPER1(rmdir,const char *)
@@ -90,9 +104,21 @@ REENT_WRAPPER3(mknod,const char *,mode_t,dev_t)
 REENT_WRAPPER2(ftruncate,int,off_t)
 REENT_WRAPPER1(usleep,unsigned int)
 REENT_WRAPPER2(mkfifo,const char *, mode_t)
-REENT_WRAPPER2(_open_socket,const char *,int)
-REENT_WRAPPER1(_listen_socket,int)
-REENT_WRAPPER1(_accept,int)
+REENT_WRAPPER3(klogctl,int,char*,int)
+REENT_WRAPPER2R(realpath,char *,const char *,char *)
+REENT_WRAPPER6(_sysctl,int *,int, void *, size_t*, void *, size_t)
+REENT_WRAPPER6(sysctl,int *, int, void *, size_t*, void *, size_t)
+REENT_WRAPPER2(getpriority,int,int)
+REENT_WRAPPER3(setpriority,int,int,int)
+REENT_WRAPPER3(connect,int,const struct sockaddr *,socklen_t)
+REENT_WRAPPER3(socket,int,int,int)
+REENT_WRAPPER3(_resolve_hostname,const char *,char*,size_t*)
+REENT_WRAPPER3(accept,int,struct sockaddr *,socklen_t*)
+REENT_WRAPPER5(getsockopt,int,int,int,void*,socklen_t*)
+REENT_WRAPPER5(setsockopt,int,int,int,const void*,socklen_t)
+REENT_WRAPPER3(bind,int,const struct sockaddr *,socklen_t)
+REENT_WRAPPER2(listen,int,int)
+REENT_WRAPPER2(shutdown,int,int)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
@@ -225,6 +251,67 @@ int closedir(DIR *dir) {
 }
 
 /*
+ * Networking/Socket stuff
+ */
+
+/* This should really be part of the newlib _reent structure */
+int h_errno;
+
+char *inet_ntoa(struct in_addr in) {
+    static char buf[18];
+    const unsigned char *p = (void*) &in;
+    snprintf(buf,sizeof(buf),"%u.%u.%u.%u",p[0],p[1],p[2],p[3]);
+    return buf;
+}
+
+struct servent *getservbyname(const char *name,const char *proto) {
+    return NULL;
+}
+
+static const char *h_errlist[] = { "No Error","Unknown host", "Host name lookup failure","Unknown server error","No address associated with name" };
+
+const char *hstrerror(int err) {
+    if(err < 0 || err > 4) return "Unknown Error";
+    return h_errlist[err];
+}
+
+void herror(const char *string) {
+    fprintf(stderr,"%s: %s\n",string,hstrerror(h_errno));
+}
+
+extern int _resolve_hostname(const char *, char *buf, size_t *size);
+
+struct hostent *gethostbyname(const char *hostname) {
+#define MAX_ADDRS 256
+    static struct hostent hostent;
+    static char saved_hostname[128];
+    static char *addr_list[MAX_ADDRS+1];
+    static char addr_list_buf[MAX_ADDRS*sizeof(struct in_addr)];
+    static char *aliases[1];
+    
+    unsigned char buf[MAX_ADDRS*sizeof(struct in_addr)];
+    size_t size = sizeof(buf);
+    int err,i,n=0;
+    
+    err = _resolve_hostname(hostname,buf,&size);
+    if(err != 0) { h_errno = err; return NULL; }
+    
+    memcpy(addr_list_buf,buf,size);
+    for(i=0;i<size;i += sizeof(struct in_addr)) addr_list[n++] = &addr_list_buf[i];
+    addr_list[n] = NULL;
+    strncpy(saved_hostname,hostname,sizeof(saved_hostname));
+    aliases[0] = NULL;
+    
+    hostent.h_name = saved_hostname;
+    hostent.h_aliases = aliases;
+    hostent.h_addrtype = AF_INET;
+    hostent.h_length = sizeof(struct in_addr);
+    hostent.h_addr_list = addr_list;
+    
+    return &hostent;
+}
+
+/*
  * Other People's Code 
  */
 
@@ -338,3 +425,35 @@ const char *path;
     return(bname);
 }
 
+
+/* FreeBSD's daemon() - modified for nestedvm */
+int
+daemon(nochdir, noclose)
+int nochdir, noclose;
+{
+	int fd;
+    
+	switch (fork()) {
+        case -1:
+            return (-1);
+        case 0:
+            break;
+        default:
+            _exit(0);
+	}
+    
+	/*if (setsid() == -1)
+		return (-1);*/
+    
+	if (!nochdir)
+		(void)chdir("/");
+    
+	if (!noclose && (fd = open(_PATH_DEVNULL, O_RDWR, 0)) != -1) {
+		(void)dup2(fd, STDIN_FILENO);
+		(void)dup2(fd, STDOUT_FILENO);
+		(void)dup2(fd, STDERR_FILENO);
+		if (fd > 2)
+			(void)close(fd);
+	}
+	return (0);
+}

@@ -125,7 +125,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                         continue OUTER;
                     case 12: // SYSCALL
                         this.pc = pc;
-                        r[V0] = syscall(r[V0],r[A0],r[A1],r[A2],r[A3]);
+                        r[V0] = syscall(r[V0],r[A0],r[A1],r[A2],r[A3],r[T0],r[T1]);
                         if(state != RUNNING) { this.pc = nextPC; break OUTER; }
                         break;
                     case 13: // BREAK

@@ -22,8 +22,8 @@ public class Echo {
                 task.closeFD(0);
                 task.closeFD(1);
                 //task.closeFD(2);
-                task.addFD(new Runtime.InputStreamFD(sock.getInputStream()));
-                task.addFD(new Runtime.OutputStreamFD(sock.getOutputStream()));
+                task.addFD(new Runtime.InputOutputStreamFD(sock.getInputStream()));
+                task.addFD(new Runtime.InputOutputStreamFD(sock.getOutputStream()));
                 //task.dupFD(1);
                 
                 int status = task.run(new String[]{"EchoHelper"} );
