@@ -4,6 +4,7 @@
 \usepackage{amssymb,amsmath,epsfig,alltt}
 \sloppy
 \usepackage{palatino}
+\usepackage{url}
 \usepackage{pdftricks}
 \begin{psinputs}
   \usepackage{pstricks}
@@ -45,7 +46,7 @@ one source code language (such as C, Pascal, or Fortran) to another
 We present an alternative approach which translate MIPS binaries
 produced by any compiler into safe virtual machine bytecodes.  This
 approach offers four key advantages over existing techniques: it is
-language agnostic, it offers bug-for-bug compiler compatability,
+language agnostic, it offers bug-for-bug compiler compatibility,
 requires no post-translation human intervention, and introduces no
 build process modifications.
 
@@ -65,9 +66,8 @@ attractive solution for code which is not performance-critical.
 
 \section{Introduction}
 
-Unsafe languages such as C \cite{KR} and C++ \cite{soustroup} have
-been in use much longer than any of today's widely accepted safe
-languages such as Java \cite{java} and C\# \cite{csharp}.
+Unsafe languages such as C and C++ have been in use much longer than
+any of today's widely accepted safe languages such as Java and C\#
 Consequently, there is a huge library of software written in these
 languages.  Although safe languages offer substantial benefits, their
 comparatively young age often puts them at a disadvantage when breadth
@@ -109,7 +109,7 @@ unsafe source, binary, and bytecode) and survey existing work for
 performing transformations between them.  In the third section we
 introduce NestedVM and cover its two primary translation modes in
 detail.  Section four describes the NestedVM runtime, which plays the
-role of the OS kernel.  Section five adresses the optimizations we
+role of the OS kernel.  Section five addresses the optimizations we
 employ and quantifies NestedVM's performance.  Section six reviews our
 experiences in applying NestedVM to various popular software packages.
 We conclude with an analysis of NestedVM's weaknesses and potential
@@ -205,12 +205,12 @@ programs.
 \subsubsection{Human-Assisted Translation}
 
 Jazillian \cite{jazillian} is a commercial solution which produces
-extremely readable Java source code from C source code, but ony
+extremely readable Java source code from C source code, but only
 translates a small portion of the C language.  Jazillian is unique in
 that in addition to {\it language migration}, it also performs {\it
 API migration}; for example, Jazillian is intelligent enough to
 translate ``{\tt char*~s1~=~strcpy(s2)}'' into ``{\tt
-String~s1~=~s2}''.  Unfortunately such deep analysis is intractible
+String~s1~=~s2}''.  Unfortunately such deep analysis is intractable
 for most of the C language and standard library; indeed, Jazillian's
 documentation notes that {\it ``This is not your father's language
 translator... Jazillian does not always produce code that works
@@ -226,7 +226,7 @@ for all of the C++ programs which it accepts.
 
 \subsubsection{Partial-Domain Translation}
 
-The {\tt c2j} \cite{c2j}, {\tt c2j++} \cite{c2jpp}, Cappucinno
+The {\tt c2j} \cite{c2j}, {\tt c2j++}, Cappucinno
 \cite{capp}, and Ephedra \cite{ephedra} systems each provide support
 for complete translation of a {\it subset} of the source language (C
 or C++).  Each of the four tools supports a progressively greater
@@ -243,7 +243,7 @@ recently written.
 Unfortunately, when the program being translated is large and complex,
 it is quite likely that it will use an unsupported feature in at least
 one place.  In the absence of a programmer who understands the source
-program, a single anomoly is often enough to render the entire
+program, a single anomaly is often enough to render the entire
 translation process useless.  As a result, these tools are mainly
 useful as an {\it aid} to programmers who could normally perform the
 conversion themselves, but want to save time by automating most of the
@@ -283,8 +283,8 @@ fundamental assumptions (such as the availability of pointer math)
 which cannot be directly supported; thus the compiler still fails for
 a substantial class of input programs.
 
-A Java backend for the {\tt lcc} [CITE] compiler, known as {\tt
-lcc-java} [CITE], is also available.  Although this system is quite
+A Java backend for the {\tt lcc} compiler \cite{lcc}, known as {\tt
+lcc-java}, is also available.  Although this system is quite
 clean and elegantly designed, it lacks any form of system library
 ({\tt libc}), so very few C programs will run without custom
 modification (which would cause them to diverge from the upstream
@@ -312,10 +312,10 @@ translation.  This offers three immediate advantages:
       code generation steps of compilation, it is freed from the
       extremely complex task of faithfully implementing languages
       which are often not fully or formally specified (such as C and
-      C++), and is able to support any langage for which a
+      C++), and is able to support any language for which a
       MIPS-targeted compiler exists.
 
-\item {\bf Bug-for-bug compiler compatability}
+\item {\bf Bug-for-bug compiler compatibility}
 
       Since NestedVM uses the compiler's {\it output} as its own {\it
       input}, it ensures that programs which are inadvertently
@@ -526,7 +526,7 @@ Translating unsafe code for use within a JVM proceeds as follows:
       emits a {\tt .java} file.
 
 \item The resulting {\tt .java} code is compiled into a {\tt .class}
-      file using {\tt jikes} \cite{jikes} or {\tt javac}.
+      file using {\tt jikes} or {\tt javac}.
 
 \item At runtime, the host Java code invokes the {\tt run()} method on
       the generated class.  This is equivalent to the {\tt main()}
@@ -580,12 +580,12 @@ This mode has several advantages:
 
 \section{The NestedVM Runtime}
 
-The NestedVM runtime fills the role typically assmed by an OS Kernel.
+The NestedVM runtime fills the role typically assumed by an OS Kernel.
 Communication between MIPS code and the runtime is mediated by the
 {\tt SYSCALL} instruction, just as the {\tt libc}-kernel interface is
 on other MIPS implementations.
 
-Two implemenations of the runtime are offered; a simple runtime with
+Two implementations of the runtime are offered; a simple runtime with
 the minimum support required to comply with ANSI C, and a more
 sophisticated runtime which emulates a large portion of the POSIX API.
 
@@ -749,7 +749,7 @@ This change alone nearly doubled the speed of the compiled binary.
 
 The next performance improvement came from tuning the size of the
 methods invoked from the trampoline.  Trial and error led to the
-onclusion that HotSpot \cite{hotspot} -- the most widely deployed JVM
+conclusion that HotSpot \cite{hotspot} -- the most widely deployed JVM
 -- performs best when 128 MIPS instructions are mapped to each method.
 
 \epsfig{file=charts/chart1,width=3in}
@@ -770,7 +770,7 @@ This phenomenon is due to two factors:
 \end{itemize}
 
 After tuning method sizes, our next performance boost came from
-eliminating exraneous case branches, which yielded approximately a
+eliminating extraneous case branches, which yielded approximately a
 10\%-25\% performance improvement.  Having case statements before each
 instruction prevents JIT compilers from being able to optimize across
 instruction boundaries, since control flow can enter the body of a
@@ -823,7 +823,7 @@ central values; for example ``{\tt pc~=~N\_0x00010000~+~0x10}'' (where
 {\tt N\_0x000100000} is a non-final field to prevent {\tt javac} from
 inlining it).  This was sufficient to get reasonably large binaries to
 compile, and caused only a small (approximately 5\%) performance
-degredation and a similarly small increase in the size of the {\tt
+degradation and a similarly small increase in the size of the {\tt
 .class} file.  However, as we will see in the next section, compiling
 directly to {\tt .class} files (without the intermediate {\tt .java}
 file) eliminates this problem entirely.
@@ -980,6 +980,19 @@ source-to-MIPS compiler:
 
 \subsection{Overall Performance}
 
+All times are measured in seconds.  All tests were performed on a dual
+1Ghz Macintosh G4 running Apple's latest JVM (Sun HotSpot JDK
+1.4.1). Each test was run 8 times within a single VM. The highest and
+lowest times were removed and the remaining 6 were averaged.  In each
+case only the first run differed significantly from the rest.
+
+The {\tt libjpeg} test consisted of decoding a 1280x1024 jpeg and
+writing a tga.  The {\tt mspack} test consisted of extracting all
+members from {\tt arial32.exe}, {\tt comic32.exe}, {\tt times32.exe},
+and {\tt verdan32.exe}. The {\tt libfreetype} test consisted of
+rendering ASCII characters 32-127 of {\tt Comic.TTF} at sizes from 8
+to 48 incrementing by 4 for a total of 950 glyphs.
+
 \epsfig{file=charts/chart8,width=3in}
 
 \epsfig{file=charts/chart7,width=3in}
@@ -994,7 +1007,7 @@ The Ibex Project utilizes three libraries for which no Java-only
 equivalent exists.  The first is the FreeType font library, which
 parses, hints, and rasterizes TrueType and Postscript fonts with
 exceptional quality.  The project also needed an open source JPEG
-decompressor; surprisingly, none exist for Java.  While encoders are
+decompresser; surprisingly, none exist for Java.  While encoders are
 plentiful, decoders are rare, since Sun's J2SE VM includes a native
 method to invoke {\tt libjpeg}.
 
@@ -1062,7 +1075,7 @@ applications.
 
 Although we have only implemented it for the Java Virtual Machine, our
 technique generalizes to other safe bytecode architectures.  In
-particular we would like to demonstrate this generality by retargeting
+particular we would like to demonstrate this generality by re-targeting
 the translator to the Microsoft Intermediate Language \cite{msil}.
 
 Additionally, we would like to explore other uses for dynamic loading
@@ -1077,23 +1090,8 @@ obtained from
     http://nestedvm.ibex.org
 \end{verbatim}
 
-\appendix
-\section{Appendix: Testing Methodology}
 
-All times are measured in seconds.  All tests were performed on a dual
-1Ghz Macintosh G4 running Apple's latest JVM (Sun HotSpot JDK
-1.4.1). Each test was run 8 times within a single VM. The highest and
-lowest times were removed and the remaining 6 were averaged.  In each
-case only the first run differed significantly from the rest.
-
-The {\tt libjpeg} test consisted of decoding a 1280x1024 jpeg and
-writing a tga.  The {\tt mspack} test consisted of extracting all
-members from {\tt arial32.exe}, {\tt comic32.exe}, {\tt times32.exe},
-and {\tt verdan32.exe}. The {\tt libfreetype} test consisted of
-rendering ASCII characters 32-127 of {\tt Comic.TTF} at sizes from 8
-to 48 incrementing by 4 for a total of 950 glyphs.
-
-\bibliography{nestedvm}
+\bibliography{ivme04}
 
 \end{document}
 
