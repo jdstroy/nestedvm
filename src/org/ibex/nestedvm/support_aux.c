@@ -90,6 +90,9 @@ REENT_WRAPPER3(mknod,const char *,mode_t,dev_t)
 REENT_WRAPPER2(ftruncate,int,off_t)
 REENT_WRAPPER1(usleep,unsigned int)
 REENT_WRAPPER2(mkfifo,const char *, mode_t)
+REENT_WRAPPER2(_open_socket,const char *,int)
+REENT_WRAPPER1(_listen_socket,int)
+REENT_WRAPPER1(_accept,int)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {

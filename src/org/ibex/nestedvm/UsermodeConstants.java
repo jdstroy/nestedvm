@@ -50,6 +50,9 @@ public interface UsermodeConstants {
     public static final int SYS_usleep = 45;
     public static final int SYS_getppid = 46;
     public static final int SYS_mkfifo = 47;
+    public static final int SYS_opensocket = 48;
+    public static final int SYS_listensocket = 49;
+    public static final int SYS_accept = 50;
     public static final int EPERM = 1; /* Not super-user */
     public static final int ENOENT = 2; /* No such file or directory */
     public static final int ESRCH = 3; /* No such process */

@@ -3,6 +3,8 @@ package org.ibex.nestedvm;
 import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
+import java.net.Socket;
+import java.net.ServerSocket;
 
 // FEATURE: vfork
 
@@ -124,6 +126,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_getdents: return sys_getdents(a,b,c,d);
             case SYS_unlink: return sys_unlink(a);
             case SYS_getppid: return sys_getppid();
+            case SYS_opensocket: return sys_opensocket(a,b);
+            case SYS_listensocket: return sys_listensocket(a);
+            case SYS_accept: return sys_accept(a);
 
             default: return super._syscall(syscall,a,b,c,d);
         }
@@ -517,6 +522,64 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         int n = fds[fdn].getdents(buf,0,count);
         copyout(buf,addr,n);
         return n;
+    }
+    
+    private static class SocketFD extends InputOutputStreamFD {
+        private final Socket s;
+        
+        public SocketFD(Socket s) throws IOException {
+            super(s.getInputStream(),s.getOutputStream());
+            this.s = s;
+        }
+        
+        public void _close() { try { s.close(); } catch(IOException e) { } }
+    }
+    
+    public int sys_opensocket(int cstring, int port) throws FaultException, ErrnoException {
+        String hostname = cstring(cstring);
+        try {
+            FD fd = new SocketFD(new Socket(hostname,port));
+            int n = addFD(fd);
+            if(n == -1) fd.close();
+            return n;
+        } catch(IOException e) {
+            return -EIO;
+        }
+    }
+    
+    private static class ListenSocketFD extends FD {
+        ServerSocket s;
+        public ListenSocketFD(ServerSocket s) { this.s = s; }
+        public int flags() { return 0; }
+        // FEATURE: What should these be?
+        public FStat _fstat() { return new FStat(); }
+        public void _close() { try { s.close(); } catch(IOException e) { } }
+    }
+    
+    public int sys_listensocket(int port) {
+        try {
+            ListenSocketFD fd = new ListenSocketFD(new ServerSocket(port));
+            int n = addFD(fd);
+            if(n == -1) fd.close();
+            return n;            
+        } catch(IOException e) {
+            return -EIO;
+        }
+    }
+    
+    public int sys_accept(int fdn) {
+        if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
+        if(fds[fdn] == null) return -EBADFD;
+        if(!(fds[fdn] instanceof ListenSocketFD)) return -EBADFD;
+        try {
+            ServerSocket s = ((ListenSocketFD)fds[fdn]).s;
+            SocketFD fd = new SocketFD(s.accept());
+            int n = addFD(fd);
+            if(n == -1) fd.close();
+            return n;
+        } catch(IOException e) {
+            return -EIO;
+        }
     }
     
     //  FEATURE: Run through the fork/wait stuff one more time

@@ -45,3 +45,6 @@
 #define SYS_usleep 45
 #define SYS_getppid 46
 #define SYS_mkfifo 47
+#define SYS_opensocket 48
+#define SYS_listensocket 49
+#define SYS_accept 50

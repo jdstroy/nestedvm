@@ -158,9 +158,9 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     
         InputStream stdin = Boolean.valueOf(getSystemProperty("nestedvm.textstdin")).booleanValue() ? new TextInputStream(System.in) : System.in;
-        addFD(new StdinFD(stdin));
-        addFD(new StdoutFD(System.out));
-        addFD(new StdoutFD(System.err));
+        addFD(new TerminalFD(stdin));
+        addFD(new TerminalFD(System.out));
+        addFD(new TerminalFD(System.err));
     }
     
     /** Copy everything from <i>src</i> to <i>addr</i> initializing uninitialized pages if required. 
@@ -1174,11 +1174,42 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         protected void _close() { try { data.close(); } catch(IOException e) { /*ignore*/ } }        
     }
     
-    public static class OutputStreamFD extends FD {
-        private OutputStream os;
-        public int flags() { return O_WRONLY; }
-        public OutputStreamFD(OutputStream os) { this.os = os; }
+    public static class InputOutputStreamFD extends FD {
+        private final InputStream is;
+        private final OutputStream os;
+        
+        public InputOutputStreamFD(InputStream is) { this(is,null); }
+        public InputOutputStreamFD(OutputStream os) { this(null,os); }
+        public InputOutputStreamFD(InputStream is, OutputStream os) {
+            this.is = is;
+            this.os = os;
+            if(is == null && os == null) throw new IllegalArgumentException("at least one stream must be supplied");
+        }
+        
+        public int flags() {
+            if(is != null && os != null) return O_RDWR;
+            if(is != null) return O_RDONLY;
+            if(os != null) return O_WRONLY;
+            throw new Error("should never happen");
+        }
+        
+        public void _close() {
+            try {is.close(); } catch(IOException e) { /*ignore*/ }
+            try {os.close(); } catch(IOException e) { /*ignore*/ }
+        }
+        
+        public int read(byte[] a, int off, int length) throws ErrnoException {
+            if(is == null) return super.read(a,off,length);
+            try {
+                int n = is.read(a,off,length);
+                return n < 0 ? 0 : n;
+            } catch(IOException e) {
+                throw new ErrnoException(EIO);
+            }
+        }    
+        
         public int write(byte[] a, int off, int length) throws ErrnoException {
+            if(os == null) return super.write(a,off,length);
             try {
                 os.write(a,off,length);
                 return length;
@@ -1186,34 +1217,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 throw new ErrnoException(EIO);
             }
         }
-        public void _close() { try { os.close(); } catch(IOException e) { /*ignore*/ }  }
+        
         public FStat _fstat() { return new FStat(); }
     }
     
-    public static class InputStreamFD extends FD {
-        private InputStream is;
-        public int flags() { return O_RDONLY; }
-        public InputStreamFD(InputStream is) { this.is = is; }
-        public int read(byte[] a, int off, int length) throws ErrnoException {
-            try {
-                int n = is.read(a,off,length);
-                return n < 0 ? 0 : n;
-            } catch(IOException e) {
-                throw new ErrnoException(EIO);
-            }
-        }
-        public void _close() { try { is.close(); } catch(IOException e) { /*ignore*/ } }
-        public FStat _fstat() { return new FStat(); }
-    }
-    
-    static class StdinFD extends InputStreamFD {
-        public StdinFD(InputStream is) { super(is); }
-        public void _close() { /* noop */ }
-        public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
-    }
-    
-    static class StdoutFD extends OutputStreamFD {
-        public StdoutFD(OutputStream os) { super(os); }
+    static class TerminalFD extends InputOutputStreamFD {
+        public TerminalFD(InputStream is) { this(is,null); }
+        public TerminalFD(OutputStream os) { this(null,os); }
+        public TerminalFD(InputStream is, OutputStream os) { super(is,os); }
         public void _close() { /* noop */ }
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
     }
