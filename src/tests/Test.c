@@ -190,22 +190,22 @@ int main(int argc, char **argv) {
     }
     
     {
-        /*long long ll = 0xdeadbeefdeadc0deLL;
-        long l = 0xdeadbeef;
-        unsigned char *tmp;
         
-        printf("long long: %lld %llX\n",ll,ll);
-        tmp = (char*)&ll;
-        for(i=0;i<sizeof(long long);i++) { printf("%X\n",tmp[i]); }
+#define HOST_BITS_PER_WIDE_INT 64
+#define HOST_WIDE_INT long long
         
-        printf("long: %ld %lX\n",l,l);
-        tmp = (char*)&l;
-        for(i=0;i<sizeof(long);i++) { printf("%X\n",tmp[i]); }*/
+        extern int ri(int n);
+        int precision = ri(8);
+        long long l;
         
-        long long rl(long long n);
-        long long l = rl(-1614907703);
-        printf("---> %lld \n",l);
-        if(l >=-64) printf("---> ERROR: %lld >= -64\n",l);
+        l = (precision - HOST_BITS_PER_WIDE_INT > 0
+             ? -1 : ((HOST_WIDE_INT) 1 << (precision - 1)) - 1),
+            (precision - HOST_BITS_PER_WIDE_INT - 1 > 0
+             ? (((HOST_WIDE_INT) 1
+                 << (precision - HOST_BITS_PER_WIDE_INT - 1))) - 1
+             : 0);
+        
+        printf("%llX\n",l);
     }
     
     //printf("cwd: %s\n",getcwd(NULL,0));
@@ -215,7 +215,9 @@ int main(int argc, char **argv) {
 }
 
 long long zero = 0;
+int izero = 0;
 long long rl(long long n) { return n + zero; }
+int ri(int n) { return n + izero; }
 
 void suckram() {
     int total = 0;
