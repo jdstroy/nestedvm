@@ -1430,7 +1430,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         private static File getParentFile(File f) {
             String p = f.getParent();
-            return p == null ? null : new File(f,p);
+            return p == null ? null : new File(p);
         }
         
         public class HostDirFD extends DirFD {
