@@ -210,8 +210,8 @@ int main(int argc, char **argv) {
     
     {
         double d = -2.34;
-        //d = abs(d);
-        printf("abs(-2.24) = %g\n",d);
+        d = fabs(d);
+        printf("fabs(-2.24) = %g\n",d);
     }
         
     
