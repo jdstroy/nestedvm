@@ -388,7 +388,16 @@ TeX_COMPILERFLAGS = -o unixruntime
 build/tests/TeX.mips: $(tasks)/build_tex
 	@mkdir -p `dirname $@`
 	cp upstream/build/tex/tex.mips $@
-	
+
+NtlmAuth_COMPILERFLAGS = -o unixruntime
+build/tests/NtlmAuth.mips: $(tasks)/build_samba
+	mkdir -p `dirname $@`
+	cp upstream/build/samba/source/bin/ntlm_auth $@
+
+ntlmtest: build/tests/NtlmAuth.class
+	@test -e smb.conf || cp upstream/build/samba/examples/smb.conf.default smb.conf
+	$(JAVA) -cp "$(classpath)" tests.NtlmAuth --username=brian --password=test --diagnostics -d 5
+
 #
 # Speed tests
 #

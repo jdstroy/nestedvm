@@ -237,6 +237,10 @@ patches_busybox = busybox.patch
 version_texinputs = 1.0
 url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
 
+version_samba = 3.0.4
+url_samba = http://us4.samba.org/samba/ftp/samba-$(version_samba).tar.gz
+patches_samba = samba.patch
+
 tasks/extract_libjpeg: tasks/download_libjpeg
 	mkdir -p build
 	cd build && \
@@ -339,4 +343,13 @@ tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
 			--gpc-rts=-nchangefile:tex.ch   \
 			&& \
 		mips-unknown-elf-gpc $(MIPS_PCFLAGS) tex.p $(MIPS_LDFLAGS) -o tex.mips
+	touch $@
+
+tasks/build_samba: tasks/patch_samba
+	cd build/samba-$(version_samba)/source && \
+		test -e config.status || ./configure --host=mips-unknown-elf && \
+		fgrep -q '#define HAVE_GETTIMEOFDAY_TZ' include/config.h || \
+			echo '#define HAVE_GETTIMEOFDAY_TZ 1' >> include/config.h && \
+		make LIBS="-lglob" CFLAGS="$(MIPS_CFLAGS)" LDFLAGS="$(MIPS_LDFLAGS)" \
+		     CONFIGFILE="smb.conf" proto_exists bin/ntlm_auth
 	touch $@

@@ -1,0 +1,37 @@
+--- ../samba-3.0.4/source/lib/iconv.c	2004-04-04 03:37:34.000000000 -0400
++++ source/lib/iconv.c	2004-06-29 20:56:57.000000000 -0400
+@@ -110,6 +110,9 @@
+ 	static BOOL initialized;
+ 	int i;
+ 
++    extern NTSTATUS charset_CP850_init();
++    extern NTSTATUS charset_CP437_init();
++    
+ 	if (!initialized) {
+ 		initialized = True;
+ 		for(i = 0; builtin_functions[i].name; i++) 
+diff -ru ../samba-3.0.4/source/lib/module.c source/lib/module.c
+--- ../samba-3.0.4/source/lib/module.c	2004-04-04 03:37:34.000000000 -0400
++++ source/lib/module.c	2004-06-30 20:53:24.000000000 -0400
+@@ -130,7 +130,7 @@
+ 
+ NTSTATUS smb_probe_module(const char *subsystem, const char *module)
+ {
+-	DEBUG(0,("This samba executable has not been built with plugin support, not probing\n")); 
++	/*DEBUG(0,("This samba executable has not been built with plugin support, not probing\n")); */
+ 	return NT_STATUS_NOT_SUPPORTED;
+ }
+ 
+diff -ru ../samba-3.0.4/source/utils/ntlm_auth_diagnostics.c source/utils/ntlm_auth_diagnostics.c
+--- ../samba-3.0.4/source/utils/ntlm_auth_diagnostics.c	2004-04-20 16:42:58.000000000 -0400
++++ source/utils/ntlm_auth_diagnostics.c	2004-06-30 01:21:08.000000000 -0400
+@@ -580,7 +580,8 @@
+ 	{test_plaintext_lm_broken, "Plaintext LM broken"},
+ 	{test_plaintext_nt_broken, "Plaintext NT broken"},
+ 	{test_plaintext_nt_only, "Plaintext NT only"},
+-	{test_plaintext_lm_only, "Plaintext LM only"}
++	{test_plaintext_lm_only, "Plaintext LM only"},
++    {NULL, NULL}
+ };
+ 
+ BOOL diagnose_ntlm_auth(void)
