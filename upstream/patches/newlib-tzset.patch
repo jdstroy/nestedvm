@@ -1,0 +1,17 @@
+===================================================================
+RCS file: /cvs/src/src/newlib/libc/time/tzset_r.c,v
+retrieving revision 1.2
+retrieving revision 1.3
+diff -u -r1.2 -r1.3
+--- newlib/libc/time/tzset_r.c	2002/08/26 18:56:09	1.2
++++ snewlib/libc/time/tzset_r.c	2003/06/03 18:42:09	1.3
+@@ -28,7 +28,8 @@
+         struct _reent *reent_ptr)
+ {
+   char *tzenv;
+-  int hh, mm, ss, sign, m, w, d, n;
++  unsigned short hh, mm, ss, m, w, d;
++  int sign, n;
+   int i, ch;
+ 
+   if ((tzenv = _getenv_r (reent_ptr, "TZ")) == NULL)

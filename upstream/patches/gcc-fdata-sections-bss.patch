@@ -1,0 +1,30 @@
+--- gcc/config/mips/mips.c.orig	Mon Dec 29 06:30:42 2003
++++ gcc/config/mips/mips.c	Mon Dec 29 07:16:35 2003
+@@ -10535,11 +10535,13 @@
+   int len, size, sec;
+   const char *name, *prefix;
+   char *string;
+-  static const char *const prefixes[4][2] = {
++  static const char *const prefixes[6][2] = {
+     { ".text.", ".gnu.linkonce.t." },
+     { ".rodata.", ".gnu.linkonce.r." },
+     { ".data.", ".gnu.linkonce.d." },
+-    { ".sdata.", ".gnu.linkonce.s." }
++    { ".sdata.", ".gnu.linkonce.s." },
++    { ".bss.", ".gnu.linkonce.b." },
++    { ".sbss.", ".gnu.linkonce.sb." }
+   };
+ 
+   name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
+@@ -10551,8 +10553,9 @@
+   if (TREE_CODE (decl) == FUNCTION_DECL)
+     sec = 0;
+   else if (DECL_INITIAL (decl) == 0
+-           || DECL_INITIAL (decl) == error_mark_node)
+-    sec = 2;
++           || DECL_INITIAL (decl) == error_mark_node
++           || initializer_zerop (DECL_INITIAL (decl)))
++    sec = (size > 0 && size <= mips_section_threshold) ? 5 : 4;
+   else if ((TARGET_EMBEDDED_PIC || TARGET_MIPS16)
+       && TREE_CODE (decl) == STRING_CST
+       && !flag_writable_strings)

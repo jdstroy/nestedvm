@@ -1,0 +1,25 @@
+--- include/freetype/config/ftmodule.h	Thu Jul 31 12:59:06 2003
++++ include/freetype/config/ftmodule.h	Thu Jul 31 12:59:17 2003
+@@ -1,4 +1,5 @@
+ FT_USE_MODULE(autohint_module_class)
++/*
+ FT_USE_MODULE(cff_driver_class)
+ FT_USE_MODULE(t1cid_driver_class)
+ FT_USE_MODULE(pcf_driver_class)
+@@ -7,13 +8,15 @@
+ FT_USE_MODULE(psnames_module_class)
+ FT_USE_MODULE(pshinter_module_class)
+ FT_USE_MODULE(ft_raster1_renderer_class)
++*/
+ FT_USE_MODULE(sfnt_module_class)
+ FT_USE_MODULE(ft_smooth_renderer_class)
+ FT_USE_MODULE(ft_smooth_lcd_renderer_class)
+ FT_USE_MODULE(ft_smooth_lcdv_renderer_class)
+ FT_USE_MODULE(tt_driver_class)
++/*
+ FT_USE_MODULE(t1_driver_class)
+ FT_USE_MODULE(t42_driver_class)
+ FT_USE_MODULE(pfr_driver_class)
+ FT_USE_MODULE(winfnt_driver_class)
+-
++*/

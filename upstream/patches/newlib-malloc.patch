@@ -1,0 +1,21 @@
+--- newlib/libc/stdlib/mallocr.c.old	Sun Nov 23 18:41:21 2003
++++ newlib/libc/stdlib/mallocr.c	Sun Nov 23 18:43:03 2003
+@@ -301,7 +301,8 @@
+ #define SEPARATE_OBJECTS
+ #define HAVE_MMAP 0
+ #define MORECORE(size) _sbrk_r(reent_ptr, (size))
+-#define MORECORE_CLEARS 0
++#define MORECORE_CLEARS 1
++#define malloc_getpagesize getpagesize()
+ #define MALLOC_LOCK __malloc_lock(reent_ptr)
+ #define MALLOC_UNLOCK __malloc_unlock(reent_ptr)
+ 
+@@ -310,7 +311,7 @@
+ # undef WIN32
+ #endif
+ 
+-#ifndef _WIN32
++#if !defined(_WIN32) && !defined(malloc_getpagesize)
+ #ifdef SMALL_MEMORY
+ #define malloc_getpagesize (128)
+ #else

@@ -1,0 +1,29 @@
+diff -ru ../binutils-2.14/bfd/config.bfd ./bfd/config.bfd
+--- ../binutils-2.14/bfd/config.bfd	Mon Jun  2 16:35:20 2003
++++ ./bfd/config.bfd	Mon Sep  1 01:06:32 2003
+@@ -777,6 +777,10 @@
+     targ_defvec=bfd_elf32_littlemips_vec
+     targ_selvecs="bfd_elf32_bigmips_vec bfd_elf64_bigmips_vec bfd_elf64_littlemips_vec"
+     ;;
++  mips*-unknown-elf*)
++    targ_defvec=bfd_elf32_bigmips_vec
++    targ_selvecs=bfd_elf32_littlemips_vec
++    ;;
+   mips*-*-elf* | mips*-*-rtems* | mips*-*-vxworks*)
+     targ_defvec=bfd_elf32_bigmips_vec
+     targ_selvecs="bfd_elf32_littlemips_vec bfd_elf64_bigmips_vec bfd_elf64_littlemips_vec"
+Only in ./bfd: config.bfd.old
+Only in ./bfd: config.bfd~
+diff -ru ../binutils-2.14/ld/configure.tgt ./ld/configure.tgt
+--- ../binutils-2.14/ld/configure.tgt	Thu Jun 12 10:25:52 2003
++++ ./ld/configure.tgt	Mon Sep  1 01:07:42 2003
+@@ -405,6 +405,7 @@
+ mips*vr5000el-*-elf*)	targ_emul=elf32l4300 ;;
+ mips*vr5000-*-elf*)	targ_emul=elf32b4300 ;;
+ mips*el-*-elf*)		targ_emul=elf32elmip ;;
++mips*-unknown-elf*)     targ_emul=elf32ebmip ;;
+ mips*-*-elf*)		targ_emul=elf32ebmip ;;
+ mips*el-*-rtems*)	targ_emul=elf32elmip ;;
+ mips*-*-rtems*)		targ_emul=elf32ebmip ;;
+Only in ./ld: configure.tgt.old
+Only in ./ld: configure.tgt~

@@ -1,0 +1,25 @@
+--- ../libmspack.orig/mspack/Makefile	Sat Jul 26 10:44:57 2003
++++ mspack/Makefile	Sun Nov  2 17:12:35 2003
+@@ -1,12 +1,13 @@
+ CC=gcc
+ RM=rm -f
+ AR=ar
++RANLIB=ranlib
+ 
+ WARNINGS=-Wall -Wsign-compare -Wconversion -pedantic
+ LARGEFILE=-std=c99 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+ DEBUG=-g -DDEBUG
+ OPTIM=-O3
+-CFLAGS= $(WARNINGS) $(LARGEFILE) $(DEBUG) $(OPTIM) -I.
++CFLAGS= $(WARNINGS) $(LARGEFILE) $(OPTIM) -I. #-DMSPACK_NO_DEFAULT_SYSTEM
+ 
+ all: libmspack.a
+ 
+@@ -27,6 +28,7 @@
+ libmspack.a: $(OBJS)
+ 	-$(RM) $@
+ 	$(AR) q $@ $(OBJS)
++	$(RANLIB) $@
+ 
+ .c.o:
+ 	$(CC) $(CFLAGS) -o $@ -c $<

@@ -1,0 +1,83 @@
+--- src/base/ftsystem.c.origf	Mon Dec 29 05:45:54 2003
++++ src/base/ftsystem.c	Mon Dec 29 05:46:08 2003
+@@ -32,7 +32,8 @@
+ #include FT_ERRORS_H
+ #include FT_TYPES_H
+ 
+-#include <stdio.h>
++#include <fcntl.h>
++#include <unistd.h>
+ #include <stdlib.h>
+ 
+ 
+@@ -151,7 +152,7 @@
+ 
+   /* We use the macro STREAM_FILE for convenience to extract the       */
+   /* system-specific stream handle from a given FreeType stream object */
+-#define STREAM_FILE( stream )  ( (FILE*)stream->descriptor.pointer )
++#define STREAM_FD( stream )  ( (int)stream->descriptor.value )
+ 
+ 
+   /*************************************************************************/
+@@ -168,7 +169,7 @@
+   FT_CALLBACK_DEF( void )
+   ft_ansi_stream_close( FT_Stream  stream )
+   {
+-    fclose( STREAM_FILE( stream ) );
++    close(STREAM_FD(stream));
+ 
+     stream->descriptor.pointer = NULL;
+     stream->size               = 0;
+@@ -202,14 +203,14 @@
+                      unsigned char*  buffer,
+                      unsigned long   count )
+   {
+-    FILE*  file;
++    int fd;
+ 
+ 
+-    file = STREAM_FILE( stream );
++    fd = STREAM_FD( stream );
+ 
+-    fseek( file, offset, SEEK_SET );
++    if(lseek( fd, offset, SEEK_SET ) < 0) return 0;
+ 
+-    return (unsigned long)fread( buffer, 1, count, file );
++    return (unsigned long) read(fd,buffer,count);
+   }
+ 
+ 
+@@ -219,14 +220,14 @@
+   FT_Stream_Open( FT_Stream    stream,
+                   const char*  filepathname )
+   {
+-    FILE*  file;
++    int fd,n;
+ 
+ 
+     if ( !stream )
+       return FT_Err_Invalid_Stream_Handle;
+ 
+-    file = fopen( filepathname, "rb" );
+-    if ( !file )
++    fd = open( filepathname, O_RDONLY);
++    if (fd < 0)
+     {
+       FT_ERROR(( "FT_Stream_Open:" ));
+       FT_ERROR(( " could not open `%s'\n", filepathname ));
+@@ -234,11 +235,11 @@
+       return FT_Err_Cannot_Open_Resource;
+     }
+ 
+-    fseek( file, 0, SEEK_END );
+-    stream->size = ftell( file );
+-    fseek( file, 0, SEEK_SET );
++    n = lseek( fd, 0, SEEK_END );
++    stream-> size = n < 0 ? 0 : n;
++    lseek( fd, 0, SEEK_SET );
+ 
+-    stream->descriptor.pointer = file;
++    stream->descriptor.value   = fd;
+     stream->pathname.pointer   = (char*)filepathname;
+     stream->pos                = 0;
+ 

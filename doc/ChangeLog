@@ -1,0 +1,59 @@
+January 11, 2003
+    * [brian] Added Unistd.h as an interface so we can use its constants in
+              Runtime
+    * [brian] -o lessconstants option to compiler to emit all constants as
+              an addition of a field value and a small constant. This
+              prevents the classfile constant pool from overflowing on large
+              applications. This has a small performance impact. 
+    * [brian] Added stubs for the rmdir syscall and a minimal implementation
+              of sysconf
+    * [brian] Emit data segments as a series of <32k strings to avoid
+              hitting classfile limits
+January 10, 2003
+    * [brian] The compiler now outputs data segments as Strings rather than
+              huge int arrays.
+    * [brian] Cleaned up Makefile and upstream/Makefile to separate the 
+              required mips2java stuff from the tests. Ideally the tests
+              should be completelly separate from the main makefile but
+              keeping them integrated allows for better dependency checking
+              and faster builds.
+January 8, 2003
+    * Much thanks goes to Mohan Embar for discovering and fixing most
+      of the issues below.
+    * [brian] Updated Makefile to allow bulding with gcj
+              (make JAVAC="gcj -C" JAVA="gij")
+    * [brian] Updated Runtime.java to silently ignore SecurityExceptions
+              thrown from System.getProperty()
+    * [brian] Compiler now uses a PrintWriter for output rather than
+              PrintStream and properly closes the file on exit
+    * [brian] Made the htojava script a bourne shell script rather than a
+              perl script to remove the dependency on perl.
+December 29, 2003
+    * [brian] Changed build process to use -ffunction-sections, 
+              -fdata-sections, and --gc-sections
+    * [brian] Update support.s to use function sections
+    * [brian] Make the interpreter report the pc/sourceline of 
+              exceptions.
+    * [brian] Remove stdio calls from FreeTypeHelper
+    * [brian] Added gcc patch to fix -fdata-sections bug
+    * [brian] Added freetype patch to avoid stdio
+December 2, 2003
+    * [brian] Cleaned up a bunch of //FEATUREs and //FIXMEs. No major
+              changes, just cleanup.
+November 30, 2003
+    * [brian] Added crude support for O_APPEND and O_TRUNC
+
+November 29, 2003
+    * [brian] Moved all sources under org/xwt/mips - modified Makefiles
+              accordingly.
+    * [brian] Added org.xwt.mips.util tree containing SeekableData, 
+              SeekableByteArray, SeekableFile, and SeekableInputStream. 
+    * [brian] Made ELF.java use SeekableData rather than RandomAccessFile
+    * [brian] Made Runtime.java use org.xwt.mips.util.Seekable* for most
+              file operations.
+    * [brian] Added construtors to Interpreter.java that accept an InputStream
+              or SeekableData.
+    * [brian] Added support for the /dev/fd/n namespace and /dev/{null,zero}
+    * [brian] Added test/FDTest.java example and updated tests/Test.c
+    * [brian] Fixed absolute pathame bug on Win32
+    
