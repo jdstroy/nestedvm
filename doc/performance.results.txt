@@ -1,0 +1,36 @@
+Let me know if this was what you were looking for
+
+                                          libjpeg  libmspack libfreetype
+Interpreted MIPS Binary                   22.2      12.9      21.4
+Compled MIPS Binary (fastest options)     3.39      2.23      4.31
+Native -O3                                0.235    0.084     0.201
+
+Compled - with all case statements        3.50      2.30      4.99
+Compiled - with pruned case statement     3.39      2.23      4.31
+
+Compiled - 512 instructions/method        62.7      27.7      56.9
+Compiled - 256 instructions/method        3.54      2.55      4.43
+Compiled - 128 instructions/method        3.39      2.23      4.31
+Compiled - 64 instructions/method         3.56      2.31      4.40
+Compiled - 32 instruction/method          3.71      2.46      4.64
+
+Compild MIPS Binary (Server VM)           3.21      2.00      4.54
+Compiled MIPS Binary (Client VM)          3.39      2.23      4.31
+
+All times are measured in seconds. These were all run on a dual 1ghz G4
+running OS X 10.3.1 with Apple's latest VM (JDK 1.4.1_01-27). Each test
+was run 8 times within a single VM. The highest and lowest times were
+removed and the remaining 6 were averaged. In each case only the first
+run differed significantly from the rest.
+
+The libjpeg test consisted of decoding a 1280x1024 jpeg
+(thebride_1280.jpg) and writing a tga. The mspack test consisted of
+extracting all members from arial32.exe, comic32.exe, times32.exe, and
+verdan32.exe. The freetype test consisted of rendering characters
+32-127 of Comic.TTF at sizes from 8 to 48 incrementing by 4. (That is
+about 950 individual glyphs).
+
+I can provide you with the source for any of these test if you'd like.
+
+-Brian
+
