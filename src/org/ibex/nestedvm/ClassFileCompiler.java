@@ -558,6 +558,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             // add another copy and jump over
             
             int b = mg.add(GOTO);
+            insnTargets[(pc+4-startOfMethod)/4].setTarget(mg.size());
             emitInstruction(-1,nextInsn,01); // delay slot
             mg.setArg(b,mg.size());
             
