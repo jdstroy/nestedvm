@@ -169,7 +169,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_select: return sys_select(a,b,c,d,e);
             case SYS_access: return sys_access(a,b);
             case SYS_realpath: return sys_realpath(a,b);
-                
+            case SYS_chown: return sys_chown(a,b,c);
+            case SYS_lchown: return sys_chown(a,b,c);
+            case SYS_fchown: return sys_fchown(a,b,c);
+            case SYS_chmod: return sys_chmod(a,b,c);
+            case SYS_fchmod: return sys_fchmod(a,b,c);
+            
             default: return super._syscall(syscall,a,b,c,d,e,f);
         }
     }
@@ -182,10 +187,26 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return parent == null ? 1 : parent.pid;
     }
     
-    
-    private int sys_access(int cstring, int mode) {
-        // FEATURE: sys_access
+    private int sys_chown(int fileAddr, int uid, int gid) {
         return 0;
+    }
+    private int sys_lchown(int fileAddr, int uid, int gid) {
+        return 0;
+    }
+    private int sys_fchown(int fd, int uid, int gid) {
+        return 0;
+    }
+    private int sys_chmod(int fileAddr, int uid, int gid) {
+        return 0;
+    }
+    private int sys_fchmod(int fd, int uid, int gid) {
+        return 0;
+    }
+    
+    
+    private int sys_access(int cstring, int mode) throws ErrnoException, ReadFaultException {
+        // FEATURE: sys_access
+        return gs.stat(this,cstring(cstring)) == null ? -ENOENT : 0;
     }
     
     private int sys_realpath(int inAddr, int outAddr) throws FaultException {
