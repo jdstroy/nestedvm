@@ -13,7 +13,7 @@ public abstract class Platform {
     static {
         float version;
         try {
-            version = Float.parseFloat(System.getProperty("java.specification.version"));
+            version = Float.valueOf(System.getProperty("java.specification.version")).floatValue();
         } catch(Exception e) {
             System.err.println("WARNING: " + e + " while trying to find jvm version -  assuming 1.1");
             version = 1.1f;
@@ -49,10 +49,17 @@ public abstract class Platform {
     public static String timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) { return p._timeZoneGetDisplayName(tz,dst,showlong,l); }
     public static String timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong) { return timeZoneGetDisplayName(tz,dst,showlong,Locale.getDefault()); }
     
+    abstract RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException;
+    public static RandomAccessFile truncatedRandomAccessFile(File f, String mode) throws IOException { return p._truncatedRandomAccessFile(f,mode); }
+    
+    // FEATURE: Make sure GCClass can get rid of uncalled superclass methdos
+    
     static class Jdk11 extends Platform {
         boolean _atomicCreateFile(File f) throws IOException {
-            // FIXME: Just do this non-atomicly
-            throw new RuntimeException("FIXME");
+            // This is not atomic, but its the best we can do on jdk 1.1
+            if(f.exists()) return false;
+            new FileOutputStream(f).close();
+            return true;
         }
         void _socketHalfClose(Socket s, boolean output) throws IOException {
             throw new IOException("half closing sockets not supported");
@@ -79,6 +86,11 @@ public abstract class Platform {
             if(off > 0) sb.append(":").append(off);
             return sb.toString();
         }
+        
+        RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException {
+            new FileOutputStream(f).close();
+            return new RandomAccessFile(f,mode);
+        }
     }
     
     static class Jdk12 extends Jdk11 {
@@ -89,6 +101,12 @@ public abstract class Platform {
         String _timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) {
             return tz.getDisplayName(dst,showlong ? TimeZone.LONG : TimeZone.SHORT, l);
         }
+        
+        RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException {
+            RandomAccessFile raf = new RandomAccessFile(f,mode);
+            raf.setLength(0);
+            return raf;
+        }       
     }
     
     static class Jdk13 extends Jdk12 {

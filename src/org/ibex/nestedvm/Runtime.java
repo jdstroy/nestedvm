@@ -732,10 +732,9 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             return hostFSDirFD(f,data);
         }
         
-        // FIXME: Truncate
         final Seekable.File sf;
         try {
-            sf = new Seekable.File(f,write);
+            sf = new Seekable.File(f,write,(flags & O_TRUNC) != 0);
         } catch(FileNotFoundException e) {
             if(e.getMessage() != null && e.getMessage().indexOf("Permission denied") >= 0) throw new ErrnoException(EACCES);
             return null;
@@ -810,12 +809,11 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** The stat/fstat syscall helper */
-    // FIXME: Populate uid/gid/nlink
     int stat(FStat fs, int addr) throws FaultException {
         memWrite(addr+0,(fs.dev()<<16)|(fs.inode()&0xffff)); // st_dev (top 16), // st_ino (bottom 16)
         memWrite(addr+4,((fs.type()&0xf000))|(fs.mode()&0xfff)); // st_mode
-        memWrite(addr+8,1<<16); // st_nlink (top 16) // st_uid (bottom 16)
-        memWrite(addr+12,0); // st_gid (top 16) // st_rdev (bottom 16)
+        memWrite(addr+8,fs.nlink()<<16|fs.uid()&0xffff); // st_nlink (top 16) // st_uid (bottom 16)
+        memWrite(addr+12,fs.gid()<<16|0); // st_gid (top 16) // st_rdev (bottom 16)
         memWrite(addr+16,fs.size()); // st_size
         memWrite(addr+20,fs.atime()); // st_atime
         // memWrite(addr+24,0) // st_spare1

@@ -533,7 +533,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return n;
     }
     
-    // FIXME: UDP is totally broken
+    // FEATURE: UDP is totally broken
     
     static class SocketFD extends FD {
         public static final int TYPE_STREAM = 0;
@@ -1094,7 +1094,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
 
         public synchronized Object exec(UnixRuntime r, String path) throws ErrnoException {
-            // FIXME: Hideous hack to make a standalone busybox possible
+            // HACK: Hideous hack to make a standalone busybox possible
             if(path.equals("bin/busybox") && Boolean.valueOf(getSystemProperty("nestedvm.busyboxhack")).booleanValue())
                 return r.getClass();
             FStat fstat = stat(r,path);

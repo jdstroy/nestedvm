@@ -66,14 +66,12 @@ public abstract class Seekable {
         private final RandomAccessFile raf;
         
         public File(String fileName) throws IOException { this(fileName,false); }
-        public File(String fileName, boolean writable) throws IOException { this(new java.io.File(fileName),writable); }    
+        public File(String fileName, boolean writable) throws IOException { this(new java.io.File(fileName),writable,false); }    
         
-        public File(java.io.File file, boolean writable) throws IOException {
-            raf = new RandomAccessFile(file,writable ? "rw" : "r");
+        public File(java.io.File file, boolean writable, boolean truncate) throws IOException {
+            String mode = writable ? "rw" : "r";
+            raf = truncate ? Platform.truncatedRandomAccessFile(file,mode) : new RandomAccessFile(file,mode);
         }
-        
-        // NOTE: RandomAccessFile.setLength() is a Java2 function
-        public void setLength(int n) throws IOException { raf.setLength(n); }
         
         public int read(byte[] buf, int offset, int length) throws IOException { return raf.read(buf,offset,length); }
         public int write(byte[] buf, int offset, int length) throws IOException { raf.write(buf,offset,length); return length; }

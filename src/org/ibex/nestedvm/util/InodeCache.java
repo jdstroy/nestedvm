@@ -1,7 +1,5 @@
 package org.ibex.nestedvm.util;
 
-import java.util.Arrays;
-
 // Based on the various org.xwt.util.* classes by Adam Megacz
 
 public class InodeCache {
