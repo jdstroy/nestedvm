@@ -227,6 +227,13 @@ compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcc
 		'org.ibex.nestedvm.Runtime$$CPUState.dup'
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest .
 
+sizecheck: compact_runtime_compiler.jar
+	@for c in `find tmp/pruned -name '*.class'|fgrep -v '$$'`; do \
+		for f in `echo $$c|sed 's,\.class$$,,;'`*.class; do gzip -c $$f; done | wc -c | tr -d '\n'; \
+		echo -e "\t`echo $$c | sed 's,tmp/pruned/org/ibex,,;s,\.class$$,,;s,/,.,g;'`"; \
+	done | sort -rn | awk '{ sum += $$1; print }  END { print sum,"Total"; }'
+
+
 # This is only for Brian to use... don't mess with it
 rebuild-constants: $(tasks)/build_libc
 	@mkdir -p `dirname $@`

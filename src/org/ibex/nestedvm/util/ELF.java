@@ -346,7 +346,7 @@ public class ELF {
     
     private static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
     
-    public static void main(String[] args) throws IOException {
+    /*public static void main(String[] args) throws IOException {
         ELF elf = new ELF(new Seekable.InputStream(new FileInputStream(args[0])));
         System.out.println("Type: " + toHex(elf.header.type));
         System.out.println("Machine: " + toHex(elf.header.machine));
@@ -376,5 +376,5 @@ public class ELF {
         } else {
             System.out.println("Symbol table: None");
         }
-    }
+    }*/
 }
