@@ -4,18 +4,18 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 
-// FIXME: Make plain old "mips-unknown-elf-gcc -o foo foo.c" work (modify spec file or whatever)
-
-// FEATURE: Remove System.{out,err}.printlns and throw Errors where applicable
-
 public abstract class UnixRuntime extends Runtime implements Cloneable {
     /** The pid of this "process" */
     private int pid;
     private UnixRuntime parent;
     public final int getPid() { return pid; }
     
-    private static final GlobalState defaultGD = new GlobalState();
-    private GlobalState gd = defaultGD;
+    private static final GlobalState defaultGS = new GlobalState();
+    private GlobalState gs = defaultGS;
+    public void setGlobalState(GlobalState gs) {
+        if(state != STOPPED) throw new IllegalStateException("can't change GlobalState when running");
+        this.gs = gs;
+    }
     
     /** proceses' current working directory - absolute path WITHOUT leading slash
         "" = root, "bin" = /bin "usr/bin" = /usr/bin */
@@ -78,18 +78,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private static class ProcessTableFullExn extends RuntimeException { }
     
     void _started() {
-        UnixRuntime[] tasks = gd.tasks;
-        synchronized(gd) {
+        UnixRuntime[] tasks = gs.tasks;
+        synchronized(gs) {
             if(pid != 0) {
                 if(tasks[pid] == null || tasks[pid].pid != pid) throw new Error("should never happen");
             } else {
                 int newpid = -1;
-                int nextPID = gd.nextPID;
+                int nextPID = gs.nextPID;
             	    for(int i=nextPID;i<tasks.length;i++) if(tasks[i] == null) { newpid = i; break; }
             	    if(newpid == -1) for(int i=1;i<nextPID;i++) if(tasks[i] == null) { newpid = i; break; }
             	    if(newpid == -1) throw new ProcessTableFullExn();
             	    pid = newpid;
-                gd.nextPID = newpid + 1;
+                gs.nextPID = newpid + 1;
             }
             tasks[pid] = this;
         }
@@ -115,7 +115,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     FD _open(String path, int flags, int mode) throws ErrnoException {
-        return gd.open(this,normalizePath(path),flags,mode);
+        return gs.open(this,normalizePath(path),flags,mode);
     }
 
     /** The kill syscall.
@@ -147,16 +147,15 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
 
     private int sys_waitpid(int pid, int statusAddr, int options) throws FaultException, ErrnoException {
-        System.err.println("PID: " + this.pid + " is waiting on " + pid);
         final int WNOHANG = 1;
         if((options & ~(WNOHANG)) != 0) return -EINVAL;
         if(pid == 0 || pid < -1) {
-            System.err.println("WARNING: waitpid called with a pid of " + pid);
+            if(STDERR_DIAG) System.err.println("WARNING: waitpid called with a pid of " + pid);
             return -ECHILD;
         }
         boolean blocking = (options&WNOHANG)==0;
         
-        if(pid !=-1 && (pid <= 0 || pid >= gd.tasks.length)) return -ECHILD;
+        if(pid !=-1 && (pid <= 0 || pid >= gs.tasks.length)) return -ECHILD;
         if(children == null) return blocking ? -ECHILD : 0;
         
         UnixRuntime done = null;
@@ -166,7 +165,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(pid == -1) {
                     if(exitedChildren.size() > 0) done = (UnixRuntime)exitedChildren.remove(exitedChildren.size() - 1);
                 } else if(pid > 0) {
-                    UnixRuntime t = gd.tasks[pid];
+                    UnixRuntime t = gs.tasks[pid];
                     if(t.parent != this) return -ECHILD;
                     if(t.state == EXITED) {
                         if(!exitedChildren.remove(t)) throw new Error("should never happen");
@@ -179,9 +178,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(done == null) {
                     if(!blocking) return 0;
                     try { children.wait(); } catch(InterruptedException e) {}
-                    System.err.println("waitpid woke up: " + exitedChildren.size());
+                    //System.err.println("waitpid woke up: " + exitedChildren.size());
                 } else {
-                    gd.tasks[done.pid] = null;
+                    gs.tasks[done.pid] = null;
                     break;
                 }
             }
@@ -195,7 +194,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(children != null) synchronized(children) {
             for(Enumeration e = exitedChildren.elements(); e.hasMoreElements(); ) {
                 UnixRuntime child = (UnixRuntime) e.nextElement();
-                    gd.tasks[child.pid] = null;
+                    gs.tasks[child.pid] = null;
             }
             exitedChildren.clear();
             for(Enumeration e = activeChildren.elements(); e.hasMoreElements(); ) {
@@ -207,11 +206,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         UnixRuntime _parent = parent;
         if(_parent == null) {
-            gd.tasks[pid] = null;
+            gs.tasks[pid] = null;
         } else {
             synchronized(_parent.children) {
                 if(parent == null) {
-                    gd.tasks[pid] = null;
+                    gs.tasks[pid] = null;
                 } else {
                     parent.activeChildren.remove(this);
                     parent.exitedChildren.add(this);
@@ -251,7 +250,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         	    return -ENOMEM;
         }
 
-        System.err.println("fork " + pid + " -> " + r.pid + " tasks[" + r.pid + "] = " + gd.tasks[r.pid]);
+        //System.err.println("fork " + pid + " -> " + r.pid + " tasks[" + r.pid + "] = " + gd.tasks[r.pid]);
         if(children == null) {
             children = new Object();
             activeChildren = new Vector();
@@ -282,7 +281,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     	    for(;;) {
             for(;;) {
                 if(r.execute()) break;
-                System.err.println("WARNING: Pause requested while executing runAndExec()");
+                if(STDERR_DIAG) System.err.println("WARNING: Pause requested while executing runAndExec()");
             }
             if(r.state != EXECED) return r.exitStatus();
             r = r.execedRuntime;
@@ -304,7 +303,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private int exec(String normalizedPath, String[] argv, String[] envp) throws ErrnoException {
         if(argv.length == 0) argv = new String[]{""};
 
-        Object o = gd.exec(this,normalizedPath);
+        Object o = gs.exec(this,normalizedPath);
         if(o == null) return -ENOENT;
 
         if(o instanceof Class) {
@@ -330,7 +329,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private int exec(UnixRuntime r, String[] argv, String[] envp) {     
         
-        System.err.println("Execing " + r);
+        //System.err.println("Execing " + r);
         for(int i=0;i<OPEN_MAX;i++) if(closeOnExec[i]) closeFD(i);
         r.fds = fds;
         r.closeOnExec = closeOnExec;
@@ -338,7 +337,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         fds = null;
         closeOnExec = null;
         
-        r.gd = gd;
+        r.gs = gs;
         r.sm = sm;
         r.cwd = cwd;
         r.pid = pid;
@@ -351,21 +350,69 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;   
     }
     
-    // FEATURE: Use custom PipeFD - be sure to support PIPE_BUF of data
-    private int sys_pipe(int addr) throws FaultException {
-        PipedOutputStream writerStream = new PipedOutputStream();
-        PipedInputStream readerStream;
-        try {
-             readerStream = new PipedInputStream(writerStream);
-        } catch(IOException e) {
-            return -EIO;
+    // FEATURE: Make sure fstat info is correct
+    // FEATURE: This could be faster if we did direct copies from each process' memory
+    // FEATURE: Check this logic one more time
+    public static class Pipe {
+        private final byte[] pipebuf = new byte[PIPE_BUF*4];
+        private int readPos;
+        private int writePos;
+        
+        public final FD reader = new Reader();
+        public final FD writer = new Writer();
+        
+        public class Reader extends FD {
+			protected FStat _fstat() { return new FStat(); }
+            public int read(byte[] buf, int off, int len) throws ErrnoException {
+                if(len == 0) return 0;
+                synchronized(Pipe.this) {
+                    while(writePos != -1 && readPos == writePos) {
+                        try { Pipe.this.wait(); } catch(InterruptedException e) { /* ignore */ }
+                    }
+                    if(writePos == -1) return 0; // eof
+                	    len = Math.min(len,writePos-readPos);
+                    System.arraycopy(pipebuf,readPos,buf,off,len);
+                    readPos += len;
+                    if(readPos == writePos) Pipe.this.notify();
+                    return len;
+                }
+            }
+            public void _close() { synchronized(Pipe.this) { readPos = -1; Pipe.this.notify(); } }
         }
-        FD reader = new InputStreamFD(readerStream);
-        FD writer = new OutputStreamFD(writerStream);
-        int fd1 = addFD(reader);
+        
+        public class Writer extends FD {   
+            protected FStat _fstat() { return new FStat(); }
+            public int write(byte[] buf, int off, int len) throws ErrnoException {
+                if(len == 0) return 0;
+                synchronized(Pipe.this) {
+                    if(readPos == -1) throw new ErrnoException(EPIPE);
+                    if(pipebuf.length - writePos < Math.min(len,PIPE_BUF)) {
+                        // not enough space to atomicly write the data
+                    	    while(readPos != -1 && readPos != writePos) {
+                    	    	    try { Pipe.this.wait(); } catch(InterruptedException e) { /* ignore */ }
+                    	    }
+                        if(readPos == -1) throw new ErrnoException(EPIPE);
+                        readPos = writePos = 0;
+                    }
+                    len = Math.min(len,pipebuf.length - writePos);
+                    System.arraycopy(buf,off,pipebuf,writePos,len);
+                    if(readPos == writePos) Pipe.this.notify();
+                    writePos += len;
+                    return len;
+                }
+            }
+            public void _close() { synchronized(Pipe.this) { writePos = -1; Pipe.this.notify(); } }
+        }
+    }
+    
+    private int sys_pipe(int addr) {
+        Pipe pipe = new Pipe();
+        
+        int fd1 = addFD(pipe.reader);
         if(fd1 < 0) return -ENFILE;
-        int fd2 = addFD(writer);
+        int fd2 = addFD(pipe.writer);
         if(fd2 < 0) { closeFD(fd1); return -ENFILE; }
+        
         try {
             memWrite(addr,fd1);
             memWrite(addr+4,fd2);
@@ -388,19 +435,19 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     private int sys_stat(int cstring, int addr) throws FaultException, ErrnoException {
-        FStat s = gd.stat(this,normalizePath(cstring(cstring)));
+        FStat s = gs.stat(this,normalizePath(cstring(cstring)));
         if(s == null) return -ENOENT;
         return stat(s,addr);
     }
     
     private int sys_lstat(int cstring, int addr) throws FaultException, ErrnoException {
-        FStat s = gd.lstat(this,normalizePath(cstring(cstring)));
+        FStat s = gs.lstat(this,normalizePath(cstring(cstring)));
         if(s == null) return -ENOENT;
         return stat(s,addr);
     }
     
     private int sys_mkdir(int cstring, int mode) throws FaultException, ErrnoException {
-        gd.mkdir(this,normalizePath(cstring(cstring)),mode);
+        gs.mkdir(this,normalizePath(cstring(cstring)),mode);
         return 0;
     }
    
@@ -416,10 +463,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private int sys_chdir(int addr) throws ErrnoException, FaultException {
         String path = normalizePath(cstring(addr));
-        System.err.println("Chdir: " + cstring(addr) + " -> " + path + " pwd: " + cwd);
-        if(gd.stat(this,path).type() != FStat.S_IFDIR) return -ENOTDIR;
+        //System.err.println("Chdir: " + cstring(addr) + " -> " + path + " pwd: " + cwd);
+        if(gs.stat(this,path).type() != FStat.S_IFDIR) return -ENOTDIR;
         cwd = path;
-        System.err.println("Now: [" + cwd + "]");
+        //System.err.println("Now: [" + cwd + "]");
         return 0;
     }
     
@@ -508,7 +555,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 path = path.substring(1);
                 int p;
                 for(p=0;p<mps.length;p++) if(mps[p].path.equals(path)) break;
-                if(p == mps.length) throw new Error("mount point doesn't exist");
+                if(p == mps.length) throw new IllegalArgumentException("mount point doesn't exist");
                removeMount(p);
             }
         }
@@ -566,9 +613,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             long size = fstat.size();
             CacheEnt ent = (CacheEnt) execCache.get(path);
             if(ent != null) {
-                System.err.println("Found cached entry for " + path);
+                //System.err.println("Found cached entry for " + path);
             	    if(ent.time == mtime && ent.size == size) return ent.o;
-                System.err.println("Cache was out of date");
+                //System.err.println("Cache was out of date");
                 execCache.remove(path);
             }
             FD fd = open(r,path,RD_ONLY,0);
@@ -582,7 +629,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             
             try {
                 int n = s.read(buf,0,buf.length);
-                if(n == -1) throw new Error("zero length file");
+                if(n == -1) throw new ErrnoException(ENOEXEC);
                 
                 switch(buf[0]) {
                     case '\177': // possible ELF
@@ -615,7 +662,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         } else {
                         	    command[0] = new String(buf,2,p-2);
                         }
-                        System.err.println("command[0]: " + command[0] + " command[1]: " + command[1]);
+                        //System.err.println("command[0]: " + command[0] + " command[1]: " + command[1]);
                         break;
                     default:
                         throw new ErrnoException(ENOEXEC);
@@ -630,11 +677,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 try {
                     s.seek(0);
                 	    Class c = RuntimeCompiler.compile(s);
-                    System.err.println("Compile succeeded: " + c);
+                    //System.err.println("Compile succeeded: " + c);
                     ent = new CacheEnt(mtime,size,c);
                 } catch(Compiler.Exn e) {
+                    if(STDERR_DIAG) e.printStackTrace();
                     throw new ErrnoException(ENOEXEC);
                 } catch(IOException e) {
+                    if(STDERR_DIAG) e.printStackTrace();
                 	    throw new ErrnoException(EIO);
                 }
             } else {
@@ -693,7 +742,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 inp += 2;
                 if(outp > 0) outp--;
                 while(outp > 0 && out[outp] != '/') outp--;
-                System.err.println("After ..: " + new String(out,0,outp));
+                //System.err.println("After ..: " + new String(out,0,outp));
                 continue;
             }
             inp++;

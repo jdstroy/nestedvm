@@ -9,6 +9,9 @@ import java.io.*;
 import java.util.Arrays;
 
 public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
+    /** True to write useful diagnostic information to stderr when things go wrong */
+    final static boolean STDERR_DIAG = true;
+    
     /** Number of bits to shift to get the page number (1<<<pageShift == pageSize) */
     protected final int pageShift;
     /** Bottom of region of memory allocated to the stack */
@@ -446,8 +449,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 addr += 4;
             }
         } catch(FaultException e) {
-            // should never happen
-            throw new Error(e.toString());
+            throw new RuntimeException(e.toString());
         }
         return start;
     }
@@ -476,16 +478,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** Calls _execute() (subclass's execute()) and catches exceptions */
+    // FEATURE: Have these call kill() so we get a pretty message to stdout
     private void __execute() {
         try {
             _execute();
         } catch(FaultException e) {
-            e.printStackTrace();
+            if(STDERR_DIAG) e.printStackTrace();
             sys_exit(128+11); // SIGSEGV
             exitException = e;
         } catch(ExecutionException e) {
-            e.printStackTrace();
-            System.err.println(e);
+            if(STDERR_DIAG) e.printStackTrace();
             sys_exit(128+4); // SIGILL
             exitException = e;
         }
@@ -519,9 +521,9 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         start(args,env);
         for(;;) {
             if(execute()) break;
-            System.err.println("WARNING: Pause requested while executing run()");
+            if(STDERR_DIAG) System.err.println("WARNING: Pause requested while executing run()");
         }
-        if(state == EXECED) System.err.println("WARNING: Process exec()ed while being run under run()");
+        if(state == EXECED && STDERR_DIAG) System.err.println("WARNING: Process exec()ed while being run under run()");
         return state == EXITED ? exitStatus() : 0;
     }
 
@@ -694,7 +696,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     FD hostFSOpen(final File f, int flags, int mode, final Object data) throws ErrnoException {
         if((flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)) != 0) {
-            System.err.println("WARNING: Unsupported flags passed to open(): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
+            if(STDERR_DIAG) System.err.println("WARNING: Unsupported flags passed to open(): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
             throw new ErrnoException(ENOTSUP);
         }
         boolean write = (flags&3) != RD_ONLY;
@@ -744,14 +746,18 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
 
     /** The write syscall */
     
-    // FIXME: Handle pipe closed exception
     private int sys_write(int fdn, int addr, int count) throws FaultException, ErrnoException {
         count = Math.min(count,MAX_CHUNK);
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
         if(fds[fdn] == null) return -EBADFD;
         byte[] buf = byteBuf(count);
         copyin(addr,buf,count);
-        return fds[fdn].write(buf,0,count);
+        try {
+        	    return fds[fdn].write(buf,0,count);
+        } catch(ErrnoException e) {
+        	    if(e.errno == EPIPE) sys_exit(128+13);
+            throw e;
+        }
     }
 
     /** The read syscall */
@@ -864,7 +870,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         switch(n) {
             case _SC_CLK_TCK: return 1000;
             default:
-                System.err.println("WARNING: Attempted to use unknown sysconf key: " + n);
+                if(STDERR_DIAG) System.err.println("WARNING: Attempted to use unknown sysconf key: " + n);
                 return -EINVAL;
         }
     }
@@ -887,7 +893,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             try {
                 for(int i=start;i<end;i++) readPages[i] = writePages[i] = new int[pageWords];
             } catch(OutOfMemoryError e) {
-                System.err.println("WARNING: Caught OOM Exception in sbrk: " + e);
+                if(STDERR_DIAG) System.err.println("WARNING: Caught OOM Exception in sbrk: " + e);
                 return -ENOMEM;
             }
         }
@@ -916,7 +922,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             state = RUNNING;
             return ret;
         } else {
-        		System.err.println("WARNING: calljava syscall invoked without a calljava callback set");
+        		if(STDERR_DIAG) System.err.println("WARNING: calljava syscall invoked without a calljava callback set");
         		return 0;
         }
     }
@@ -961,7 +967,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case F_GETFD:
                 return closeOnExec[fdn] ? 1 : 0;
             default:
-                System.err.println("WARNING: Unknown fcntl command: " + cmd);
+                if(STDERR_DIAG) System.err.println("WARNING: Unknown fcntl command: " + cmd);
                 return -ENOSYS;
         }
     }
@@ -975,7 +981,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         try {
         	    return _syscall(syscall,a,b,c,d);
         } catch(ErrnoException e) {
-            e.printStackTrace();
         	    return -e.errno;
         } catch(FaultException e) {
         	    return -EFAULT;
@@ -1018,10 +1023,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case SYS_mkdir:
             case SYS_getcwd:
             case SYS_chdir:
-                System.err.println("Attempted to use a UnixRuntime syscall in Runtime (" + syscall + ")");
+                if(STDERR_DIAG) System.err.println("Attempted to use a UnixRuntime syscall in Runtime (" + syscall + ")");
                 return -ENOSYS;
             default:
-                System.err.println("Attempted to use unknown syscall: " + syscall);
+                if(STDERR_DIAG) System.err.println("Attempted to use unknown syscall: " + syscall);
                 return -ENOSYS;
         }
     }
