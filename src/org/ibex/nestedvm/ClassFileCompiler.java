@@ -1,11 +1,9 @@
 package org.ibex.nestedvm;
 
 import java.io.*;
-import java.util.Hashtable;
 
 import org.ibex.nestedvm.util.*;
-
-import org.apache.bcel.generic.*;
+import org.ibex.classgen.*;
 
 // FEATURE: Use IINC where possible
 // FEATURE: Use BCEL to do peephole optimization
@@ -35,39 +33,16 @@ import org.apache.bcel.generic.*;
  */
 
 
-public class ClassFileCompiler extends Compiler implements org.apache.bcel.Constants  {    
+public class ClassFileCompiler extends Compiler implements CGConst  {    
     /** The stream to write the compiled output to */
     private OutputStream os;
     private PrintStream warn = System.err;
     
-    private ClassGen cl;
-    private ConstantPoolGen cp;
-    private InstructionList clinitExtras = new InstructionList();
-    private InstructionList initExtras = new InstructionList();
-    private InstructionFactory fac; 
-    
-    // Handy wrappers around the BCEL functions
-    private InstructionList insnList;
-    private void selectMethod(MethodGen m) { insnList = m.getInstructionList(); }
-    private void selectList(InstructionList l) { insnList = l; }
-    private InstructionHandle a(Instruction i) { return insnList.append(i); }
-    private BranchHandle a(BranchInstruction i) { return insnList.append(i); }
-    private InstructionHandle a(InstructionList l) { return insnList.append(l); }
-    private InstructionHandle a(CompoundInstruction c) { return insnList.append(c); }
-    
-    // This works around a bug in InstructionList
-    // FEATURE: fix this in bcel, send them a patch, etc
-    private static class FixedInstructionList extends InstructionList {
-        public void move(InstructionHandle start, InstructionHandle end, InstructionHandle target) {
-            InstructionHandle extra = target != null && target == getEnd() ? append(InstructionConstants.NOP) : null;
-            super.move(start,end,target);
-            if(extra != null) try { delete(extra); } catch (TargetLostException e) { /* won't happen */ }
-        }
-    }
-    
-    private MethodGen newMethod(int flags, Type ret, Type[] args, String name) {
-        return new MethodGen(flags,ret,args,null,name,fullClassName,new FixedInstructionList(),cp);
-    }
+    private ClassGen cg;
+    private MethodGen clinit;
+    private MethodGen init;
+    private Type.Object me;
+    private Type.Object superClass;
     
     public ClassFileCompiler(String path, String className, OutputStream os) throws IOException { this(new Seekable.File(path),className,os); }
     public ClassFileCompiler(Seekable binary, String className, OutputStream os) throws IOException {
@@ -82,35 +57,46 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         if(!pruneCases) throw new Exn("-o prunecases MUST be enabled for ClassFileCompiler");
 
         // Class
-        cl = new ClassGen(fullClassName,runtimeClass,source,ACC_SUPER|ACC_PUBLIC|ACC_FINAL,null);
-        cp = cl.getConstantPool();
-        fac = new InstructionFactory(cl,cp);
+        me = new Type.Object(fullClassName);
+        superClass = new Type.Object(runtimeClass);
+        cg = new ClassGen(me,superClass,ACC_PUBLIC|ACC_FINAL|ACC_SUPER);
+        if(source != null) cg.setSourceFile(source);
         
         // Fields
-        cl.addField(new FieldGen(ACC_PRIVATE,Type.INT,"pc",cp).getField());
-        for(int i=1;i<32;i++)
-            cl.addField(new FieldGen(ACC_PRIVATE,Type.INT,"r"+i,cp).getField());
-        for(int i=0;i<32;i++)
-            cl.addField(new FieldGen(ACC_PRIVATE,Type.INT,"f"+i,cp).getField());
+        cg.addField("pc",Type.INT,ACC_PRIVATE);
+        cg.addField("hi",Type.INT,ACC_PRIVATE);
+        cg.addField("lo",Type.INT,ACC_PRIVATE);
+        cg.addField("fcsr",Type.INT,ACC_PRIVATE);
+        for(int i=1;i<32;i++) cg.addField("r" + i,Type.INT,ACC_PRIVATE);
+        for(int i=0;i<32;i++) cg.addField("f" + i,Type.INT,ACC_PRIVATE);
+        
+        clinit = cg.addMethod("<clinit>",Type.VOID,Type.NO_ARGS,ACC_PRIVATE|ACC_STATIC);
+        
+        init = cg.addMethod("<init>",Type.VOID,Type.NO_ARGS,ACC_PUBLIC);        
+        init.add(ALOAD_0);
+        init.add(LDC,pageSize);
+        init.add(LDC,totalPages);
+        init.add(INVOKESPECIAL,new MethodRef(me,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT}));
+        init.add(RETURN);
 
-        cl.addField(new FieldGen(ACC_PRIVATE,Type.INT,"hi",cp).getField());
-        cl.addField(new FieldGen(ACC_PRIVATE,Type.INT,"lo",cp).getField());
-        cl.addField(new FieldGen(ACC_PRIVATE,Type.INT,"fcsr",cp).getField());
+        init = cg.addMethod("<init>",Type.VOID,new Type[]{Type.INT,Type.INT},ACC_PUBLIC);
+        init.add(ALOAD_0);
+        init.add(ILOAD_1);
+        init.add(ILOAD_2);
+        init.add(INVOKESPECIAL,new MethodRef(superClass,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT}));
         
         if(onePage) {
-            cl.addField(new FieldGen(ACC_PRIVATE|ACC_FINAL,new ArrayType(Type.INT,1),"page",cp).getField());
-
-            selectList(initExtras);
-            a(InstructionConstants.ALOAD_0);
-            a(InstructionConstants.DUP);
-            a(fac.createFieldAccess(fullClassName,"readPages",new ArrayType(Type.INT, 2), GETFIELD));
-            pushConst(0);
-            a(InstructionConstants.AALOAD);
-            a(fac.createFieldAccess(fullClassName,"page",new ArrayType(Type.INT,1), PUTFIELD));
+            cg.addField("page",Type.arrayType(Type.INT),ACC_PRIVATE|ACC_FINAL);
+            init.add(ALOAD_0);
+            init.add(DUP);
+            init.add(GETFIELD,new FieldRef(me,"readPages",Type.arrayType(Type.INT,2)));
+            init.add(LDC,0);
+            init.add(AALOAD);
+            init.add(PUTFIELD,new FieldRef(me,"page",Type.arrayType(Type.INT)));
         }
         
         if(supportCall)
-            cl.addField(new FieldGen(ACC_PRIVATE|ACC_STATIC|ACC_FINAL,Type.getType("L"+hashClass.replace('.','/')+";"),"symbols",cp).getField()); 
+            cg.addField("symbols",new Type.Object(hashClass),ACC_PRIVATE|ACC_STATIC|ACC_FINAL);
         
         int highestAddr = 0;
         
@@ -132,66 +118,92 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 throw new Exn("Unknown segment: " + name);
         }
         
+        // Finish init
+        init.add(RETURN);
+        
+        // Finish clinit
+        if(supportCall) {
+            Type.Object hash = new Type.Object(hashClass);
+            clinit.add(NEW,hash);
+            clinit.add(DUP);
+            clinit.add(DUP);
+            clinit.add(INVOKESPECIAL,new MethodRef(hash,"<init>",Type.VOID,Type.NO_ARGS));
+            clinit.add(PUTSTATIC,new FieldRef(me,"symbols",hash));
+            ELF.Symbol[] symbols = elf.getSymtab().symbols;
+            for(int i=0;i<symbols.length;i++) {
+                ELF.Symbol s = symbols[i];
+                if(s.type == ELF.Symbol.STT_FUNC && s.binding == ELF.Symbol.STB_GLOBAL && (s.name.equals("_call_helper") || !s.name.startsWith("_"))) {
+                    clinit.add(DUP);
+                    clinit.add(LDC,s.name);
+                    clinit.add(NEW,Type.INTEGER_OBJECT);
+                    clinit.add(DUP);
+                    clinit.add(LDC,s.addr);
+                    clinit.add(INVOKESPECIAL,new MethodRef(Type.INTEGER_OBJECT,"<init>",Type.VOID,new Type[]{Type.INT}));
+                    clinit.add(INVOKEVIRTUAL,new MethodRef(hash,"put",Type.OBJECT,new Type[]{Type.OBJECT,Type.OBJECT}));
+                    clinit.add(POP);
+                }
+            }
+            clinit.add(POP);
+        }
+        
+        clinit.add(RETURN);
+        
         ELF.SHeader text = elf.sectionWithName(".text");
         
         // Trampoline
-        MethodGen tramp = newMethod(ACC_PRIVATE,Type.VOID, Type.NO_ARGS, "trampoline");
-        tramp.addException("org.ibex.nestedvm.Runtime$ExecutionException");
-        selectMethod(tramp);
+        MethodGen tramp = cg.addMethod("trampoline",Type.VOID,Type.NO_ARGS,ACC_PRIVATE);
         
-        InstructionHandle start = a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"state",Type.INT, GETFIELD));
-        pushConst(Runtime.RUNNING);
-        BranchInstruction stateCheck =  InstructionFactory.createBranchInstruction(IF_ICMPNE,null);
-        a(stateCheck);
-        a(InstructionConstants.ALOAD_0);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
-        pushConst(methodShift);
-        a(InstructionConstants.IUSHR);
+        int start = tramp.size();
+        tramp.add(ALOAD_0);
+        tramp.add(GETFIELD,new FieldRef(me,"state",Type.INT));
+        tramp.add(LDC,Runtime.RUNNING);
+        
+        int stateCheck = tramp.add(IF_ICMPNE);
+        tramp.add(ALOAD_0);
+        tramp.add(ALOAD_0);
+        tramp.add(GETFIELD,new FieldRef(me,"pc",Type.INT));
+        tramp.add(LDC,methodShift);
+        tramp.add(IUSHR);
         
         int beg = text.addr >>> methodShift;
         int end = ((text.addr + text.size + maxBytesPerMethod - 1) >>> methodShift);
 
-        // This data is redundant but BCEL wants it
-        int[] matches = new int[end-beg];
-        for(int i=beg;i<end;i++)  matches[i-beg] = i;
-        TABLESWITCH ts = new TABLESWITCH(matches,new InstructionHandle[matches.length],null);
-        a(ts);
-        for(int n=beg;n<end;n++){
-            InstructionHandle h = a(fac.createInvoke(fullClassName,"run_"+toHex(n<<methodShift),Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
-            a(InstructionFactory.createBranchInstruction(GOTO,start));
-            ts.setTarget(n-beg,h);
+        MethodGen.TSI tsi = new MethodGen.TSI(beg,end-1);
+        tramp.add(TABLESWITCH,tsi);
+        for(int n=beg;n<end;n++) {
+            tsi.setTargetForVal(n,tramp.size());
+            tramp.add(INVOKESPECIAL,new MethodRef(me,"run_"+toHex(n<<methodShift),Type.VOID,Type.NO_ARGS));
+            tramp.add(GOTO,start);
         }
+        tsi.setDefaultTarget(tramp.size());
         
-        ts.setTarget(a(InstructionConstants.POP)); // default case
-        a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
-        a(InstructionConstants.DUP);
-        a(fac.createNew("java.lang.StringBuffer"));
-        a(InstructionConstants.DUP);
-        a(new PUSH(cp,"Jumped to invalid address in trampoline (r2: "));
-        a(fac.createInvoke("java.lang.StringBuffer","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"r2",Type.INT, GETFIELD));
-        a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.INT},INVOKEVIRTUAL));
-        a(new PUSH(cp," pc:"));
-        a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.STRING},INVOKEVIRTUAL));
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
-        a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.INT},INVOKEVIRTUAL));
-        a(new PUSH(cp,')'));
-        a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.CHAR},INVOKEVIRTUAL));
-        a(fac.createInvoke("java.lang.StringBuffer","toString",Type.STRING,Type.NO_ARGS,INVOKEVIRTUAL));
-        a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
-        a(InstructionConstants.ATHROW);
+        tramp.add(POP);
+        tramp.add(NEW,new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"));
+        tramp.add(DUP);
+        tramp.add(NEW, Type.STRINGBUFFER);
+        tramp.add(DUP);
+        tramp.add(LDC,"Jumped to invalid address in trampoline (r2: ");
+        tramp.add(INVOKESPECIAL,new MethodRef(Type.STRINGBUFFER,"<init>",Type.VOID,new Type[]{Type.STRING}));
+        tramp.add(ALOAD_0);
+        tramp.add(GETFIELD, new FieldRef(me,"r2",Type.INT));
+        tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"append",Type.STRINGBUFFER,new Type[]{Type.INT}));
+        tramp.add(LDC," pc: ");
+        tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"append",Type.STRINGBUFFER,new Type[]{Type.STRING}));
+        tramp.add(ALOAD_0);
+        tramp.add(GETFIELD, new FieldRef(me,"pc",Type.INT));        
+        tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"append",Type.STRINGBUFFER,new Type[]{Type.INT}));
+        tramp.add(LDC,")");
+        tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"append",Type.STRINGBUFFER,new Type[]{Type.STRING}));
+        tramp.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"toString",Type.STRING,Type.NO_ARGS));
+        tramp.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
+        tramp.add(ATHROW);
         
-        stateCheck.setTarget(a(InstructionConstants.RETURN));
-        
-        tramp.setMaxStack();
-        tramp.setMaxLocals();
+        tramp.setArg(stateCheck,tramp.size());
+        tramp.add(RETURN);
+                
         try {
-            cl.addMethod(tramp.getMethod());
-        } catch(ClassGenException e) {
+            tramp.finish();
+        } catch(ClassGen.Exn e) {
             e.printStackTrace(warn);
             throw new Exn("Generation of the trampoline method failed. Try increasing maxInsnPerMethod");
         }
@@ -205,216 +217,125 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             addConstReturnMethod("userInfoSize",userInfo.size);
         }
         
-        // FEATURE: Allow specification of memory size at runtime (numpages)
-        // Constructor
-        MethodGen init = newMethod(ACC_PUBLIC,Type.VOID, Type.NO_ARGS, "<init>");
-        selectMethod(init);
-        a(InstructionConstants.ALOAD_0);
-        pushConst(pageSize);
-        pushConst(totalPages);
-        a(fac.createInvoke(runtimeClass,"<init>",Type.VOID,new Type[]{Type.INT,Type.INT},INVOKESPECIAL));
-        
-        a(initExtras);
-        
-        a(InstructionConstants.RETURN);
-        
-        init.setMaxLocals();
-        init.setMaxStack();
-        cl.addMethod(init.getMethod());
-        
-        
-        MethodGen clinit = newMethod(ACC_PRIVATE|ACC_STATIC,Type.VOID, Type.NO_ARGS, "<clinit>");
-        selectMethod(clinit);
-        a(clinitExtras);
-        
         if(supportCall) {
-            a(fac.createNew(hashClass));
-            a(InstructionConstants.DUP);
-            a(InstructionConstants.DUP);
-            a(fac.createInvoke(hashClass,"<init>",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
-            a(fac.createFieldAccess(fullClassName,"symbols",Type.getType("L"+hashClass.replace('.','/')+";"), PUTSTATIC));
-            ELF.Symbol[] symbols = elf.getSymtab().symbols;
-            for(int i=0;i<symbols.length;i++) {
-                ELF.Symbol s = symbols[i];
-                if(s.type == ELF.Symbol.STT_FUNC && s.binding == ELF.Symbol.STB_GLOBAL && (s.name.equals("_call_helper") || !s.name.startsWith("_"))) {
-                    a(InstructionConstants.DUP);
-                    a(new PUSH(cp,s.name));
-                    a(fac.createNew("java.lang.Integer"));
-                    a(InstructionConstants.DUP);
-                    a(new PUSH(cp,s.addr));
-                    a(fac.createInvoke("java.lang.Integer","<init>",Type.VOID,new Type[]{Type.INT},INVOKESPECIAL));
-                    a(fac.createInvoke(hashClass,"put",Type.OBJECT,new Type[]{Type.OBJECT,Type.OBJECT},INVOKEVIRTUAL));
-                    a(InstructionConstants.POP);
-                }
-            }
-            a(InstructionConstants.POP);
+            Type.Object hashClassType = new Type.Object(hashClass);
+            MethodGen ls = cg.addMethod("lookupSymbol",Type.INT,new Type[]{Type.STRING},ACC_PROTECTED);
+            ls.add(GETSTATIC,new FieldRef(me,"symbols",hashClassType));
+            ls.add(ALOAD_1);
+            ls.add(INVOKEVIRTUAL,new MethodRef(hashClassType,"get",Type.OBJECT,new Type[]{Type.OBJECT}));
+            ls.add(DUP);
+            int b = ls.add(IFNULL);
+            ls.add(CHECKCAST,Type.INTEGER_OBJECT);
+            ls.add(INVOKEVIRTUAL,new MethodRef(Type.INTEGER_OBJECT,"intValue",Type.INT,Type.NO_ARGS));
+            ls.add(IRETURN);
+            ls.setArg(b,ls.size());
+            ls.add(POP);
+            ls.add(ICONST_M1);
+            ls.add(IRETURN);
         }
         
-        a(InstructionConstants.RETURN);
-        clinit.setMaxLocals();
-        clinit.setMaxStack();
-        cl.addMethod(clinit.getMethod());
+        Type.Object cpuStateType = new Type.Object("org.ibex.nestedvm.Runtime$CPUState");
+        MethodGen setCPUState = cg.addMethod("setCPUState",Type.VOID,new Type[]{cpuStateType},ACC_PROTECTED);
+        MethodGen getCPUState = cg.addMethod("getCPUState",Type.VOID,new Type[]{cpuStateType},ACC_PROTECTED);
         
-        if(supportCall) {
-            MethodGen lookupSymbol = newMethod(ACC_PROTECTED,Type.INT,new Type[]{Type.STRING},"lookupSymbol");
-            selectMethod(lookupSymbol);
-            a(fac.createFieldAccess(fullClassName,"symbols",Type.getType("L"+hashClass.replace('.','/')+";"), GETSTATIC));
-            a(InstructionConstants.ALOAD_1);
-            a(fac.createInvoke(hashClass,"get",Type.OBJECT,new Type[]{Type.OBJECT},INVOKEVIRTUAL));
-            a(InstructionConstants.DUP);
-            BranchHandle bh = a(InstructionFactory.createBranchInstruction(IFNULL,null));
-            a(fac.createCheckCast(new ObjectType("java.lang.Integer")));
-            a(fac.createInvoke("java.lang.Integer","intValue",Type.INT,Type.NO_ARGS,INVOKEVIRTUAL));
-            a(InstructionConstants.IRETURN);
-            bh.setTarget(a(InstructionConstants.POP));
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IRETURN);
-            lookupSymbol.setMaxLocals();
-            lookupSymbol.setMaxStack();
-            cl.addMethod(lookupSymbol.getMethod());
-        }
+        setCPUState.add(ALOAD_1);
+        getCPUState.add(ALOAD_1);
+        setCPUState.add(GETFIELD,new FieldRef(cpuStateType,"r",Type.arrayType(Type.INT)));
+        getCPUState.add(GETFIELD,new FieldRef(cpuStateType,"r",Type.arrayType(Type.INT)));
+        setCPUState.add(ASTORE_2);
+        getCPUState.add(ASTORE_2);
         
-        MethodGen setCPUState = newMethod(ACC_PROTECTED,Type.VOID,new Type[]{Type.getType("Lorg/ibex/nestedvm/Runtime$CPUState;")},"setCPUState");
-        selectMethod(setCPUState);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
-        a(InstructionConstants.ASTORE_2);
         for(int i=1;i<32;i++) {
-            a(InstructionConstants.ALOAD_0);
-            a(InstructionConstants.ALOAD_2);
-            pushConst(i);
-            a(InstructionConstants.IALOAD);
-            a(fac.createFieldAccess(fullClassName,"r"+i,Type.INT, PUTFIELD));
+            setCPUState.add(ALOAD_0);
+            setCPUState.add(ALOAD_2);
+            setCPUState.add(LDC,i);
+            setCPUState.add(IALOAD);
+            setCPUState.add(PUTFIELD,new FieldRef(me,"r"+i,Type.INT));
+            
+            getCPUState.add(ALOAD_2);
+            getCPUState.add(LDC,i);
+            getCPUState.add(ALOAD_0);
+            getCPUState.add(GETFIELD,new FieldRef(me,"r"+i,Type.INT));
+            getCPUState.add(IASTORE);
         }
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","f",new ArrayType(Type.INT,1),GETFIELD));
-        a(InstructionConstants.ASTORE_2);
+        
+        setCPUState.add(ALOAD_1);
+        getCPUState.add(ALOAD_1);
+        setCPUState.add(GETFIELD,new FieldRef(cpuStateType,"f",Type.arrayType(Type.INT)));
+        getCPUState.add(GETFIELD,new FieldRef(cpuStateType,"f",Type.arrayType(Type.INT)));
+        setCPUState.add(ASTORE_2);
+        getCPUState.add(ASTORE_2);
+        
         for(int i=0;i<32;i++) {
-            a(InstructionConstants.ALOAD_0);
-            a(InstructionConstants.ALOAD_2);
-            pushConst(i);
-            a(InstructionConstants.IALOAD);
-            a(fac.createFieldAccess(fullClassName,"f"+i,Type.INT, PUTFIELD));
-        }
-        a(InstructionConstants.ALOAD_0);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","hi",Type.INT,GETFIELD));
-        a(fac.createFieldAccess(fullClassName,"hi",Type.INT, PUTFIELD));
-        a(InstructionConstants.ALOAD_0);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","lo",Type.INT,GETFIELD));
-        a(fac.createFieldAccess(fullClassName,"lo",Type.INT, PUTFIELD));
-        a(InstructionConstants.ALOAD_0);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","fcsr",Type.INT,GETFIELD));
-        a(fac.createFieldAccess(fullClassName,"fcsr",Type.INT, PUTFIELD));
-        a(InstructionConstants.ALOAD_0);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","pc",Type.INT,GETFIELD));
-        a(fac.createFieldAccess(fullClassName,"pc",Type.INT, PUTFIELD));
-        
-        a(InstructionConstants.RETURN);
-        setCPUState.setMaxLocals();
-        setCPUState.setMaxStack();
-        cl.addMethod(setCPUState.getMethod());
-        
-        MethodGen getCPUState = newMethod(ACC_PROTECTED,Type.VOID,new Type[]{Type.getType("Lorg/ibex/nestedvm/Runtime$CPUState;")},"getCPUState");
-        selectMethod(getCPUState);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","r",new ArrayType(Type.INT,1),GETFIELD));
-        a(InstructionConstants.ASTORE_2);
-        for(int i=1;i<32;i++) {
-            a(InstructionConstants.ALOAD_2);
-            pushConst(i);
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,"r"+i,Type.INT, GETFIELD));
-            a(InstructionConstants.IASTORE);
+            setCPUState.add(ALOAD_0);
+            setCPUState.add(ALOAD_2);
+            setCPUState.add(LDC,i);
+            setCPUState.add(IALOAD);
+            setCPUState.add(PUTFIELD,new FieldRef(me,"f"+i,Type.INT));
+            
+            getCPUState.add(ALOAD_2);
+            getCPUState.add(LDC,i);
+            getCPUState.add(ALOAD_0);
+            getCPUState.add(GETFIELD,new FieldRef(me,"f"+i,Type.INT));
+            getCPUState.add(IASTORE);            
         }
         
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","f",new ArrayType(Type.INT,1),GETFIELD));
-        a(InstructionConstants.ASTORE_2);
-        for(int i=0;i<32;i++) {
-            a(InstructionConstants.ALOAD_2);
-            pushConst(i);
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,"f"+i,Type.INT, GETFIELD));
-            a(InstructionConstants.IASTORE);
-        }
-        a(InstructionConstants.ALOAD_1);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"hi",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","hi",Type.INT,PUTFIELD));
-        a(InstructionConstants.ALOAD_1);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"lo",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","lo",Type.INT,PUTFIELD));
-        a(InstructionConstants.ALOAD_1);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"fcsr",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","fcsr",Type.INT,PUTFIELD));
-        a(InstructionConstants.ALOAD_1);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
-        a(fac.createFieldAccess("org.ibex.nestedvm.Runtime$CPUState","pc",Type.INT,PUTFIELD));
-        
-        a(InstructionConstants.RETURN);
-        getCPUState.setMaxLocals();
-        getCPUState.setMaxStack();
-        cl.addMethod(getCPUState.getMethod());
+        String[] each = new String[] { "hi","lo","fcsr","pc" };
+        for(int i=0;i<each.length;i++) {
+            setCPUState.add(ALOAD_0);
+            setCPUState.add(ALOAD_1);
+            setCPUState.add(GETFIELD,new FieldRef(cpuStateType,each[i],Type.INT));
+            setCPUState.add(PUTFIELD,new FieldRef(me,each[i],Type.INT));
 
+            getCPUState.add(ALOAD_1);
+            getCPUState.add(ALOAD_0);
+            getCPUState.add(GETFIELD,new FieldRef(me,each[i],Type.INT));
+            getCPUState.add(PUTFIELD,new FieldRef(cpuStateType,each[i],Type.INT));
+        }
+        setCPUState.add(RETURN);
+        getCPUState.add(RETURN);
+        
 
-        MethodGen execute = newMethod(ACC_PROTECTED,Type.VOID,Type.NO_ARGS,"_execute");
-        selectMethod(execute);
-        InstructionHandle tryStart = a(InstructionConstants.ALOAD_0);
-        InstructionHandle tryEnd = a(fac.createInvoke(fullClassName,"trampoline",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
-        a(InstructionConstants.RETURN);
+        MethodGen execute = cg.addMethod("_execute",Type.VOID,Type.NO_ARGS,ACC_PROTECTED);
+        int tryStart = execute.size();
+        execute.add(ALOAD_0);
+        execute.add(INVOKESPECIAL,new MethodRef(me,"trampoline",Type.VOID,Type.NO_ARGS));
+        int tryEnd = execute.size();
+        execute.add(RETURN);
         
-        InstructionHandle catchInsn = a(InstructionConstants.ASTORE_1);
-        a(fac.createNew("org.ibex.nestedvm.Runtime$FaultException"));
-        a(InstructionConstants.DUP);
-        a(InstructionConstants.ALOAD_1);
-        a(fac.createInvoke("org.ibex.nestedvm.Runtime$FaultException","<init>",Type.VOID,new Type[]{new ObjectType("java.lang.RuntimeException")},INVOKESPECIAL));
-        a(InstructionConstants.ATHROW);
+        int catchInsn = execute.size();
+        execute.add(ASTORE_1);
+        execute.add(NEW, new Type.Object("org.ibex.nestedvm.Runtime$FaultException"));
+        execute.add(DUP);
+        execute.add(ALOAD_1);
+        execute.add(INVOKESPECIAL,new MethodRef("org.ibex.nestedvm.Runtime$FaultException","<init>",Type.VOID,new Type[]{new Type.Object("java.lang.RuntimeException")}));
+        execute.add(ATHROW);
         
-        execute.addExceptionHandler(tryStart,tryEnd,catchInsn,new ObjectType("java.lang.RuntimeException"));
-        execute.setMaxLocals();
-        execute.setMaxStack();
-        cl.addMethod(execute.getMethod());
+        execute.addExceptionHandler(tryStart,tryEnd,catchInsn,new Type.Object("java.lang.RuntimeException"));
+        execute.addThrow(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"));
+
+        MethodGen main = cg.addMethod("main",Type.VOID,new Type[]{Type.arrayType(Type.STRING)},ACC_STATIC|ACC_PUBLIC);
+        main.add(NEW,me);
+        main.add(DUP);
+        main.add(INVOKESPECIAL,new MethodRef(me,"<init>",Type.VOID,Type.NO_ARGS));
+        main.add(LDC,fullClassName);
+        main.add(ALOAD_0);
+        if(unixRuntime) {
+            Type.Object ur = new Type.Object("org.ibex.nestedvm.UnixRuntime");
+            main.add(INVOKESTATIC,new MethodRef(ur,"runAndExec",Type.INT,new Type[]{ur,Type.STRING,Type.arrayType(Type.STRING)}));
+        } else {
+            main.add(INVOKEVIRTUAL,new MethodRef(me,"run",Type.INT,new Type[]{Type.STRING,Type.arrayType(Type.STRING)}));
+        }
+        main.add(INVOKESTATIC,new MethodRef(new Type.Object("java.lang.System"),"exit",Type.VOID,new Type[]{Type.INT}));
+        main.add(RETURN);
         
-        
-        MethodGen main = newMethod(ACC_STATIC|ACC_PUBLIC,Type.VOID,new Type[]{new ArrayType(Type.STRING,1)},"main");
-        selectMethod(main);
-        a(fac.createNew(fullClassName));
-        a(InstructionConstants.DUP);
-        a(fac.createInvoke(fullClassName,"<init>",Type.VOID,Type.NO_ARGS,INVOKESPECIAL));
-        a(new PUSH(cp,fullClassName));
-        a(InstructionConstants.ALOAD_0);
-        if(unixRuntime)
-            a(fac.createInvoke("org.ibex.nestedvm.UnixRuntime","runAndExec",Type.INT,
-                new Type[]{Type.getType("Lorg/ibex/nestedvm/UnixRuntime;"),Type.STRING,new ArrayType(Type.STRING,1)},
-                INVOKESTATIC));
-        else
-            a(fac.createInvoke(fullClassName,"run",Type.INT,new Type[]{Type.STRING,new ArrayType(Type.STRING,1)},INVOKEVIRTUAL));
-        a(fac.createInvoke("java.lang.System","exit",Type.VOID,new Type[]{Type.INT},INVOKESTATIC));
-        a(InstructionConstants.RETURN);
-        main.setMaxLocals();
-        main.setMaxStack();
-        cl.addMethod(main.getMethod());
-        
-        if(printStats)
-            System.out.println("Constant Pool Size: " + cp.getSize());
-        cl.getJavaClass().dump(os);
+        cg.dump(os);
     }
     
     private void addConstReturnMethod(String name, int val) {
-        MethodGen method = newMethod(ACC_PROTECTED,Type.INT, Type.NO_ARGS,name);
-        selectMethod(method);
-        pushConst(val);
-        a(InstructionConstants.IRETURN);
-        method.setMaxLocals();
-        method.setMaxStack();
-        cl.addMethod(method.getMethod());
+        MethodGen  m = cg.addMethod(name,Type.INT,Type.NO_ARGS,ACC_PROTECTED);
+        m.add(LDC,val);
+        m.add(IRETURN);
     }
         
     private static int initDataCount;
@@ -435,20 +356,18 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     sb.append((char) ((l>>>(7*(7-j)))&0x7f));
             }
             String fieldname =  "_data" + (++initDataCount);
-            cl.addField(new FieldGen(ACC_PRIVATE|ACC_STATIC|ACC_FINAL,new ArrayType(Type.INT,1),fieldname,cp).getField());
+            cg.addField(fieldname,Type.arrayType(Type.INT),ACC_PRIVATE|ACC_STATIC|ACC_FINAL);
             
-            selectList(clinitExtras);
-            a(new PUSH(cp,sb.toString()));
-            a(new PUSH(cp,segSize/4));
-            a(fac.createInvoke("org.ibex.nestedvm.Runtime","decodeData",new ArrayType(Type.INT,1),new Type[]{Type.STRING,Type.INT},INVOKESTATIC));
-            a(fac.createPutStatic(fullClassName,fieldname,new ArrayType(Type.INT,1)));
+            clinit.add(LDC,sb.toString());
+            clinit.add(LDC,segSize/4);
+            clinit.add(INVOKESTATIC,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime"),"decodeData",Type.arrayType(Type.INT),new Type[]{Type.STRING,Type.INT}));
+            clinit.add(PUTSTATIC,new FieldRef(me,fieldname,Type.arrayType(Type.INT)));
 
-            selectList(initExtras);
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createGetStatic(fullClassName,fieldname,new ArrayType(Type.INT,1)));
-            a(new PUSH(cp,addr));
-            a(new PUSH(cp,readOnly));
-            a(fac.createInvoke(fullClassName,"initPages",Type.VOID,new Type[]{new ArrayType(Type.INT,1),Type.INT,Type.BOOLEAN},INVOKEVIRTUAL));
+            init.add(ALOAD_0);
+            init.add(GETSTATIC,new FieldRef(me,fieldname,Type.arrayType(Type.INT)));
+            init.add(LDC,addr);
+            init.add(LDC,readOnly ? 1 : 0);
+            init.add(INVOKEVIRTUAL,new MethodRef(me,"initPages",Type.VOID,new Type[]{Type.arrayType(Type.INT),Type.INT,Type.BOOLEAN}));
             
             addr += segSize;
             size -= segSize;
@@ -460,23 +379,23 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         if((addr&3)!=0) throw new Exn("BSS section on weird boundaries");
         size = (size+3)&~3;
         int count = size/4;
-        selectList(initExtras);
-        a(InstructionConstants.ALOAD_0);
-        a(new PUSH(cp,addr));
-        a(new PUSH(cp,count));
-        a(fac.createInvoke(fullClassName,"clearPages",Type.VOID,new Type[]{Type.INT,Type.INT},INVOKEVIRTUAL));
+        
+        init.add(ALOAD_0);
+        init.add(LDC,addr);
+        init.add(LDC,count);
+        init.add(INVOKEVIRTUAL,new MethodRef(me,"clearPages",Type.VOID,new Type[]{Type.INT,Type.INT}));
     }
     
-    // method state info
-    private boolean textDone;
-    private int startOfMethod = 0;
-    private int endOfMethod = 0;
-    private boolean unreachable = false;
-    private InstructionHandle[] jumpHandles;
-    private InstructionHandle defaultHandle;
-    private InstructionHandle returnHandle;
-    private InstructionHandle realStart;
-    private MethodGen curMethod;
+    // Method state info
+    private boolean textDone; // a text segment was already processed
+    private int startOfMethod = 0; // the start of this method (not necessarily the first instruction)
+    private int endOfMethod = 0; // the maximum end of this method (could end before it is full)
+    private boolean unreachable = false; // is the current pc is reachable
+    
+    private MethodGen.PhantomTarget returnTarget; // where to jump when exiting the method
+    private MethodGen.PhantomTarget defaultTarget; // the default switch target (throws exn)
+    private MethodGen.PhantomTarget[] insnTargets; // the targets for each jumpable instruction
+    private MethodGen mg; // the method itself
     
     private boolean jumpable(int addr) { return jumpableAddresses.get(new Integer(addr)) != null; }
     
@@ -493,9 +412,8 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             insn = skipNext ? dis.readInt() : nextInsn;
             nextInsn = (i == count-1) ? -1 : dis.readInt();
             if(addr >= endOfMethod) { endMethod(addr); startMethod(addr); }
-            if(jumpHandles[(addr-startOfMethod)/4] != null) {
-                // Move the fake jump target to the current location
-                insnList.move(jumpHandles[(addr-startOfMethod)/4],insnList.getEnd());
+            if(insnTargets[(addr-startOfMethod)/4] != null) {
+                insnTargets[(addr-startOfMethod)/4].setTarget(mg.size());
                 unreachable = false;
             } else if(unreachable) {
                 continue;
@@ -510,57 +428,51 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         }
         endMethod(0);
         dis.close();
+        mg.finish();
     }
     
     private void startMethod(int first) {
         startOfMethod = first & methodMask;
         endOfMethod = startOfMethod + maxBytesPerMethod;
-        curMethod = newMethod(ACC_PRIVATE,Type.VOID,Type.NO_ARGS,"run_" + toHex(startOfMethod));
-        selectMethod(curMethod);
+        
+        mg = cg.addMethod("run_" + toHex(startOfMethod),Type.VOID,Type.NO_ARGS,ACC_PRIVATE|ACC_FINAL);
+        if(onePage) {
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,"page",Type.arrayType(Type.INT)));
+            mg.add(ASTORE_2);
+        } else {
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,"readPages",Type.arrayType(Type.INT,2)));
+            mg.add(ASTORE_2);
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,"writePages",Type.arrayType(Type.INT,2)));
+            mg.add(ASTORE_3);
+        }
+        
+        returnTarget = new MethodGen.PhantomTarget();
+        insnTargets = new MethodGen.PhantomTarget[maxBytesPerMethod/4];
         
         int[] buf = new int[maxBytesPerMethod/4];
-        jumpHandles = new InstructionHandle[maxBytesPerMethod/4];
-        int n=0;
+        Object[] targetBuf = new Object[maxBytesPerMethod/4];
+        int n = 0;
         for(int addr=first;addr<endOfMethod;addr+=4) {
             if(jumpable(addr)) {
-                buf[n++] = addr;
-                // append NOPs for GOTO jumps (these will be moved to the correct location later)
-                jumpHandles[(addr-startOfMethod)/4] = a(InstructionConstants.NOP);
+                targetBuf[n] = insnTargets[(addr-startOfMethod)/4] = new MethodGen.PhantomTarget();
+                buf[n] = addr;
+                n++;
             }
         }
+
+        MethodGen.LSI lsi = new MethodGen.LSI(n);
+        System.arraycopy(buf,0,lsi.vals,0,n);
+        System.arraycopy(targetBuf,0,lsi.targets,0,n);
+        lsi.setDefaultTarget(defaultTarget = new MethodGen.PhantomTarget());
         
-        // append NOP for default case (throw exn) (this will be moved later)
-        defaultHandle = a(InstructionConstants.NOP);
-        returnHandle = a(InstructionConstants.NOP);
+        fixupRegsStart();
         
-        int[] matches = new int[n];
-        System.arraycopy(buf,0,matches,0,n);
-        InstructionHandle[] targets = new InstructionHandle[n];
-        for(int i=0;i<matches.length;i++)
-            targets[i] = jumpHandles[(matches[i]-startOfMethod)/4];
-        
-        
-        // First instruction of the actual method - everything above this should be removed
-        // before we get to the end
-        realStart = a(InstructionConstants.NOP);
-        
-        if(onePage) {
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,"page",new ArrayType(Type.INT,1), GETFIELD));
-            a(InstructionConstants.ASTORE_2);
-        } else {
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,"readPages",new ArrayType(Type.INT,2), GETFIELD));
-            a(InstructionConstants.ASTORE_2);
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,"writePages",new ArrayType(Type.INT,2), GETFIELD));
-            a(InstructionFactory.createStore(Type.OBJECT,3));
-        }
-        
-        LOOKUPSWITCH initialSwitch = new LOOKUPSWITCH(matches,targets,defaultHandle);
-        a(InstructionConstants.ALOAD_0);
-        a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
-        a(initialSwitch);     
+        mg.add(ALOAD_0);
+        mg.add(GETFIELD,new FieldRef(me,"pc",Type.INT));
+        mg.add(LOOKUPSWITCH,lsi);
     }
     
     private void endMethod(int firstAddrOfNext) {
@@ -568,81 +480,69 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         
         if(!unreachable) {
             preSetPC();
-            pushConst(firstAddrOfNext);
+            mg.add(LDC,firstAddrOfNext);
             setPC();
             // mark the start of the next method as jumpable
             jumpableAddresses.put(new Integer(firstAddrOfNext),Boolean.TRUE);
         }
         
-        insnList.move(returnHandle,insnList.getEnd());
-        fixupRegs();
-        a(InstructionConstants.RETURN);
+        returnTarget.setTarget(mg.size());
         
-        // move the default jump target (lookupswitch) to before the throw
-        insnList.move(defaultHandle,insnList.getEnd());
+        fixupRegsEnd();
+        
+        mg.add(RETURN);
+        
+        defaultTarget.setTarget(mg.size());
+        
         if(debugCompiler) {
-            a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
-            a(InstructionConstants.DUP);
-            a(fac.createNew("java.lang.StringBuffer"));
-            a(InstructionConstants.DUP);
-            a(new PUSH(cp,"Jumped to invalid address: "));
-            a(fac.createInvoke("java.lang.StringBuffer","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
-            a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,"pc",Type.INT, GETFIELD));
-            a(fac.createInvoke("java.lang.StringBuffer","append",Type.STRINGBUFFER,new Type[]{Type.INT},INVOKEVIRTUAL));
-            a(fac.createInvoke("java.lang.StringBuffer","toString",Type.STRING,Type.NO_ARGS,INVOKEVIRTUAL));
-            a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
-            a(InstructionConstants.ATHROW);
+            mg.add(NEW,new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"));
+            mg.add(DUP);
+            mg.add(NEW,Type.STRINGBUFFER);
+            mg.add(DUP);
+            mg.add(LDC,"Jumped to invalid address: ");
+            mg.add(INVOKESPECIAL,new MethodRef(Type.STRINGBUFFER,"<init>",Type.VOID,new Type[]{Type.STRING}));
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,"pc",Type.INT));
+            mg.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"append",Type.STRINGBUFFER,new Type[]{Type.INT}));
+            mg.add(INVOKEVIRTUAL,new MethodRef(Type.STRINGBUFFER,"toString",Type.STRING,Type.NO_ARGS));
+            mg.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
+            mg.add(ATHROW);
         } else {
-            a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
-            a(InstructionConstants.DUP);
-            a(new PUSH(cp,"Jumped to invalid address"));
-            a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
-            a(InstructionConstants.ATHROW);
+            mg.add(NEW,new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"));
+            mg.add(DUP);
+            mg.add(LDC,"Jumped to invalid address");
+            mg.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
+            mg.add(ATHROW);
         }
-
-        if(insnList.getStart() != realStart) {
-            System.err.println(insnList);
-            throw new Error("A jumpHandle wasn't moved into place");
-        }
-        
-        curMethod.removeNOPs();
-        curMethod.setMaxLocals();
-        curMethod.setMaxStack();
-        
-        cl.addMethod(curMethod.getMethod());
         
         endOfMethod = startOfMethod = 0;
     }
 
 
     private void leaveMethod() {
-        a(InstructionFactory.createBranchInstruction(GOTO,returnHandle));
+        mg.add(GOTO,returnTarget);
     }
 
     private void branch(int pc, int target) {
         if((pc&methodMask) == (target&methodMask)) {
-            a(InstructionFactory.createBranchInstruction(GOTO,jumpHandles[(target-startOfMethod)/4]));
+            mg.add(GOTO,insnTargets[(target-startOfMethod)/4]);
         } else {
             preSetPC();
-            pushConst(target);
+            mg.add(LDC,target);
             setPC();
             leaveMethod();
         }
     }
     
     // This assumes everything needed by ifInsn is already on the stack
-    private boolean doIfInstruction(short op, int pc, int target, int nextInsn) throws Exn {
+    private boolean doIfInstruction(byte op, int pc, int target, int nextInsn) throws Exn {
         emitInstruction(-1,nextInsn,-1); // delay slot
-        BranchHandle h;
-        IfInstruction ifInsn = (IfInstruction) InstructionFactory.createBranchInstruction(op,null);
         if((target&methodMask) == (pc&methodMask)) {
-            h = a(ifInsn);
-            h.setTarget(jumpHandles[(target-startOfMethod)/4]);
+            mg.add(op,insnTargets[(target-startOfMethod)/4]);
         } else {
-            h = a(ifInsn.negate());
+            int h = mg.add(MethodGen.negate(op));
             branch(pc,target);
-            h.setTarget(a(InstructionConstants.NOP));
+            mg.setArg(h,mg.size());
         }
         if(!jumpable(pc+4)) return true; // done - skip it
         
@@ -651,21 +551,27 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             // the delay slot is at the start of the next method
             jumpableAddresses.put(new Integer(pc+8),Boolean.TRUE); // make the 2nd insn of the next method jumpable
             branch(pc,pc+8); // jump over it
-            //System.err.println("delay slot: " + toHex(pc+8));
+            //System.err.println("delay slot: " + toHex(pc+8)); */
             unreachable = true;
             return false; // we still need to output it
         } else {
             //System.err.println("jumped over delay slot: " + toHex(pc+4));
             // add another copy and jump over
-            h = a(InstructionFactory.createBranchInstruction(GOTO,null));
-            insnList.move(jumpHandles[(pc+4-startOfMethod)/4],insnList.getEnd());
-            emitInstruction(-1,nextInsn,-1); // delay slot
-            h.setTarget(a(InstructionConstants.NOP));
+            
+            int b = mg.add(GOTO);
+            emitInstruction(-1,nextInsn,01); // delay slot
+            mg.setArg(b,mg.size());
+            
             return true;
         }
     }
     
+    private static final Float POINT_5_F = new Float(0.5f);
+    private static final Double POINT_5_D = new Double(0.5f);
+    private static final Long FFFFFFFF = new Long(0xffffffffL);
+    
     private boolean emitInstruction(int pc, int insn, int nextInsn) throws Exn {
+        MethodGen mg = this.mg; // smaller bytecode
         if(insn == -1) throw new Exn("insn is -1");
         
         int op = (insn >>> 26) & 0xff;                 // bits 26-31
@@ -685,7 +591,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         int branchTarget = signedImmediate;
 
         // temporaries
-        BranchHandle b1,b2;
+        int b1,b2;
         
         switch(op) {
         case 0: {
@@ -694,43 +600,43 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(insn == 0) break; 
                 preSetReg(R+rd);
                 pushRegWZ(R+rt);
-                pushConst(shamt);
-                a(InstructionConstants.ISHL);
+                mg.add(LDC,shamt);
+                mg.add(ISHL);
                 setReg();
                 break;
             case 2: // SRL
                 preSetReg(R+rd);
                 pushRegWZ(R+rt);
-                pushConst(shamt);
-                a(InstructionConstants.IUSHR);
+                mg.add(LDC,shamt);
+                mg.add(IUSHR);
                 setReg();
                 break;
             case 3: // SRA
                 preSetReg(R+rd);
                 pushRegWZ(R+rt);
-                pushConst(shamt);
-                a(InstructionConstants.ISHR);        
+                mg.add(LDC,shamt);
+                mg.add(ISHR);
                 setReg();
                 break;
             case 4: // SLLV
                 preSetReg(R+rd);
                 pushRegWZ(R+rt);
                 pushRegWZ(R+rs);
-                a(InstructionConstants.ISHL);
+                mg.add(ISHL);
                 setReg();
                 break;
             case 6: // SRLV
                 preSetReg(R+rd);
                 pushRegWZ(R+rt);
                 pushRegWZ(R+rs);
-                a(InstructionConstants.IUSHR);
+                mg.add(IUSHR);
                 setReg();
                 break;
             case 7: // SRAV
                 preSetReg(R+rd);
                 pushRegWZ(R+rt);
                 pushRegWZ(R+rs);
-                a(InstructionConstants.ISHR);
+                mg.add(ISHR);
                 setReg();
                 break;
             case 8: // JR
@@ -750,20 +656,20 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 setPC();
                 
                 preSetReg(R+RA);
-                pushConst(pc+8);
+                mg.add(LDC,pc+8);
                 setReg();
                 leaveMethod();
                 unreachable = true;
                 break;
             case 12: // SYSCALL
                 preSetPC();
-                pushConst(pc);
+                mg.add(LDC,pc);
                 setPC();
                 
                 restoreChangedRegs();
                 
                 preSetReg(R+V0);
-                a(InstructionConstants.ALOAD_0);
+                mg.add(ALOAD_0);
                 pushRegZ(R+V0);
                 pushRegZ(R+A0);
                 pushRegZ(R+A1);
@@ -771,26 +677,26 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 pushRegZ(R+A3);
                 pushRegZ(R+T0);
                 pushRegZ(R+T1);
-                a(fac.createInvoke(fullClassName,"syscall",Type.INT,new Type[]{Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT},INVOKEVIRTUAL));
+                mg.add(INVOKEVIRTUAL,new MethodRef(me,"syscall",Type.INT,new Type[]{Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT,Type.INT}));
                 setReg();
                 
-                a(InstructionConstants.ALOAD_0);
-                a(fac.createFieldAccess(fullClassName,"state",Type.INT, GETFIELD));
-                pushConst(Runtime.RUNNING);
-                b1 = a(InstructionFactory.createBranchInstruction(IF_ICMPEQ,null));
+                mg.add(ALOAD_0);
+                mg.add(GETFIELD,new FieldRef(me,"state",Type.INT));
+                // FEATURE: Set Runtime.RUNNING to 0 and just use IFEQ here 
+                mg.add(LDC,Runtime.RUNNING);
+                b1 = mg.add(IF_ICMPEQ);
                 preSetPC();
-                pushConst(pc+4);
+                mg.add(LDC,pc+4);
                 setPC();
                 leaveMethod();
-                b1.setTarget(a(InstructionConstants.NOP));
-                
+                mg.setArg(b1,mg.size());
                 break;
             case 13: // BREAK
-                a(fac.createNew("org.ibex.nestedvm.Runtime$ExecutionException"));
-                a(InstructionConstants.DUP);
-                a(new PUSH(cp,"BREAK Code " + toHex(breakCode)));
-                a(fac.createInvoke("org.ibex.nestedvm.Runtime$ExecutionException","<init>",Type.VOID,new Type[]{Type.STRING},INVOKESPECIAL));
-                a(InstructionConstants.ATHROW);
+                mg.add(NEW,new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"));
+                mg.add(DUP);
+                mg.add(LDC,"BREAK Code " + toHex(breakCode));
+                mg.add(INVOKESPECIAL,new MethodRef(new Type.Object("org.ibex.nestedvm.Runtime$ExecutionException"),"<init>",Type.VOID,new Type[]{Type.STRING}));
+                mg.add(ATHROW);
                 unreachable = true;
                 break;
             case 16: // MFHI
@@ -815,97 +721,97 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 break;
             case 24: // MULT
                 pushRegWZ(R+rs);
-                a(InstructionConstants.I2L);
+                mg.add(I2L);
                 pushRegWZ(R+rt);
-                a(InstructionConstants.I2L);
-                a(InstructionConstants.LMUL);
-                a(InstructionConstants.DUP2);
+                mg.add(I2L);
+                mg.add(LMUL);
+                mg.add(DUP2);
                 
-                a(InstructionConstants.L2I);
+                mg.add(L2I);
                 if(preSetReg(LO))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP); //a(InstructionConstants.SWAP);
                 setReg();
                 
-                pushConst(32);
-                a(InstructionConstants.LUSHR);
-                a(InstructionConstants.L2I);
+                mg.add(LDC,32);
+                mg.add(LUSHR);
+                mg.add(L2I);
                 if(preSetReg(HI))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP); //a(InstructionConstants.SWAP);
                 setReg();
                 
                 break;
             case 25: // MULTU
                 pushRegWZ(R+rs);
-                a(InstructionConstants.I2L);
-                pushConst(0xffffffffL);
-                a(InstructionConstants.LAND);
+                mg.add(I2L);
+                mg.add(LDC,FFFFFFFF);
+                mg.add(LAND);
                 pushRegWZ(R+rt);
-                a(InstructionConstants.I2L);
-                pushConst(0xffffffffL);
-                a(InstructionConstants.LAND);
-                a(InstructionConstants.LMUL);
-                a(InstructionConstants.DUP2);
+                mg.add(I2L);
+                mg.add(LDC,FFFFFFFF);
+                mg.add(LAND);
+                mg.add(LMUL);
+                mg.add(DUP2);
                 
-                a(InstructionConstants.L2I);
+                mg.add(L2I);
                 if(preSetReg(LO))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP);
                 setReg();
                 
-                pushConst(32);
-                a(InstructionConstants.LUSHR);
-                a(InstructionConstants.L2I);
+                mg.add(LDC,32);
+                mg.add(LUSHR);
+                mg.add(L2I);
                 if(preSetReg(HI))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP);
                 setReg();
                 
                 break;
             case 26: // DIV
                 pushRegWZ(R+rs);
                 pushRegWZ(R+rt);
-                a(InstructionConstants.DUP2);
+                mg.add(DUP2);
                 
-                a(InstructionConstants.IDIV);
+                mg.add(IDIV);
                 if(preSetReg(LO))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP);
                 setReg();
                 
-                a(InstructionConstants.IREM);
+                mg.add(IREM);
                 if(preSetReg(HI))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP);
                 setReg();
                 
                 break;
             case 27: { // DIVU
                 pushRegWZ(R+rt);
-                a(InstructionConstants.DUP);
+                mg.add(DUP);
                 setTmp();
-                b1 = a(InstructionFactory.createBranchInstruction(IFEQ,null));
+                b1 = mg.add(IFEQ);
                 
                 pushRegWZ(R+rs);
-                a(InstructionConstants.I2L);
-                pushConst(0xffffffffL);
-                a(InstructionConstants.LAND);
-                a(InstructionConstants.DUP2);
+                mg.add(I2L);
+                mg.add(LDC,FFFFFFFF);
+                mg.add(LAND);
+                mg.add(DUP2);
                 pushTmp();
-                a(InstructionConstants.I2L);
-                pushConst(0xffffffffL);
+                mg.add(I2L);
+                mg.add(LDC,FFFFFFFF);
                 
-                a(InstructionConstants.LAND);
-                a(InstructionConstants.DUP2_X2);
-                a(InstructionConstants.LDIV);
+                mg.add(LAND);
+                mg.add(DUP2_X2);
+                mg.add(LDIV);
                 
-                a(InstructionConstants.L2I);
+                mg.add(L2I);
                 if(preSetReg(LO))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP);
                 setReg();
                 
-                a(InstructionConstants.LREM);
-                a(InstructionConstants.L2I);
+                mg.add(LREM);
+                mg.add(L2I);
                 if(preSetReg(HI))
-                    a(InstructionConstants.SWAP);
+                    mg.add(SWAP);
                 setReg();
                 
-                b1.setTarget(a(InstructionConstants.NOP));
+                mg.setArg(b1,mg.size());
                 
                 break;
             }
@@ -916,7 +822,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(rt != 0 && rs != 0) {
                     pushReg(R+rs);
                     pushReg(R+rt);
-                    a(InstructionConstants.IADD);
+                    mg.add(IADD);
                 } else if(rs != 0) {
                     pushReg(R+rs);
                 } else {
@@ -931,10 +837,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(rt != 0 && rs != 0) {
                     pushReg(R+rs);
                     pushReg(R+rt);
-                    a(InstructionConstants.ISUB);
+                    mg.add(ISUB);
                 } else if(rt != 0) {
                     pushReg(R+rt);
-                    a(InstructionConstants.INEG);
+                    mg.add(INEG);
                 } else {
                     pushRegZ(R+rs);
                 }
@@ -944,21 +850,21 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 preSetReg(R+rd);
                 pushRegWZ(R+rs);
                 pushRegWZ(R+rt);
-                a(InstructionConstants.IAND);
+                mg.add(IAND);
                 setReg();
                 break;
             case 37: // OR
                 preSetReg(R+rd);
                 pushRegWZ(R+rs);
                 pushRegWZ(R+rt);
-                a(InstructionConstants.IOR);
+                mg.add(IOR);
                 setReg();
                 break;
             case 38: // XOR
                 preSetReg(R+rd);
                 pushRegWZ(R+rs);
                 pushRegWZ(R+rt);
-                a(InstructionConstants.IXOR);
+                mg.add(IXOR);
                 setReg();
                 break;
             case 39: // NOR
@@ -967,16 +873,16 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     if(rs != 0 && rt != 0) {
                         pushReg(R+rs);
                         pushReg(R+rt);
-                        a(InstructionConstants.IOR);
+                        mg.add(IOR);
                     } else if(rs != 0) {
                         pushReg(R+rs);
                     } else {
                         pushReg(R+rt);
                     }
-                    a(InstructionConstants.ICONST_M1);
-                    a(InstructionConstants.IXOR);
+                    mg.add(ICONST_M1);
+                    mg.add(IXOR);
                 } else {
-                    pushConst(-1);
+                    mg.add(LDC,-1);
                 }
                 setReg();
                 break;
@@ -985,13 +891,13 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(rs != rt) {
                     pushRegZ(R+rs);
                     pushRegZ(R+rt);
-                    b1 = a(InstructionFactory.createBranchInstruction(IF_ICMPLT,null));
-                    a(InstructionConstants.ICONST_0);
-                    b2 = a(InstructionFactory.createBranchInstruction(GOTO,null));
-                    b1.setTarget(a(InstructionConstants.ICONST_1));
-                    b2.setTarget(a(InstructionConstants.NOP));
+                    b1 = mg.add(IF_ICMPLT);
+                    mg.add(ICONST_0);
+                    b2 = mg.add(GOTO);
+                    mg.setArg(b1,mg.add(ICONST_1));
+                    mg.setArg(b2,mg.size());
                 } else {
-                    pushConst(0);
+                    mg.add(LDC,0);
                 }
                 setReg();
                 break;
@@ -1000,25 +906,25 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(rs != rt) {
                     if(rs != 0) {
                         pushReg(R+rs);
-                        a(InstructionConstants.I2L);
-                        pushConst(0xffffffffL);
-                        a(InstructionConstants.LAND);
+                        mg.add(I2L);
+                        mg.add(LDC,FFFFFFFF);
+                        mg.add(LAND);
                         pushReg(R+rt);
-                        a(InstructionConstants.I2L);
-                        pushConst(0xffffffffL);
-                        a(InstructionConstants.LAND);
-                        a(InstructionConstants.LCMP);
-                        b1 = a(InstructionFactory.createBranchInstruction(IFLT,null));
+                        mg.add(I2L);
+                        mg.add(LDC,FFFFFFFF);
+                        mg.add(LAND);
+                        mg.add(LCMP);
+                        b1 = mg.add(IFLT);
                     } else {
                         pushReg(R+rt);
-                        b1 = a(InstructionFactory.createBranchInstruction(IFNE,null));
+                        b1 = mg.add(IFNE);
                     }
-                    a(InstructionConstants.ICONST_0);
-                    b2 = a(InstructionFactory.createBranchInstruction(GOTO,null));
-                    b1.setTarget(a(InstructionConstants.ICONST_1));
-                    b2.setTarget(a(InstructionConstants.NOP));
+                    mg.add(ICONST_0);
+                    b2 = mg.add(GOTO);
+                    mg.setArg(b1,mg.add(ICONST_1));
+                    mg.setArg(b2,mg.size());
                 } else {
-                    pushConst(0);
+                    mg.add(LDC,0);
                 }
                 setReg();
                 break;
@@ -1040,28 +946,28 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             case 16: // BLTZAL
                 if(pc == -1) throw new Exn("pc modifying insn in delay slot");
                 pushRegWZ(R+rs);
-                b1 = a(InstructionFactory.createBranchInstruction(IFGE,null));
+                b1 = mg.add(IFGE);
                 emitInstruction(-1,nextInsn,-1);
                 preSetReg(R+RA);
-                pushConst(pc+8);
+                mg.add(LDC,pc+8);
                 setReg();
                 branch(pc,pc+branchTarget*4+4);
-                b1.setTarget(a(InstructionConstants.NOP));
+                mg.setArg(b1,mg.size());
                 break;
             case 17: // BGEZAL
                 if(pc == -1) throw new Exn("pc modifying insn in delay slot");
-                b1 = null;
+                b1 = -1;
                 if(rs != 0) { // r0 is always >= 0
                     pushRegWZ(R+rs);
-                    b1 = a(InstructionFactory.createBranchInstruction(IFLT,null));
+                    b1 = mg.add(IFLT);
                 }
                 emitInstruction(-1,nextInsn,-1);
                 preSetReg(R+RA);
-                pushConst(pc+8);
+                mg.add(LDC,pc+8);
                 setReg();
                 branch(pc,pc+branchTarget*4+4);
-                if(b1 != null) b1.setTarget(a(InstructionConstants.NOP));
-                if(b1 == null) unreachable = true;
+                if(b1 != -1) mg.setArg(b1,mg.size());
+                if(b1 == -1) unreachable = true;
                 break;
             default:
                 throw new Exn("Illegal Instruction 1/" + rt);
@@ -1080,7 +986,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             int target = (pc&0xf0000000)|(jumpTarget << 2);
             emitInstruction(-1,nextInsn,-1);
             preSetReg(R+RA);
-            pushConst(pc+8);
+            mg.add(LDC,pc+8);
             setReg();
             branch(pc, target);
             unreachable = true;
@@ -1128,62 +1034,61 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         case 10: // SLTI
             preSetReg(R+rt);
             pushRegWZ(R+rs);
-            pushConst(signedImmediate);
-            b1 = a(InstructionFactory.createBranchInstruction(IF_ICMPLT,null));
-            a(InstructionConstants.ICONST_0);
-            b2 = a(InstructionFactory.createBranchInstruction(GOTO,null));
-            b1.setTarget(a(InstructionConstants.ICONST_1));
-            b2.setTarget(a(InstructionConstants.NOP));
+            mg.add(LDC,signedImmediate);
+            b1 = mg.add(IF_ICMPLT);
+            mg.add(ICONST_0);
+            b2 = mg.add(GOTO);
+            mg.setArg(b1,mg.add(ICONST_1));
+            mg.setArg(b2,mg.size());
             setReg();
             break;
         case 11: // SLTIU
             preSetReg(R+rt);
             pushRegWZ(R+rs);
-            a(InstructionConstants.I2L);
-            pushConst(0xffffffffL);
-            a(InstructionConstants.LAND);
+            mg.add(I2L);
+            mg.add(LDC,FFFFFFFF);
+            mg.add(LAND);
             // Yes, this is correct, you have to sign extend the immediate then do an UNSIGNED comparison
-            pushConst(signedImmediate&0xffffffffL);
-            a(InstructionConstants.LCMP);
+            mg.add(LDC,new Long(signedImmediate&0xffffffffL));
+            mg.add(LCMP);
             
-            b1 = a(InstructionFactory.createBranchInstruction(IFLT,null));
-            a(InstructionConstants.ICONST_0);
-            b2 = a(InstructionFactory.createBranchInstruction(GOTO,null));
-            b1.setTarget(a(InstructionConstants.ICONST_1));
-            b2.setTarget(a(InstructionConstants.NOP));
-            
+            b1 = mg.add(IFLT);
+            mg.add(ICONST_0);
+            b2 = mg.add(GOTO);
+            mg.setArg(b1,mg.add(ICONST_1));
+            mg.setArg(b2,mg.size());            
             setReg();
             break;            
         case 12: // ANDI
             preSetReg(R+rt);
             pushRegWZ(R+rs);
-            pushConst(unsignedImmediate);
-            a(InstructionConstants.IAND);
+            mg.add(LDC,unsignedImmediate);
+            mg.add(IAND);
             setReg();
             break;
         case 13: // ORI
             preSetReg(R+rt);
             if(rs != 0 && unsignedImmediate != 0) {
                 pushReg(R+rs);
-                pushConst(unsignedImmediate);
-                a(InstructionConstants.IOR);
+                mg.add(LDC,unsignedImmediate);
+                mg.add(IOR);
             } else if(rs != 0){
                 pushReg(R+rs);
             } else {
-                pushConst(unsignedImmediate);
+                mg.add(LDC,unsignedImmediate);
             }
             setReg();
             break;
         case 14: // XORI
             preSetReg(R+rt);
             pushRegWZ(R+rs);
-            pushConst(unsignedImmediate);
-            a(InstructionConstants.IXOR);
+            mg.add(LDC,unsignedImmediate);
+            mg.add(IXOR);
             setReg();
             break;
         case 15: // LUI
             preSetReg(R+rt);
-            pushConst(unsignedImmediate << 16);
+            mg.add(LDC,unsignedImmediate << 16);
             setReg();
             break;
         case 16:
@@ -1206,7 +1111,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 if(rt != 0)
                     pushReg(R+rt);
                 else
-                    pushConst(0);
+                    mg.add(LDC,0);
                 setReg();
                 break;
             case 6: // CTC.1
@@ -1217,8 +1122,8 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 break;
             case 8: {// BC1F, BC1T
                 pushReg(FCSR);
-                pushConst(0x800000);
-                a(InstructionConstants.IAND);
+                mg.add(LDC,0x800000);
+                mg.add(IAND);
                 return doIfInstruction(((insn>>>16)&1) == 0 ? IFEQ : IFNE,pc,pc+branchTarget*4+4,nextInsn);
             }
             case 16:
@@ -1230,28 +1135,28 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     preSetDouble(F+fd,d);
                     pushDouble(F+fs,d);
                     pushDouble(F+ft,d);
-                    a(d ? InstructionConstants.DADD : InstructionConstants.FADD);
+                    mg.add(d ? DADD : FADD);
                     setDouble(d);
                     break;
                 case 1: // SUB.X
                     preSetDouble(F+fd,d);
                     pushDouble(F+fs,d);
                     pushDouble(F+ft,d);
-                    a(d ? InstructionConstants.DSUB : InstructionConstants.FSUB);
+                    mg.add(d ? DSUB : FSUB);
                     setDouble(d);
                     break;
                 case 2: // MUL.X
                     preSetDouble(F+fd,d);
                     pushDouble(F+fs,d);
                     pushDouble(F+ft,d);
-                    a(d ? InstructionConstants.DMUL : InstructionConstants.FMUL);
+                    mg.add(d ? DMUL : FMUL);
                     setDouble(d);                    
                     break;
                 case 3: // DIV.X
                     preSetDouble(F+fd,d);
                     pushDouble(F+fs,d);
                     pushDouble(F+ft,d);
-                    a(d ? InstructionConstants.DDIV : InstructionConstants.FDIV);
+                    mg.add(d ? DDIV : FDIV);
                     setDouble(d);                    
                     break;
                 case 5: // ABS.X
@@ -1259,15 +1164,22 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                     // NOTE: We can't use fneg/dneg here since they'll turn +0.0 into -0.0
                     
                     pushDouble(F+fs,d);
-                    a(d ? InstructionConstants.DUP2 : InstructionConstants.DUP);
-                    a(d ? InstructionConstants.DCONST_0 : InstructionConstants.FCONST_0);
-                    a(d ? InstructionConstants.DCMPG : InstructionConstants.FCMPG);
+                    mg.add(d ? DUP2 : DUP);
+                    mg.add(d ? DCONST_0 : FCONST_0);
+                    mg.add(d ? DCMPG : FCMPG);
                     
-                    b1 = a(InstructionFactory.createBranchInstruction(IFGT,null));
-                    a(d ? InstructionConstants.DCONST_0 : InstructionConstants.FCONST_0);
-                    a(d ? InstructionConstants.DSUB : InstructionConstants.FSUB);
+                    b1 = mg.add(IFGT);
+                    mg.add(d ? DCONST_0 : FCONST_0);
+                    if(d) {
+                        mg.add(DUP2_X2);
+                        mg.add(POP2);
+                    } else {
+                        mg.add(SWAP);
+                    }
+                    mg.add(d ? DSUB : FSUB);
                     
-                    b1.setTarget(setDouble(d));
+                    mg.setArg(b1,mg.size());
+                    setDouble(d);
                     
                     break;
                 case 6: // MOV.X
@@ -1285,59 +1197,56 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 case 7: // NEG.X
                     preSetDouble(F+fd,d);
                     pushDouble(F+fs,d);
-                    a(d ? InstructionConstants.DNEG : InstructionConstants.FNEG);
+                    mg.add(d ? DNEG : FNEG);
                     setDouble(d);
                     break;
                 case 32: // CVT.S.X
                     preSetFloat(F+fd);
                     pushDouble(F+fs,d);
-                    if(d) a(InstructionConstants.D2F);
+                    if(d) mg.add(D2F);
                     setFloat();
                     break;
                 case 33: // CVT.D.X
                     preSetDouble(F+fd);
                     pushDouble(F+fs,d);
-                    if(!d) a(InstructionConstants.F2D);
+                    if(!d) mg.add(F2D);
                     setDouble();
                     break;
                 case 36: { // CVT.W.D
-                    int[] matches = new int[4];
-                    for(int i=0;i<4;i++) matches[i] = i;
-                    
-                    TABLESWITCH ts = new  TABLESWITCH(matches,new InstructionHandle[4], null);
-                    
+                    MethodGen.TSI tsi = new MethodGen.TSI(0,3);
                     preSetReg(F+fd);
                     pushDouble(F+fs,d);
                     pushReg(FCSR);
-                    a(InstructionConstants.ICONST_3);
-                    a(InstructionConstants.IAND);
-                    a(ts);
+                    mg.add(ICONST_3);
+                    mg.add(IAND);
+                    mg.add(TABLESWITCH,tsi);
                     
                     // Round towards plus infinity
-                    ts.setTarget(2,a(InstructionConstants.NOP));
-                    if(!d) a(InstructionConstants.F2D); // Ugh.. java.lang.Math doesn't have a float ceil/floor
-                    a(fac.createInvoke("java.lang.Math","ceil",Type.DOUBLE,new Type[]{Type.DOUBLE},INVOKESTATIC));
-                    if(!d) a(InstructionConstants.D2F);
-                    b1 = a(InstructionFactory.createBranchInstruction(GOTO,null));
+                    tsi.setTarget(2,mg.size());
+                    if(!d) mg.add(F2D); // Ugh.. java.lang.Math doesn't have a float ceil/floor
+                    mg.add(INVOKESTATIC,new MethodRef("java.lang.Math","ceil",Type.DOUBLE,new Type[]{Type.DOUBLE}));
+                    if(!d) mg.add(D2F);
+                    b1 = mg.add(GOTO);
                     
                     // Round to nearest
-                    ts.setTarget(0,d ? pushConst(0.5d) : pushConst(0.5f));
-                    a(d ? InstructionConstants.DADD : InstructionConstants.FADD);
+                    tsi.setTarget(0,mg.size());
+                    mg.add(LDC,d ? (Object)POINT_5_D : (Object)POINT_5_F);
+                    mg.add(d ? DADD : FADD);
                     // fall through
                     
                     // Round towards minus infinity
-                    ts.setTarget(3,a(InstructionConstants.NOP));
-                    if(!d) a(InstructionConstants.F2D);
-                    a(fac.createInvoke("java.lang.Math","floor",Type.DOUBLE,new Type[]{Type.DOUBLE},INVOKESTATIC));
-                    if(!d) a(InstructionConstants.D2F);
+                    tsi.setTarget(3,mg.size());
+                    if(!d) mg.add(F2D);
+                    mg.add(INVOKESTATIC,new MethodRef("java.lang.Math","floor",Type.DOUBLE,new Type[]{Type.DOUBLE}));
+                    if(!d) mg.add(D2F);
                     
-                    InstructionHandle h = a(d ? InstructionConstants.D2I : InstructionConstants.F2I);
+                    tsi.setTarget(1,mg.size());
+                    tsi.setDefaultTarget(mg.size());
+                    mg.setArg(b1,mg.size());
+                    
+                    mg.add(d ? D2I : F2I);
                     setReg();
                     
-                    ts.setTarget(1,h);
-                    ts.setTarget(h);
-                    b1.setTarget(h);
-                                        
                     break;
                 }
                 case 50: // C.EQ.D
@@ -1345,22 +1254,20 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 case 62: // C.LE.D
                     preSetReg(FCSR);
                     pushReg(FCSR);
-                    pushConst(~0x800000);
-                    a(InstructionConstants.IAND);
+                    mg.add(LDC,~0x800000);
+                    mg.add(IAND);
                     pushDouble(F+fs,d);
                     pushDouble(F+ft,d);
-                    a(d ? InstructionConstants.DCMPG : InstructionConstants.FCMPG);
+                    mg.add(d ? DCMPG : FCMPG);
                     switch(subcode) {
-                        case 50: b1 = a(InstructionFactory.createBranchInstruction(IFEQ,null)); break;
-                        case 60: b1 = a(InstructionFactory.createBranchInstruction(IFLT,null)); break;
-                        case 62: b1 = a(InstructionFactory.createBranchInstruction(IFLE,null)); break;
-                        default: b1 = null;
+                        case 50: b1 = mg.add(IFNE); break;
+                        case 60: b1 = mg.add(IFGE); break;
+                        case 62: b1 = mg.add(IFGT); break;
+                        default: b1 = -1;
                     }
-                    // FIXME: We probably don't need to pushConst(0x00000)
-                    pushConst(0x000000);
-                    b2 = a(InstructionFactory.createBranchInstruction(GOTO,null));
-                    b1.setTarget(pushConst(0x800000));
-                    b2.setTarget(a(InstructionConstants.IOR));
+                    mg.add(LDC,0x800000);
+                    mg.add(IOR);
+                    mg.setArg(b1,mg.size());
                     setReg();
                     break;
                 default: throw new Exn("Invalid Instruction 17/" + rs + "/" + subcode);
@@ -1372,13 +1279,13 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
                 case 32: // CVT.S.W
                     preSetFloat(F+fd);
                     pushReg(F+fs);
-                    a(InstructionConstants.I2F);
+                    mg.add(I2F);
                     setFloat();
                     break;
                 case 33: // CVT.D.W
                     preSetDouble(F+fd);
                     pushReg(F+fs);
-                    a(InstructionConstants.I2D);
+                    mg.add(I2D);
                     setDouble();
                     break;
                 default: throw new Exn("Invalid Instruction 17/" + rs + "/" + subcode);
@@ -1401,14 +1308,14 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             memRead(true);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.I2B);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(I2B);
             setReg();
             break; 
         }
@@ -1421,14 +1328,14 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             memRead(true);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.I2S);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_2);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(I2S);
             setReg();            
             break; 
         }
@@ -1438,29 +1345,29 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             setTmp(); // addr
             
             pushRegWZ(R+rt);
-            pushConst(0x00ffffff);
+            mg.add(LDC,0x00ffffff);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(IAND);
             
             preMemRead();
             pushTmp();
             memRead(true);
             pushTmp();
             
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IOR);
             
             setReg();
             
@@ -1481,15 +1388,15 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             memRead(true);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            pushConst(0xff);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(LDC,0xff);
+            mg.add(IAND);
             setReg();
             break; 
         }
@@ -1502,16 +1409,16 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             memRead(true);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_2);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
             
             // chars are unsigend so this works
-            a(InstructionConstants.I2C);
+            mg.add(I2C);
             setReg();
             break; 
         }
@@ -1521,29 +1428,29 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             setTmp(); // addr
             
             pushRegWZ(R+rt);
-            pushConst(0xffffff00);
+            mg.add(LDC,0xffffff00);
             pushTmp();
             
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IAND);
             
             preMemRead();
             pushTmp();
             memRead(true);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.IOR);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(IOR);
             
             
             setReg();
@@ -1558,35 +1465,35 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             pushTmp();
             memRead(true);
             
-            pushConst(0xff000000);
+            mg.add(LDC,0xff000000);
             pushTmp();
             
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(IAND);
             
             if(rt != 0) {
                 pushReg(R+rt);
-                pushConst(0xff);
-                a(InstructionConstants.IAND);
+                mg.add(LDC,0xff);
+                mg.add(IAND);
             } else {
-                pushConst(0);
+                mg.add(LDC,0);
             }
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IOR);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IOR);
             
             memWrite();
             
@@ -1597,7 +1504,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             
             addiu(R+rs,signedImmediate);
             
-            a(InstructionConstants.DUP);
+            mg.add(DUP);
             setTmp(); // addr
             
             preMemWrite2(true);
@@ -1606,33 +1513,33 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             pushTmp();
             memRead(true);
             
-            pushConst(0xffff);
+            mg.add(LDC,0xffff);
             pushTmp();
             
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_2);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IAND);
             
             if(rt != 0) {
                 pushReg(R+rt);
-                pushConst(0xffff);
-                a(InstructionConstants.IAND);
+                mg.add(LDC,0xffff);
+                mg.add(IAND);
             } else {
-                pushConst(0);
+                mg.add(LDC,0);
             }
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IOR);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_2);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IOR);
             
             memWrite();
             
@@ -1642,7 +1549,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             preMemWrite1();
             
             addiu(R+rs,signedImmediate);
-            a(InstructionConstants.DUP);
+            mg.add(DUP);
             setTmp(); // addr
 
             preMemWrite2(true);
@@ -1651,27 +1558,27 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             pushTmp();
             memRead(true);
             
-            pushConst(0xffffff00);
+            mg.add(LDC,0xffffff00);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IAND);
             
             pushRegWZ(R+rt);
             pushTmp();
             
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.IOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(IOR);
             
             memWrite();
             break;
@@ -1687,7 +1594,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             preMemWrite1();
             
             addiu(R+rs,signedImmediate);
-            a(InstructionConstants.DUP);
+            mg.add(DUP);
             setTmp(); // addr
             
             preMemWrite2(true);
@@ -1696,27 +1603,27 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             pushTmp();
             memRead(true);
             
-            pushConst(0x00ffffff);
+            mg.add(LDC,0x00ffffff);
             pushTmp();
             
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.IAND);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(IUSHR);
+            mg.add(IAND);
             
             pushRegWZ(R+rt);
             pushTmp();
             
-            a(InstructionConstants.ICONST_M1);
-            a(InstructionConstants.IXOR);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.IAND);
-            a(InstructionConstants.ICONST_3);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.ISHL);
-            a(InstructionConstants.IOR);
+            mg.add(ICONST_M1);
+            mg.add(IXOR);
+            mg.add(ICONST_3);
+            mg.add(IAND);
+            mg.add(ICONST_3);
+            mg.add(ISHL);
+            mg.add(ISHL);
+            mg.add(IOR);
                     
             memWrite();
             break;
@@ -1735,7 +1642,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             break;
         
         /* This needs to fail (set rt to 0) if the memory location was modified
-         * between the LL and SC if we every support threads.
+         * between the LL and SC if we ever support threads.
          */
         case 56: // SWC0/SC
             preSetReg(R+rt);
@@ -1743,7 +1650,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             preMemWrite2(R+rs,signedImmediate);
             pushReg(R+rt);
             memWrite();
-            pushConst(1);
+            mg.add(LDC,1);
             setReg();
             break;
             
@@ -1768,6 +1675,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
     private static final int FCSR = 66;
     private static final int REG_COUNT=67;
         
+    // FEATURE: Clean this up
     private int[] regLocalMapping = new int[REG_COUNT];  
     private int[] regLocalReadCount = new int[REG_COUNT];
     private int[] regLocalWriteCount = new int[REG_COUNT];
@@ -1780,32 +1688,45 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         return regLocalMapping[reg];
     }
     
-    private void fixupRegs() {
-        InstructionHandle prev = realStart;
-        for(int i=0;i<REG_COUNT;i++) {
-            if(regLocalMapping[i] == 0) continue; 
-            
-            prev = insnList.append(prev,InstructionConstants.ALOAD_0);
-            prev = insnList.append(prev,fac.createFieldAccess(fullClassName,regField(i),Type.INT, GETFIELD));
-            prev = insnList.append(prev,InstructionFactory.createStore(Type.INT,regLocalMapping[i]));
-            
-            if(regLocalWriteCount[i] > 0) {
-                a(InstructionConstants.ALOAD_0);
-                a(InstructionFactory.createLoad(Type.INT,regLocalMapping[i]));
-                a(fac.createFieldAccess(fullClassName,regField(i),Type.INT, PUTFIELD));
-            }
-            
+    
+    private int loadsStart;
+    private void fixupRegsStart() {
+        for(int i=0;i<REG_COUNT;i++)
             regLocalMapping[i] = regLocalReadCount[i] = regLocalWriteCount[i] = 0;
-        }
         nextAvailLocal = 0;
+        loadsStart = mg.size();
+        for(int i=0;i<MAX_LOCALS*LOAD_LENGTH;i++)
+            mg.add(NOP);
     }
     
+    private void fixupRegsEnd() {
+        int p = loadsStart;
+        for(int i=0;i<REG_COUNT;i++) {
+            if(regLocalMapping[i] == 0) continue;
+            mg.set(p++,ALOAD_0);
+            mg.set(p++,GETFIELD,new FieldRef(me,regField(i),Type.INT));
+            mg.set(p++,ISTORE,regLocalMapping[i]);
+            
+            if(regLocalWriteCount[i] > 0) {
+                mg.add(ALOAD_0);
+                mg.add(ILOAD,regLocalMapping[i]);
+                mg.add(PUTFIELD,new FieldRef(me,regField(i),Type.INT));
+            }
+        }
+    }
+        
+    private static final int MAX_LOCALS = 4;
+    private static final int LOAD_LENGTH = 3;
+    private boolean doLocal(int reg) {
+        return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29;
+    }
+        
     private void restoreChangedRegs() {
         for(int i=0;i<REG_COUNT;i++) {
             if(regLocalWriteCount[i] > 0) {
-                a(InstructionConstants.ALOAD_0);
-                a(InstructionFactory.createLoad(Type.INT,regLocalMapping[i]));
-                a(fac.createFieldAccess(fullClassName,regField(i),Type.INT, PUTFIELD));                
+                mg.add(ALOAD_0);
+                mg.add(ILOAD,regLocalMapping[i]);
+                mg.add(PUTFIELD,new FieldRef(me,regField(i),Type.INT));
             }
         }
     }
@@ -1824,28 +1745,9 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             "hi","lo","fcsr"
     };
     
-    private static String regField(int reg) {
-        return regField[reg];
-                                   
-        /*String field;
-        switch(reg) {
-            case HI: field = "hi"; break;
-            case LO: field = "lo"; break;
-            case FCSR: field = "fcsr"; break;
-            default:
-                if(reg > R && reg < R+32) regFieldR[reg-R];
-                else if(reg >= F && reg < F+32) return regFieldF[
-                else throw new IllegalArgumentException(""+reg);
-        }
-        return field;*/
-    }
-    
-    private boolean doLocal(int reg) {
-        //return false;
-        return reg == R+2 || reg == R+3 || reg == R+4 || reg == R+29;
-    }
-    
-    private InstructionHandle pushRegWZ(int reg) {
+    private static String regField(int reg) { return regField[reg]; }
+        
+    private int pushRegWZ(int reg) {
         if(reg == R+0) {
             warn.println("Warning: Pushing r0!");
             new Exception().printStackTrace(warn);
@@ -1853,20 +1755,21 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         return pushRegZ(reg);
     }
     
-    private InstructionHandle pushRegZ(int reg) {
-        if(reg == R+0) return pushConst(0);
+    private int pushRegZ(int reg) {
+        if(reg == R+0) return mg.add(LDC,0);
         else return pushReg(reg);
     }
     
     
-    private InstructionHandle pushReg(int reg) {
-        InstructionHandle h;
+    private int pushReg(int reg) {
+        int h = mg.size();
         if(doLocal(reg)) {
             regLocalReadCount[reg]++;
-            h = a(InstructionFactory.createLoad(Type.INT,getLocalForReg(reg)));
+            mg.add(ILOAD,getLocalForReg(reg));
+            
         } else {
-            h = a(InstructionConstants.ALOAD_0);
-            a(fac.createFieldAccess(fullClassName,regField(reg),Type.INT, GETFIELD));
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,regField(reg),Type.INT));
         }
         return h;
     }
@@ -1882,49 +1785,50 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         if(doLocal(reg)) {
             return false;
         } else {
-            a(InstructionConstants.ALOAD_0);
+            mg.add(ALOAD_0);
             return true;
         }
     }
     
-    private InstructionHandle setReg() {
+    private int setReg() {
         if(preSetRegStackPos==0) throw new RuntimeException("didn't do preSetReg");
         preSetRegStackPos--;
         int reg = preSetRegStack[preSetRegStackPos];
-        InstructionHandle h;
+        int h = mg.size();
         if(doLocal(reg)) {
-            h = a(InstructionFactory.createStore(Type.INT,getLocalForReg(reg)));
+            mg.add(ISTORE,getLocalForReg(reg));
             regLocalWriteCount[reg]++;
         } else {
-            h = a(fac.createFieldAccess(fullClassName,regField(reg),Type.INT, PUTFIELD));
+            mg.add(PUTFIELD,new FieldRef(me,regField(reg),Type.INT));
         }
         return h;
     }
     
-    private InstructionHandle preSetPC() { return a(InstructionConstants.ALOAD_0); }
-    private InstructionHandle setPC() { return a(fac.createFieldAccess(fullClassName,"pc",Type.INT, PUTFIELD)); }
+    private int preSetPC() { return mg.add(ALOAD_0); }
+    private int setPC() {
+        return mg.add(PUTFIELD,new FieldRef(me,"pc",Type.INT));
+    }
     
     //unused - private InstructionHandle pushFloat(int reg) throws CompilationException { return pushDouble(reg,false); }
     //unused - private InstructionHandle pushDouble(int reg) throws CompilationException { return pushDouble(reg,true); }
-    private InstructionHandle pushDouble(int reg, boolean d) throws Exn {
+    private int pushDouble(int reg, boolean d) throws Exn {
         if(reg < F || reg >= F+32) throw new IllegalArgumentException(""+reg);
-        InstructionHandle h;
+        int h = mg.size();
         if(d) {
             if(reg == F+31) throw new Exn("Tried to use a double in f31");
-            h = pushReg(reg+1);
-            a(InstructionConstants.I2L);
-            pushConst(32);
-            a(InstructionConstants.LSHL);
+            pushReg(reg+1);
+            mg.add(I2L);
+            mg.add(LDC,32);
+            mg.add(LSHL);
             pushReg(reg);
-            a(InstructionConstants.I2L);
-            pushConst(0xffffffffL);
-            a(InstructionConstants.LAND);
-            a(InstructionConstants.LOR);
-            //p("invokestatic java/lang/Double/longBitsToDouble(J)D");
-            a(fac.createInvoke("java.lang.Double","longBitsToDouble",Type.DOUBLE,new Type[]{Type.LONG},INVOKESTATIC));
+            mg.add(I2L);
+            mg.add(LDC,FFFFFFFF);
+            mg.add(LAND);
+            mg.add(LOR);
+            mg.add(INVOKESTATIC,new MethodRef(Type.DOUBLE_OBJECT,"longBitsToDouble",Type.DOUBLE,new Type[]{Type.LONG}));
         } else {
-            h = pushReg(reg);
-            a(fac.createInvoke("java.lang.Float","intBitsToFloat",Type.FLOAT,new Type[]{Type.INT},INVOKESTATIC));
+            pushReg(reg);
+            mg.add(INVOKESTATIC,new MethodRef("java.lang.Float","intToFloatBits",Type.FLOAT,new Type[]{Type.INT}));
         }
         return h;
     }
@@ -1933,71 +1837,44 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
     private void preSetDouble(int reg) { preSetDouble(reg,true); }
     private void preSetDouble(int reg, boolean d) { preSetReg(reg); }
     
-    private InstructionHandle setFloat() throws Exn { return setDouble(false); }
-    private InstructionHandle setDouble() throws Exn { return setDouble(true); }
-    private InstructionHandle setDouble(boolean d) throws Exn {
+    private int setFloat() throws Exn { return setDouble(false); }
+    private int setDouble() throws Exn { return setDouble(true); }
+    private int setDouble(boolean d) throws Exn {
         int reg = preSetRegStack[preSetRegStackPos-1];
         if(reg < F || reg >= F+32) throw new IllegalArgumentException(""+reg);
-        //p("invokestatic java/lang/Double/doubleToLongBits(D)J");
-        InstructionHandle h;
+        int h = mg.size();
         if(d) {
             if(reg == F+31) throw new Exn("Tried to use a double in f31");
-            h = a(fac.createInvoke("java.lang.Double","doubleToLongBits",Type.LONG,new Type[]{Type.DOUBLE},INVOKESTATIC));
-            a(InstructionConstants.DUP2);
-            pushConst(32);
-            a(InstructionConstants.LUSHR);
-            a(InstructionConstants.L2I);
+            mg.add(INVOKESTATIC,new MethodRef(Type.DOUBLE_OBJECT,"doubleToLongBits",Type.LONG,new Type[]{Type.DOUBLE}));
+            mg.add(DUP2);
+            mg.add(LDC,32);
+            mg.add(LUSHR);
+            mg.add(L2I);
             if(preSetReg(reg+1))
-                a(InstructionConstants.SWAP);
+                mg.add(SWAP);
             setReg();
-            a(InstructionConstants.L2I);
+            mg.add(L2I);
             setReg(); // preSetReg was already done for this by preSetDouble
         } else {
-            h = a(fac.createInvoke("java.lang.Float","floatToRawIntBits",Type.INT,new Type[]{Type.FLOAT},INVOKESTATIC));
+            //h = a(fac.createInvoke("java.lang.Float","floatToRawIntBits",Type.INT,new Type[]{Type.FLOAT},INVOKESTATIC));
+            mg.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"floatToRawIntBits",Type.INT,new Type[]{Type.FLOAT}));
             setReg();   
         }
         return h;
     }
-        
-    private Hashtable intCache = new Hashtable();
     
-    private InstructionHandle pushConst(int n) {
-        if(n >= -1 && n <= 5) {
-            switch(n) {
-                case -1: return a(InstructionConstants.ICONST_M1);
-                case 0: return a(InstructionConstants.ICONST_0);
-                case 1: return a(InstructionConstants.ICONST_1);
-                case 2: return a(InstructionConstants.ICONST_2);
-                case 3: return a(InstructionConstants.ICONST_3);
-                case 4: return a(InstructionConstants.ICONST_4);
-                case 5: return a(InstructionConstants.ICONST_5);
-                default: return null;
-            }
-        } else if(n >= -128 && n <= 127) {
-            return a(new BIPUSH((byte) n));
-        } else if(n >= -32768 && n <= 32767) {
-            return a(new SIPUSH((short) n));
-        } else {
-            return a(new PUSH(cp,n));
-        }
-    }
-    
-    private InstructionHandle pushConst(long l) { return a(new PUSH(cp,l)); }
-    private InstructionHandle pushConst(float f) { return a(new PUSH(cp,f)); }
-    private InstructionHandle pushConst(double d) { return a(new PUSH(cp,d)); }
-    
-    private void pushTmp() { a(InstructionConstants.ILOAD_1); }
-    private void setTmp() { a(InstructionConstants.ISTORE_1); }
+    private void pushTmp() { mg.add(ILOAD_1); }
+    private void setTmp() { mg.add(ISTORE_1); }
     
     private void addiu(int reg, int offset) {
         if(reg != R+0 && offset != 0) {
             pushReg(reg);
-            pushConst(offset);
-            a(InstructionConstants.IADD);
+            mg.add(LDC,offset);
+            mg.add(IADD);
         } else if(reg != R+0) {
             pushReg(reg);
         } else {
-            pushConst(offset);
+            mg.add(LDC,offset);
         }        
     }
     private int memWriteStage;
@@ -2005,11 +1882,11 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         if(memWriteStage!=0) throw new Error("pending preMemWrite1/2");
         memWriteStage=1;
         if(onePage)
-            a(InstructionConstants.ALOAD_2);
+            mg.add(ALOAD_2);
         else if(fastMem)
-            a(InstructionFactory.createLoad(Type.OBJECT,3));
+            mg.add(ALOAD,3);
         else
-            a(InstructionConstants.ALOAD_0);
+            mg.add(ALOAD_0);
     }
     
     private void preMemWrite2(int reg, int offset) {
@@ -2023,29 +1900,29 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         memWriteStage=2;
         
         if(nullPointerCheck) {
-            a(InstructionConstants.DUP);
-            a(InstructionConstants.ALOAD_0);
-            a(InstructionConstants.SWAP);
-            a(fac.createInvoke(fullClassName,"nullPointerCheck",Type.VOID,new Type[]{Type.INT},INVOKEVIRTUAL));
+            mg.add(DUP);
+            mg.add(ALOAD_0);
+            mg.add(SWAP);
+            mg.add(INVOKEVIRTUAL,new MethodRef(me,"nullPointerCheck",Type.VOID,new Type[]{Type.INT}));
         }
         
         if(onePage) {
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IUSHR);
+            mg.add(ICONST_2);
+            mg.add(IUSHR);
         } else if(fastMem) {
             if(!addrInTmp)
-                a(InstructionConstants.DUP_X1);
-            pushConst(pageShift);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.AALOAD);
+                mg.add(DUP_X1);
+            mg.add(LDC,pageShift);
+            mg.add(IUSHR);
+            mg.add(AALOAD);
             if(addrInTmp)
                 pushTmp();
             else
-                a(InstructionConstants.SWAP);
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IUSHR);
-            pushConst((pageSize>>2)-1);
-            a(InstructionConstants.IAND);            
+                mg.add(SWAP);
+            mg.add(ICONST_2);
+            mg.add(IUSHR);
+            mg.add(LDC,(pageSize>>2)-1);
+            mg.add(IAND);            
         }
     }
     
@@ -2055,11 +1932,11 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         memWriteStage=0;
                 
         if(onePage) {
-            a(InstructionConstants.IASTORE);
+            mg.add(IASTORE);
         } else if(fastMem) {
-            a(InstructionConstants.IASTORE);
+            mg.add(IASTORE);
         } else {
-            a(fac.createInvoke(fullClassName,"unsafeMemWrite",Type.VOID,new Type[]{Type.INT,Type.INT},INVOKEVIRTUAL));
+            mg.add(INVOKEVIRTUAL,new MethodRef(me,"unsafeMemWrite",Type.VOID,new Type[]{Type.INT,Type.INT}));
         }
         
     }
@@ -2080,11 +1957,11 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         didPreMemRead = true;
         preMemReadDoPreWrite = preWrite;
         if(onePage)
-            a(InstructionConstants.ALOAD_2);
+            mg.add(ALOAD_2);
         else if(fastMem)
-            a(InstructionFactory.createLoad(Type.OBJECT,preWrite ? 3 : 2));
+            mg.add(ALOAD,preWrite ? 3 : 2);
         else
-            a(InstructionConstants.ALOAD_0);
+            mg.add(ALOAD_0);
     }
     // memRead pops an address off the stack, reads the value at that addr, and pushed the value
     // preMemRead MUST be called BEFORE the addresses is pushed
@@ -2097,43 +1974,40 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             memWriteStage=2; 
             
         if(nullPointerCheck) {
-            a(InstructionConstants.DUP);
-            a(InstructionConstants.ALOAD_0);
-            a(InstructionConstants.SWAP);
-            a(fac.createInvoke(fullClassName,"nullPointerCheck",Type.VOID,new Type[]{Type.INT},INVOKEVIRTUAL));
+            mg.add(DUP);
+            mg.add(ALOAD_0);
+            mg.add(SWAP);
+            mg.add(INVOKEVIRTUAL,new MethodRef(me,"nullPointerCheck",Type.VOID,new Type[]{Type.INT}));
         }
         
         if(onePage) {
-            // p(target + "= page[(" + addr + ")>>>2];");
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IUSHR);
+            mg.add(ICONST_2);
+            mg.add(IUSHR);
             if(preMemReadDoPreWrite)
-                a(InstructionConstants.DUP2);
-            a(InstructionConstants.IALOAD);
+                mg.add(DUP2);
+            mg.add(IALOAD);
         } else if(fastMem) {
-            //p(target  + " = readPages[("+addr+")>>>"+pageShift+"][(("+addr+")>>>2)&"+toHex((pageSize>>2)-1)+"];");
-            
             if(!addrInTmp)
-                a(InstructionConstants.DUP_X1);
-            pushConst(pageShift);
-            a(InstructionConstants.IUSHR);
-            a(InstructionConstants.AALOAD);
+                mg.add(DUP_X1);
+            mg.add(LDC,pageShift);
+            mg.add(IUSHR);
+            mg.add(AALOAD);
             if(addrInTmp)
                 pushTmp();
             else
-                a(InstructionConstants.SWAP);
-            a(InstructionConstants.ICONST_2);
-            a(InstructionConstants.IUSHR);
-            pushConst((pageSize>>2)-1);
-            a(InstructionConstants.IAND);
+                mg.add(SWAP);
+            mg.add(ICONST_2);
+            mg.add(IUSHR);
+            mg.add(LDC,(pageSize>>2)-1);
+            mg.add(IAND);
             if(preMemReadDoPreWrite)
-                a(InstructionConstants.DUP2);
-            a(InstructionConstants.IALOAD);
+                mg.add(DUP2);
+            mg.add(IALOAD);
             
         } else {
             if(preMemReadDoPreWrite)
-                a(InstructionConstants.DUP2);
-            a(fac.createInvoke(fullClassName,"unsafeMemWrite",Type.INT,new Type[]{Type.INT},INVOKEVIRTUAL));
+                mg.add(DUP2);
+            mg.add(INVOKEVIRTUAL,new MethodRef(me,"unsafeMemRead",Type.INT,new Type[]{Type.INT}));
         }
     }
     
