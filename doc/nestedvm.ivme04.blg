@@ -1,0 +1,73 @@
+This is BibTeX, Version 0.99c (Web2C 7.4.5)
+The top-level auxiliary file: nestedvm.ivme04.aux
+The style file: amsplain.bst
+Database file #1: nestedvm.bib
+Warning--I'm ignoring c2jpp's extra "note" field
+--line 73 of file nestedvm.bib
+Warning--to sort, need author or key in csharp
+Warning--to sort, need author or key in cni
+Warning--to sort, need author or key in j2me
+Warning--to sort, need author or key in msil
+Warning--to sort, need author or key in parrot
+Warning--to sort, need author or key in python
+Warning--to sort, need author or key in jazillian
+Warning--to sort, need author or key in c2j
+Warning--to sort, need author or key in gcc
+Warning--to sort, need author or key in jikes
+Warning--to sort, need author or key in hotspot
+Warning--missing pages in capp
+Warning--missing journal name in KR
+Warning--missing pages in KR
+Warning--missing journal name in jni
+Warning--missing pages in jni
+Warning--missing journal name in ephedra
+Warning--missing pages in ephedra
+Warning--missing title in c2jpp
+Warning--missing journal name in c2jpp
+Warning--missing pages in c2jpp
+Warning--missing journal name in soustroup
+Warning--missing pages in soustroup
+Warning--missing journal name in egcsjvm
+Warning--missing pages in egcsjvm
+You've used 20 entries,
+            2213 wiz_defined-function locations,
+            574 strings with 5810 characters,
+and the built_in function-call counts, 4059 in all, are:
+= -- 309
+> -- 103
+< -- 0
++ -- 55
+- -- 28
+* -- 254
+:= -- 559
+add.period$ -- 20
+call.type$ -- 20
+change.case$ -- 64
+chr.to.int$ -- 0
+cite$ -- 45
+duplicate$ -- 223
+empty$ -- 482
+format.name$ -- 28
+if$ -- 901
+int.to.chr$ -- 0
+int.to.str$ -- 20
+missing$ -- 30
+newline$ -- 70
+num.names$ -- 18
+pop$ -- 214
+preamble$ -- 1
+purify$ -- 53
+quote$ -- 0
+skip$ -- 110
+stack$ -- 0
+substring$ -- 135
+swap$ -- 33
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 78
+warning$ -- 25
+while$ -- 20
+width$ -- 22
+write$ -- 139
+(There were 26 warnings)

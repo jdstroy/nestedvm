@@ -1,0 +1,84 @@
+\providecommand{\bysame}{\leavevmode\hbox to3em{\hrulefill}\thinspace}
+\providecommand{\MR}{\relax\ifhmode\unskip\space\fi MR }
+% \MRhref is called by the amsart/book/proc definition of \MR.
+\providecommand{\MRhref}[2]{%
+  \href{http://www.ams.org/mathscinet-getitem?mr=#1}{#2}
+}
+\providecommand{\href}[2]{#2}
+\begin{thebibliography}{10}
+
+\bibitem{j2me}
+http://java.sun.com/j2me/docs/index.html.
+
+\bibitem{msil}
+http://research.microsoft.com/~emeijer/Papers/CLR.pdf.
+
+\bibitem{parrot}
+http://www.parrotcode.org.
+
+\bibitem{python}
+http://www.python.org.
+
+\bibitem{jazillian}
+http://www.jazillian.com/.
+
+\bibitem{c2j}
+http://www.soften.ktu.lt/~stonis/c2java/.
+
+\bibitem{gcc}
+http://gcc.gnu.org/.
+
+\bibitem{jikes}
+http://www-124.ibm.com/developerworks/oss/jikes/.
+
+\bibitem{csharp}
+\emph{The c\# programming language},
+  http://download.microsoft.com/download/0/a/c/0acb3585-3f3f-4169-ad61-efc9f01%
+76788/CSharp.zip.
+
+\bibitem{cni}
+\emph{The cygnus native interface for c++/java integration},
+  http://gcc.gnu.org/java/papers/cni/t1.html.
+
+\bibitem{hotspot}
+\emph{The java hotspot performance engine architecture}, 1999,
+  http://java.sun.com/products/hotspot/whitepaper.html.
+
+\bibitem{capp}
+Frank Buddrus and Jorg Schodel, \emph{Cappuccino -- a c++ to java translator},
+  Proceedings of the 1998 ACM symposium on Applied Computing (1998).
+
+\bibitem{java}
+James Gosling et~al., \emph{The {Java} language specification}, GOTOP
+  Information Inc., 5F, No.7, Lane 50, Sec.3 Nan Kang Road Taipei, Taiwan; Unit
+  1905, Metro Plaza Tower 2, No. 223 Hing Fong Road, Kwai Chung, N.T., Hong
+  Kong, 1996, citeseer.ist.psu.edu/gosling96java.html.
+
+\bibitem{KR}
+B.~W. Kernighan and D.~M. Ritchie, \emph{The c programming language},  (1979).
+
+\bibitem{jni}
+Sheng Liang, \emph{The javatm native interface: Programmer's guide and
+  specification},  (1999).
+
+\bibitem{mohca}
+Scott Malabarba, Premkumar~T. Devanbu, and Aaron Stearns, \emph{Mohca-java: A
+  tool for c++ to java conversion support}, International Conference on
+  Software Engineering, 1999, citeseer.ist.psu.edu/malabarba99mohcajava.html,
+  pp.~650--653.
+
+\bibitem{ephedra}
+J.~Martin, \emph{Ephedra: A c to java migration environment},  (2002),
+  http://www.rigi.csc.uvic.ca/?jmartin/Ephedra.
+
+\bibitem{c2jpp}
+Novosoft,  (September 2001), C2J ?C to Java translator.
+
+\bibitem{soustroup}
+B.~Stroustrup., \emph{The c++ programming language},  (1997).
+
+\bibitem{egcsjvm}
+T.~Waddington, \emph{Java backend for gcc},  (November 2000),
+  http://archive.csee.uq.edu.au/?csmweb/uqbt.html\#gccjvm.
+
+\end{thebibliography}

@@ -1,0 +1,667 @@
+This is pdfTeX, Version 3.14159-1.10b (Web2C 7.4.5) (format=pdflatex 2004.2.3)  20 MAR 2004 07:30
+**nestedvm.ivme04.tex
+(./nestedvm.ivme04.tex{/usr/local/share/texmf-local/pdftex/config/pdftex.cfg}
+LaTeX2e <2001/06/01>
+Babel <v3.7h> and hyphenation patterns for american, french, german, ngerman, n
+ohyphenation, loaded.
+(./acmconf.cls
+Document Class: acmconf 1994/11/27 Alternative LaTeX document class
+Bugs to berson@cs.pitt.edu
+(/usr/local/share/texmf-local/tex/latex/base/article.cls
+Document Class: article 2001/04/21 v1.4e Standard LaTeX document class
+(/usr/local/share/texmf-local/tex/latex/base/size10.clo
+File: size10.clo 2001/04/21 v1.4e Standard LaTeX file (size option)
+)
+\c@part=\count79
+\c@section=\count80
+\c@subsection=\count81
+\c@subsubsection=\count82
+\c@paragraph=\count83
+\c@subparagraph=\count84
+\c@figure=\count85
+\c@table=\count86
+\abovecaptionskip=\skip41
+\belowcaptionskip=\skip42
+\bibindent=\dimen102
+)
+\@acmtitlebox=\box26
+)
+(/usr/local/share/texmf-local/tex/latex/graphics/graphicx.sty
+Package: graphicx 1999/02/16 v1.0f Enhanced LaTeX Graphics (DPC,SPQR)
+
+(/usr/local/share/texmf-local/tex/latex/graphics/keyval.sty
+Package: keyval 1999/03/16 v1.13 key=value parser (DPC)
+\KV@toks@=\toks14
+)
+(/usr/local/share/texmf-local/tex/latex/graphics/graphics.sty
+Package: graphics 2001/07/07 v1.0n Standard LaTeX Graphics (DPC,SPQR)
+
+(/usr/local/share/texmf-local/tex/latex/graphics/trig.sty
+Package: trig 1999/03/16 v1.09 sin cos tan (DPC)
+)
+(/usr/local/share/texmf-local/tex/latex/config/graphics.cfg
+File: graphics.cfg 2001/08/31 v1.1 graphics configuration of teTeX/TeXLive
+)
+Package graphics Info: Driver file: pdftex.def on input line 80.
+
+(/usr/local/share/texmf-local/tex/latex/graphics/pdftex.def
+File: pdftex.def 2002/06/19 v0.03k graphics/color for pdftex
+\Gread@gobject=\count87
+))
+\Gin@req@height=\dimen103
+\Gin@req@width=\dimen104
+)
+(/usr/local/share/texmf-local/tex/latex/tools/multicol.sty
+Package: multicol 2000/07/10 v1.5z multicolumn formatting (FMi)
+\c@tracingmulticols=\count88
+\mult@box=\box27
+\multicol@leftmargin=\dimen105
+\c@unbalance=\count89
+\c@collectmore=\count90
+\doublecol@number=\count91
+\multicoltolerance=\count92
+\multicolpretolerance=\count93
+\full@width=\dimen106
+\page@free=\dimen107
+\premulticols=\dimen108
+\postmulticols=\dimen109
+\multicolsep=\skip43
+\multicolbaselineskip=\skip44
+\partial@page=\box28
+\last@line=\box29
+\mult@rightbox=\box30
+\mult@grightbox=\box31
+\mult@gfirstbox=\box32
+\mult@firstbox=\box33
+\@tempa=\box34
+\@tempa=\box35
+\@tempa=\box36
+\@tempa=\box37
+\@tempa=\box38
+\@tempa=\box39
+\@tempa=\box40
+\@tempa=\box41
+\@tempa=\box42
+\@tempa=\box43
+\@tempa=\box44
+\@tempa=\box45
+\@tempa=\box46
+\@tempa=\box47
+\@tempa=\box48
+\@tempa=\box49
+\@tempa=\box50
+\c@columnbadness=\count94
+\c@finalcolumnbadness=\count95
+\last@try=\dimen110
+\multicolovershoot=\dimen111
+\multicolundershoot=\dimen112
+\mult@nat@firstbox=\box51
+\colbreak@box=\box52
+)
+(/usr/local/share/texmf-local/tex/latex/amsfonts/amssymb.sty
+Package: amssymb 2002/01/22 v2.2d
+
+(/usr/local/share/texmf-local/tex/latex/amsfonts/amsfonts.sty
+Package: amsfonts 2001/10/25 v2.2f
+\@emptytoks=\toks15
+\symAMSa=\mathgroup4
+\symAMSb=\mathgroup5
+LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 132.
+))
+(/usr/local/share/texmf-local/tex/latex/amsmath/amsmath.sty
+Package: amsmath 2000/07/18 v2.13 AMS math features
+\@mathmargin=\skip45
+
+For additional information on amsmath, use the `?' option.
+(/usr/local/share/texmf-local/tex/latex/amsmath/amstext.sty
+Package: amstext 2000/06/29 v2.01
+
+(/usr/local/share/texmf-local/tex/latex/amsmath/amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0
+\@emptytoks=\toks16
+\ex@=\dimen113
+))
+(/usr/local/share/texmf-local/tex/latex/amsmath/amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d
+\pmbraise@=\dimen114
+)
+(/usr/local/share/texmf-local/tex/latex/amsmath/amsopn.sty
+Package: amsopn 1999/12/14 v2.01 operator names
+)
+\inf@bad=\count96
+LaTeX Info: Redefining \frac on input line 211.
+\uproot@=\count97
+\leftroot@=\count98
+LaTeX Info: Redefining \overline on input line 307.
+\classnum@=\count99
+\DOTSCASE@=\count100
+LaTeX Info: Redefining \ldots on input line 379.
+LaTeX Info: Redefining \dots on input line 382.
+LaTeX Info: Redefining \cdots on input line 467.
+\Mathstrutbox@=\box53
+\strutbox@=\box54
+\big@size=\dimen115
+LaTeX Font Info:    Redeclaring font encoding OML on input line 567.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 568.
+\macc@depth=\count101
+\c@MaxMatrixCols=\count102
+\dotsspace@=\muskip10
+\c@parentequation=\count103
+\dspbrk@lvl=\count104
+\tag@help=\toks17
+\row@=\count105
+\column@=\count106
+\maxfields@=\count107
+\andhelp@=\toks18
+\eqnshift@=\dimen116
+\alignsep@=\dimen117
+\tagshift@=\dimen118
+\tagwidth@=\dimen119
+\totwidth@=\dimen120
+\lineht@=\dimen121
+\@envbody=\toks19
+\multlinegap=\skip46
+\multlinetaggap=\skip47
+\mathdisplay@stack=\toks20
+LaTeX Info: Redefining \[ on input line 2666.
+LaTeX Info: Redefining \] on input line 2667.
+)
+(/usr/local/share/texmf-local/tex/latex/graphics/epsfig.sty
+Package: epsfig 1999/02/16 v1.7a (e)psfig emulation (SPQR)
+\epsfxsize=\dimen122
+\epsfysize=\dimen123
+)
+(/usr/local/share/texmf-local/tex/latex/base/alltt.sty
+Package: alltt 1997/06/16 v2.0g defines alltt environment
+)
+(/usr/local/share/texmf-local/tex/latex/psnfss/palatino.sty
+Package: palatino 2002/09/08 PSNFSS-v9.0a (SPQR) 
+) (./pdftricks.sty
+Package: pdftricks 2001/09/30 1.15 psTricks support in PDF (CVRACL)
+
+
+Package pdftricks Warning: ****************************************
+(pdftricks)                Package pdftricks v,1.15 loaded
+(pdftricks)                [psTricks support in PDF (CVR, ACL)]
+(pdftricks)                ****************************************.
+
+(/usr/local/share/texmf-local/tex/latex/graphics/color.sty
+Package: color 1999/02/16 v1.0i Standard LaTeX Color (DPC)
+
+(/usr/local/share/texmf-local/tex/latex/config/color.cfg
+File: color.cfg 2001/08/31 v1.1 color configuration of teTeX/TeXLive
+)
+Package color Info: Driver file: pdftex.def on input line 125.
+)
+touch /tmp/w18-test-2004320450
+system()...disabled.
+
+
+Package pdftricks Warning: ****************************************
+(pdftricks)                No \write 18 capability.
+(pdftricks)                You'll have to run a script by yourself!
+(pdftricks)                ****************************************.
+
+\PDFStream=\write3
+Special stream 'pdfpic'
+\c@psfig=\count108
+\c@arraylength=\count109
+\c@ArrayIndex=\count110
+\c@zeroCtr=\count111
+\c@recordCtr=\count112
+\c@Ctr=\count113
+\c@f@irstCtr=\count114
+\c@s@econdCtr=\count115
+)
+\CVinputs=\write4
+\openout4 = `tmp.inputs'.
+
+
+(/usr/local/share/texmf-local/tex/latex/misc/parskip.sty
+Package: parskip 2001/04/09 non-zero parskip adjustments
+)
+(/usr/local/share/texmf-local/tex/latex/tools/tabularx.sty
+Package: tabularx 1999/01/07 v2.07 `tabularx' package (DPC)
+
+(/usr/local/share/texmf-local/tex/latex/tools/array.sty
+Package: array 1998/05/13 v2.3m Tabular extension package (FMi)
+\col@sep=\dimen124
+\extrarowheight=\dimen125
+\NC@list=\toks21
+\extratabsurround=\skip48
+\backup@length=\skip49
+)
+\TX@col@width=\dimen126
+\TX@old@table=\dimen127
+\TX@old@col=\dimen128
+\TX@target=\dimen129
+\TX@delta=\dimen130
+\TX@cols=\count116
+\TX@ftn=\toks22
+)
+(./nestedvm.ivme04.aux)
+\openout1 = `nestedvm.ivme04.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 30.
+LaTeX Font Info:    ... okay on input line 30.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 30.
+LaTeX Font Info:    ... okay on input line 30.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 30.
+LaTeX Font Info:    ... okay on input line 30.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 30.
+LaTeX Font Info:    ... okay on input line 30.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 30.
+LaTeX Font Info:    ... okay on input line 30.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 30.
+LaTeX Font Info:    ... okay on input line 30.
+LaTeX Font Info:    Try loading font information for OT1+ppl on input line 30.
+
+(/usr/local/share/texmf-local/tex/latex/psnfss/ot1ppl.fd
+File: ot1ppl.fd 2001/06/04 font definitions for OT1/ppl.
+)
+(/usr/local/share/texmf-local/tex/context/base/supp-pdf.tex
+(/usr/local/share/texmf-local/tex/context/base/supp-mis.tex
+loading : Context Support Macros / Missing
+\protectiondepth=\count117
+\scratchcounter=\count118
+\scratchtoks=\toks23
+\scratchdimen=\dimen131
+\scratchskip=\skip50
+\scratchmuskip=\muskip11
+\scratchbox=\box55
+\scratchread=\read1
+\scratchwrite=\write5
+\zeropoint=\dimen132
+\minusone=\count119
+\thousandpoint=\dimen133
+\emptytoks=\toks24
+\nextbox=\box56
+\nextdepth=\dimen134
+\everyline=\toks25
+\!!counta=\count120
+\!!countb=\count121
+\recursecounter=\count122
+)
+loading : Context Support Macros / PDF
+\nofMPsegments=\count123
+\nofMParguments=\count124
+\everyMPtoPDFconversion=\toks26
+)
+LaTeX Font Info:    Font shape `OT1/ppl/bx/n' in size <14.4> not available
+(Font)              Font shape `OT1/ppl/b/n' tried instead on input line 32.
+LaTeX Font Info:    Try loading font information for OT1+phv on input line 32.
+ (/usr/local/share/texmf-local/tex/latex/psnfss/ot1phv.fd
+File: ot1phv.fd 2001/06/04 scalable font definitions for OT1/phv.
+)
+LaTeX Font Info:    Font shape `OT1/phv/bx/n' in size <14.4> not available
+(Font)              Font shape `OT1/phv/b/n' tried instead on input line 32.
+LaTeX Font Info:    Try loading font information for U+msa on input line 32.
+
+(/usr/local/share/texmf-local/tex/latex/amsfonts/umsa.fd
+File: umsa.fd 2002/01/19 v2.2g AMS font definitions
+)
+LaTeX Font Info:    Try loading font information for U+msb on input line 32.
+
+(/usr/local/share/texmf-local/tex/latex/amsfonts/umsb.fd
+File: umsb.fd 2002/01/19 v2.2g AMS font definitions
+)
+LaTeX Font Info:    Try loading font information for OT1+pcr on input line 32.
+
+(/usr/local/share/texmf-local/tex/latex/psnfss/ot1pcr.fd
+File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
+)
+LaTeX Font Info:    Font shape `OT1/phv/bx/n' in size <9> not available
+(Font)              Font shape `OT1/phv/b/n' tried instead on input line 34.
+LaTeX Font Info:    Try loading font information for OMS+ppl on input line 46.
+
+(/usr/local/share/texmf-local/tex/latex/psnfss/omsppl.fd
+File: omsppl.fd 
+)
+LaTeX Font Info:    Font shape `OMS/ppl/m/n' in size <9> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 46.
+
+Underfull \hbox (badness 3386) in paragraph at lines 52--59
+/pplr7t@9.0pt/a binary-to-source and binary-to-binary trans-la-tor
+ []
+
+
+Underfull \hbox (badness 2600) in paragraph at lines 52--59
+/pplr7t@9.0pt/tar-get-ing the Java Vir-tual Ma-chine. NestedVM-
+ []
+
+
+Underfull \hbox (badness 4229) in paragraph at lines 79--85
+/pplr7t@9.0pt/hib-ited in a num-ber of con-texts, in-clud-ing ap-
+ []
+
+
+Underfull \hbox (badness 2165) in paragraph at lines 79--85
+/pplr7t@9.0pt/plets en-vi-ron-ments and servlet con-tain-ers with a
+ []
+
+Opening PDFStream=nestedvm.ivme04-fig1.tex
+\openout3 = `nestedvm.ivme04-fig1.tex'.
+
+
+<nestedvm.ivme04-fig1.pdf, id=1, 175.65625pt x 81.30376pt>
+File: nestedvm.ivme04-fig1.pdf Graphic file (type pdf)
+
+<use nestedvm.ivme04-fig1.pdf> Opening PDFStream=nestedvm.ivme04-fig2.tex
+\openout3 = `nestedvm.ivme04-fig2.tex'.
+
+
+<nestedvm.ivme04-fig2.pdf, id=2, 186.6975pt x 109.40875pt>
+File: nestedvm.ivme04-fig2.pdf Graphic file (type pdf)
+
+<use nestedvm.ivme04-fig2.pdf> [1{/usr/local/share/texmf-local/dvips/config/pdf
+tex.map}
+
+
+ <./nestedvm.ivme04-fig1.pdf>]
+Underfull \hbox (badness 1783) in paragraph at lines 164--166
+/pplr7t@9.0pt/The most com-mon tech-nique em-ployed is par-tial
+ []
+
+Opening PDFStream=nestedvm.ivme04-fig3.tex
+\openout3 = `nestedvm.ivme04-fig3.tex'.
+
+
+<nestedvm.ivme04-fig3.pdf, id=37, 186.6975pt x 109.40875pt>
+File: nestedvm.ivme04-fig3.pdf Graphic file (type pdf)
+
+<use nestedvm.ivme04-fig3.pdf>
+Underfull \hbox (badness 1005) in paragraph at lines 204--209
+[]/pplr7t@9.0pt/Unfortunately such deep anal-y-sis is in-tractible for
+ []
+
+
+Underfull \hbox (badness 1014) in paragraph at lines 210--217
+/pplr7t@9.0pt/specific trans-la-tors rather than a sin-gle trans-la-tion
+ []
+
+Opening PDFStream=nestedvm.ivme04-fig4.tex
+\openout3 = `nestedvm.ivme04-fig4.tex'.
+
+
+<nestedvm.ivme04-fig4.pdf, id=38, 192.72pt x 109.40875pt>
+File: nestedvm.ivme04-fig4.pdf Graphic file (type pdf)
+
+<use nestedvm.ivme04-fig4.pdf> [2 <./nestedvm.ivme04-fig2.pdf> <./nestedvm.ivme
+04-fig3.pdf> <./nestedvm.ivme04-fig4.pdf>]
+LaTeX Font Info:    Font shape `OT1/ppl/bx/n' in size <9> not available
+(Font)              Font shape `OT1/ppl/b/n' tried instead on input line 287.
+
+Underfull \hbox (badness 4013) in paragraph at lines 317--325
+[]/pplr7t@9.0pt/NestedVM of-fers to-tal sup-port for all non-
+ []
+
+
+Underfull \hbox (badness 1097) in paragraph at lines 317--325
+/pplr7t@9.0pt/found on a MIPS /pcrr7t@9.0pt/R2000 /pplr7t@9.0pt/CPU, in-clud-in
+g the
+ []
+
+
+Underfull \hbox (badness 2772) in paragraph at lines 392--396
+/pplr7t@9.0pt/The sim-plest op-er-a-tional mode for Nest-edVM is
+ []
+
+Opening PDFStream=nestedvm.ivme04-fig5.tex
+\openout3 = `nestedvm.ivme04-fig5.tex'.
+
+
+<nestedvm.ivme04-fig5.pdf, id=72, 186.6975pt x 97.36375pt>
+File: nestedvm.ivme04-fig5.pdf Graphic file (type pdf)
+
+<use nestedvm.ivme04-fig5.pdf>
+Overfull \hbox (37.89pt too wide) in paragraph at lines 419--503
+[]$[]$ 
+ []
+
+[3 <./nestedvm.ivme04-fig5.pdf>] <chart1.pdf, id=90, 794.97pt x 614.295pt>
+File: chart1.pdf Graphic file (type pdf)
+
+<use chart1.pdf>
+Overfull \hbox (0.81pt too wide) in paragraph at lines 538--539
+[][] 
+ []
+
+[4 <./chart1.pdf>]
+Underfull \hbox (badness 1092) in paragraph at lines 574--577
+[]/pplr7t@9.0pt/This prob-lem was sur-mounted by switch-ing on a
+ []
+
+<chart5.pdf, id=109, 794.97pt x 614.295pt>
+File: chart5.pdf Graphic file (type pdf)
+ <use chart5.pdf>
+Overfull \hbox (0.81pt too wide) in paragraph at lines 583--584
+[][] 
+ []
+
+<chart6.pdf, id=110, 794.97pt x 614.295pt>
+File: chart6.pdf Graphic file (type pdf)
+ <use chart6.pdf>
+Overfull \hbox (0.81pt too wide) in paragraph at lines 585--586
+[][] 
+ []
+
+
+Underfull \hbox (badness 1990) in paragraph at lines 591--594
+/pplr7t@9.0pt/ment can be coded as a /pcrr7t@9.0pt/TABLESWITCH/pplr7t@9.0pt/, t
+he
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 595--599
+[]/pplr7t@9.0pt/Hybrid Interpretive-JIT com-pil-ers such as
+ []
+
+
+Underfull \hbox (badness 2277) in paragraph at lines 614--623
+/pplr7t@9.0pt/and ev-ery branch in-struc-tion's des-ti-na-tion is
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 652--661
+[]/pplr7t@9.0pt/One sub-op-ti-mal so-lu-tion was to ex-press con-
+ []
+
+
+Underfull \hbox (badness 2990) in paragraph at lines 652--661
+/pplr7t@9.0pt/stants as off-sets from a few cen-tral val-ues; for
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 652--661
+/pplr7t@9.0pt/ex-am-ple ``/pcrr7t@9.0pt/pc = N[]0x00010000 + 0x10/pplr7t@9.0pt/
+'' (where
+ []
+
+
+Underfull \hbox (badness 1067) in paragraph at lines 652--661
+/pplr7t@9.0pt/di-rectly to /pcrr7t@9.0pt/.class /pplr7t@9.0pt/files (with-out t
+he in-ter-me-di-ate
+ []
+
+Opening PDFStream=nestedvm.ivme04-fig6.tex
+\openout3 = `nestedvm.ivme04-fig6.tex'.
+
+ [5 <./chart5.pdf> <./chart6.pdf>]
+<nestedvm.ivme04-fig6.pdf, id=149, 186.6975pt x 108.405pt>
+File: nestedvm.ivme04-fig6.pdf Graphic file (type pdf)
+
+<use nestedvm.ivme04-fig6.pdf>
+Underfull \hbox (badness 1418) in paragraph at lines 698--703
+[]/pplr7t@9.0pt/Direct com-pi-la-tion to /pcrr7t@9.0pt/.class /pplr7t@9.0pt/fil
+es opens up
+ []
+
+
+Underfull \hbox (badness 4120) in paragraph at lines 698--703
+/pplr7t@9.0pt/lat-ing MIPS bi-na-ries and load-ing them via
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 698--703
+/pcrr7t@9.0pt/ClassLoader.fromBytes() /pplri7t@9.0pt/at de-ploy-ment
+ []
+
+<chart7.pdf, id=150, 794.97pt x 614.295pt>
+File: chart7.pdf Graphic file (type pdf)
+ <use chart7.pdf>
+Overfull \hbox (0.81pt too wide) in paragraph at lines 710--711
+[][] 
+ []
+
+[6 <./nestedvm.ivme04-fig6.pdf> <./chart7.pdf>]
+Underfull \hbox (badness 1052) in paragraph at lines 822--829
+/pcrr7t@9.0pt/-fno-schedule-insns /pplr7t@9.0pt/in-struc-tion, /pcrr7t@9.0pt/gc
+c /pplr7t@9.0pt/will
+ []
+
+<chart4.pdf, id=185, 794.97pt x 614.295pt>
+File: chart4.pdf Graphic file (type pdf)
+ <use chart4.pdf>
+Overfull \hbox (0.81pt too wide) in paragraph at lines 849--850
+[][] 
+ []
+
+<chart3.pdf, id=186, 794.97pt x 614.295pt>
+File: chart3.pdf Graphic file (type pdf)
+ <use chart3.pdf>
+Overfull \hbox (0.81pt too wide) in paragraph at lines 851--852
+[][] 
+ []
+
+
+Underfull \hbox (badness 1661) in paragraph at lines 880--887
+[]/pplr7t@9.0pt/The run-time pro-vides ac-cess to the host file
+ []
+
+
+Underfull \hbox (badness 4378) in paragraph at lines 880--887
+/pplr7t@9.0pt/stan-dard UNIX syscalls (/pcrr7t@9.0pt/read()/pplr7t@9.0pt/, /pcr
+r7t@9.0pt/write()/pplr7t@9.0pt/,
+ []
+
+[7 <./chart4.pdf> <./chart3.pdf>]
+Underfull \hbox (badness 7869) in paragraph at lines 888--891
+[]/pplr7t@9.0pt/It pro-vides gen-eral OS ser-vices, in-clud-ing
+ []
+
+
+Underfull \hbox (badness 2245) in paragraph at lines 932--938
+/pplr7t@9.0pt/jpeg and writ-ing a tga. The /pcrr7t@9.0pt/mspack /pplr7t@9.0pt/t
+est con-
+ []
+
+(./nestedvm.ivme04.bbl
+Underfull \hbox (badness 10000) in paragraph at lines 14--15
+[]/pplr7t@9.0pt/http://research.microsoft.com/ emei-
+ []
+
+
+Overfull \hbox (28.85645pt too wide) in paragraph at lines 32--33
+[]/pplr7t@9.0pt/http://www-124.ibm.com/developerworks/oss/jikes/. 
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 35--38
+[]/pplri7t@9.0pt/The c# pro-gram-ming lan-guage/pplr7t@9.0pt/,
+ []
+
+
+Overfull \hbox (53.16565pt too wide) in paragraph at lines 35--38
+/pplr7t@9.0pt/http://download.microsoft.com/download/0/a/c/0acb3585-
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 44--46
+[]/pplri7t@9.0pt/The java hotspot per-for-mance
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 44--46
+/pplri7t@9.0pt/en-gine ar-chi-tec-ture/pplr7t@9.0pt/, 1999,
+ []
+
+
+Overfull \hbox (35.9659pt too wide) in paragraph at lines 44--46
+/pplr7t@9.0pt/http://java.sun.com/products/hotspot/whitepaper.html. 
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 65--69
+[]/pplr7t@9.0pt/Scott Mal-abarba, Premku-mar T. De-vanbu,
+ []
+
+
+Underfull \hbox (badness 4752) in paragraph at lines 65--69
+/pplr7t@9.0pt/and Aaron Stearns, /pplri7t@9.0pt/Mohca-java: A tool for
+ []
+
+
+Underfull \hbox (badness 5607) in paragraph at lines 65--69
+/pplri7t@9.0pt/c++ to java con-ver-sion sup-port/pplr7t@9.0pt/, In-ter-na-tiona
+l
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 65--69
+/pplr7t@9.0pt/seer.ist.psu.edu/malabarba99mohcajava.html,
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 71--73
+[]/pplr7t@9.0pt/J. Mar-tin, /pplri7t@9.0pt/Ephedra: A c to java
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 71--73
+/pplri7t@9.0pt/mi-gra-tion en-vi-ron-ment/pplr7t@9.0pt/, (2002),
+ []
+
+
+Underfull \hbox (badness 1348) in paragraph at lines 78--79
+[]/pplr7t@9.0pt/B. Strous-trup., /pplri7t@9.0pt/The c++ pro-gram-ming lan-guage
+/pplr7t@9.0pt/,
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 81--83
+[]/pplr7t@9.0pt/T. Wadding-ton, /pplri7t@9.0pt/Java back-
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 81--83
+/pplri7t@9.0pt/end for gcc/pplr7t@9.0pt/, (Novem-ber 2000),
+ []
+
+
+Overfull \hbox (45.57799pt too wide) in paragraph at lines 81--83
+/pplr7t@9.0pt/http://archive.csee.uq.edu.au/?csmweb/uqbt.html#gccjvm. 
+ []
+
+) [8] (./nestedvm.ivme04.aux) ) 
+Here is how much of TeX's memory you used:
+ 2493 strings out of 95437
+ 30804 string characters out of 1189862
+ 103318 words of memory out of 1000001
+ 5419 multiletter control sequences out of 10000+50000
+ 26163 words of font info for 74 fonts, out of 500000 for 1000
+ 14 hyphenation exceptions out of 1000
+ 29i,15n,24p,218b,509s stack positions out of 1500i,500n,5000p,200000b,5000s
+ 228 PDF objects out of 300000
+ 0 named destinations out of 131072
+ 60 words of extra memory for PDF output out of 65536
+{/usr/local/share/texmf-local/dvips/psnfss/8r.en
+c}</usr/local/share/texmf-local/fonts/type1/urw/palatino/uplb8a.pfb>{/usr/local
+/share/texmf-local/dvips/tetex/f7b6d320.enc}</usr/local/share/texmf-local/fonts
+/type1/bluesky/cm/cmr10.pfb>{/usr/local/share/texmf-local/dvips/tetex/09fbbfac.
+enc}</usr/local/share/texmf-local/fonts/type1/bluesky/cm/cmtt10.pfb>{/usr/local
+/share/texmf-local/dvips/tetex/bbad153f.enc}</usr/local/share/texmf-local/fonts
+/type1/bluesky/cm/cmsy9.pfb></usr/local/share/texmf-local/fonts/type1/urw/palat
+ino/uplr8a.pfb></usr/local/share/texmf-local/fonts/type1/urw/palatino/uplri8a.p
+fb>
+Output written on nestedvm.ivme04.pdf (8 pages, 268208 bytes).

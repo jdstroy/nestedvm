@@ -1,0 +1,24 @@
+\documentclass{article}
+\input tmp.inputs
+\pagestyle{empty}
+\usepackage{amssymb,amsbsy}
+\begin{document}
+\newlength{\MyLength}
+\settowidth{\MyLength}{xmachine codex}
+\newcommand{\MyBox}[1]{\makebox[\MyLength]{#1}}
+\psmatrix[colsep=2,rowsep=0,nrot=:U]
+  & \\[0pt]
+  & \\[0pt]
+  [name=s0]\MyBox{unsafe source} & [name=s1]\MyBox{safe source}   \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  & \\[0pt]
+  [name=b0]\MyBox{machine code}  & [name=b1]\MyBox{safe bytecode} \\[0pt]
+  & \\[0pt]
+  \psset{nodesep=5pt,arrows=->}
+  \ncline{s0}{s1}\aput{:U}{source-to}\bput{:U}{source}
+  \ncline{s1}{b1}\aput{:U}{\tt javac}
+\endpsmatrix
+\end{document}

@@ -309,11 +309,11 @@
 % \bfseries line if you switch.
 %   --DAB
 %
-\newcommand\@acmtitlestyle{\normalsize\bfseries}
+\newcommand\@acmtitlestyle{\normalsize\sffamily\bfseries}
 %\newcommand\@acmtitlestyle{\normalsize\sffamily}
 
-\renewcommand\section{\@startsection {section}{1}{\z@}%
-                                     {-3.5ex \@plus -1ex \@minus -.2ex}%
+\renewcommand\section{\@startsection {section}{1}{\z@}% 
+                                    {-3.5ex \@plus -1ex \@minus -.2ex}%
                                      {2.3ex \@plus .2ex}%
                                      {\@acmtitlestyle}}
 \renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
