@@ -18,7 +18,7 @@ public class RuntimeCompiler {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ClassFileCompiler c = new ClassFileCompiler(data,className,baos);
         // FEATURE: make this Optional, pass options on compile arguments
-        c.parseOptions("unixruntime");
+        c.parseOptions("unixruntime,nosupportcall");
         c.go();
         baos.close();
         byte[] bytecode = baos.toByteArray();

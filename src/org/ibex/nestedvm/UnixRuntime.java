@@ -33,7 +33,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 
         // FEATURE: Do the proper mangling for non-unix hosts
         String userdir = getSystemProperty("user.dir");
-        cwd = userdir != null && userdir.startsWith("/") && File.separatorChar == '/'  ? userdir.substring(1) : "";
+        cwd = 
+            userdir != null && userdir.startsWith("/") && File.separatorChar == '/' && HostFS.hostRootDir().getParent() == null  
+            ? userdir.substring(1) : "";
     }
     
     // NOTE: getDisplayName() is a Java2 function
@@ -794,8 +796,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public File getRoot() { return root; }
         
         private static File hostRootDir() {
+            if(getSystemProperty("nestedvm.root") != null) {
+                File f = new File(getSystemProperty("nestedvm.root"));
+                if(f.isDirectory()) return f;
+                // fall through to case below
+            }
             String cwd = getSystemProperty("user.dir");
             File f = new File(cwd != null ? cwd : ".");
+            if(!f.exists()) throw new Error("Couldn't get File for cwd");
             f = new File(f.getAbsolutePath());
             while(f.getParent() != null) f = new File(f.getParent());
             return f;

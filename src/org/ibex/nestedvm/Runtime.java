@@ -693,10 +693,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     public static final int O_APPEND = 0x0008;
     public static final int O_TRUNC = 0x0400;
     public static final int O_NONBLOCK = 0x4000;
+    public static final int O_NOCTTY = 0x8000;
+    
     
     FD hostFSOpen(final File f, int flags, int mode, final Object data) throws ErrnoException {
         if((flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)) != 0) {
-            if(STDERR_DIAG) System.err.println("WARNING: Unsupported flags passed to open(): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
+            if(STDERR_DIAG)
+                System.err.println("WARNING: Unsupported flags passed to open(\"" + f + "\"): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
+           
             throw new ErrnoException(ENOTSUP);
         }
         boolean write = (flags&3) != RD_ONLY;
@@ -737,6 +741,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     /** The open syscall */
     private int sys_open(int addr, int flags, int mode) throws ErrnoException, FaultException {
+        flags &= ~O_NOCTTY; // this is meaningless under nestedvm
         FD fd = _open(cstring(addr),flags,mode);
         if(fd == null) return -ENOENT;
         int fdn = addFD(fd);
@@ -869,6 +874,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     private int sys_sysconf(int n) {
         switch(n) {
             case _SC_CLK_TCK: return 1000;
+            case _SC_PAGESIZE: return  writePages.length == 1 ? 4096 : (1<<pageShift);
+            case _SC_PHYS_PAGES: return writePages.length == 1 ? (1<<pageShift)/4096 : writePages.length;
             default:
                 if(STDERR_DIAG) System.err.println("WARNING: Attempted to use unknown sysconf key: " + n);
                 return -EINVAL;
