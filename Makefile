@@ -407,7 +407,7 @@ ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_darcs_gcclass
 	com.brian_web.gcclass.GCClass \
 		"$(classpath)" tmp/pruned \
 		tests.NtlmAuth.main \
-		org.ibex.nestedvm.util.Platform\$$Jdk{11,12,13,14}.'<init>'
+		$(patsubst %,org.ibex.nestedvm.util.Platform$$Jdk%.'<init>', 11 12 13 14)
 	printf "Manifest-Version: 1.0\nMain-Class: tests.NtlmAuth\n" > .manifest.ntlm
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest.ntlm .
 	rm -f  .manifest.ntlm
