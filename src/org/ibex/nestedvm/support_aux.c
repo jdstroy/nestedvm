@@ -521,6 +521,11 @@ int vasprintf(char **ret, const char *fmt, va_list ap) {
     }
 }
 
+// FIXME: This needs to be in a header
+char *getlogin() {
+    return getenv("USER");
+}
+
 
 /*
  * Other People's Code 
