@@ -16,7 +16,7 @@ configure_binutils = --target=mips-unknown-elf
 
 version_newlib = 1.11.0
 url_newlib = http://mirrors.rcn.net/pub/sourceware/newlib/newlib-$(version_newlib).tar.gz
-patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-vasprintf.patch
+patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-vasprintf.patch newlib-nomemcpy.patch
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
 url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
@@ -40,12 +40,42 @@ export PATH
 PATCH = $(shell test `uname` = SunOS && echo gpatch || echo patch)
 
 tasks/full_toolchain: tasks/build_binutils tasks/build_gcc_step2 tasks/build_libc
+	for f in crt0.o support.o support_aux.o; do \
+		rm -f "$(usr)/mips-unknown-elf/lib/$$f"; \
+		ln -s "$(root)/build/org/ibex/nestedvm/$$f" "$(usr)/mips-unknown-elf/lib/$$f"; \
+	done
+
+	rm -f "$(usr)/mips-unknown-elf/lib/linker.ld"
+	ln -s "$(root)/src/org/ibex/nestedvm/linker.ld" "$(usr)/mips-unknown-elf/lib/linker.ld"
+
+	if [ ! -e "$(usr)/mips-unknown-elf/include/getopt.h" ]; then \
+		echo '#include <unistd.h>' > "$(usr)/mips-unknown-elf/include/getopt.h"; \
+	fi
+	
+	mips-unknown-elf-gcc -dumpspecs \
+		| sed '/startfile:$$/{n;s/crt0%O%s/crt0%O%s support%O%s support_aux%O%s/;};' \
+		| sed '/link_command:$$/{n;s/%{T\*}/%{T*} %{!T:-T linker.ld%s}/;};' \
+		> "$(usr)/lib/gcc-lib/mips-unknown-elf/$(version_gcc)/specs"
+		
 	touch $@
 
-tasks/build_gcc: tasks/build_binutils
-tasks/build_newlib: tasks/build_gcc
+tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob
+	# HACK: Get the top level makefile to build the support stuff
+	make -s -C $(root) build/org/ibex/nestedvm/{crt0.o,support.o,support_aux.o}
 
-tasks/build_libc: tasks/build_newlib tasks/build_regex tasks/build_openbsdglob
+	# Add our support stuff to libc
+	mips-unknown-elf-ar sr $(libc_a)  $(root)/build/org/ibex/nestedvm/{support.o,support_aux.o}
+	rm -f $(cross_root)/lib/crt0.o
+	cp $(root)/build/org/ibex/nestedvm/crt0.o $(cross_root)/lib/crt0.o
+
+	touch $@
+
+tasks/build_linker: tasks/build_binutils $(root)/src/org/ibex/nestedvm/linker.ld
+	cp $(root)/src/org/ibex/nestedvm/linker.ld $(cross_root)/lib/ldscripts/nestedvm.ld
+	for f in $(cross_root)/lib/ldscripts/elf32ebmip.*; do \
+		rm -f "$$f"; \
+		ln -s nestedvm.ld "$$f"; \
+	done
 	touch $@
 
 clean_%:

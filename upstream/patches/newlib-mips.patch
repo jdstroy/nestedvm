@@ -260,3 +260,51 @@ diff -rNu ../newlib-1.11.0.orig/newlib/libc/include/sys/dirent.h ./newlib/libc/i
  /* The first argument to kill should be pid_t.  Right now
     <sys/types.h> always defines pid_t to be int.  If that ever
     changes, then we will need to do something else, perhaps along the
+--- newlib/libc/include/stdlib.h.orig	2004-05-20 04:50:42.000000000 -0400
++++ newlib/libc/include/stdlib.h	2004-05-20 05:13:20.000000000 -0400
+@@ -156,9 +156,8 @@
+ 
+ #ifndef __CYGWIN__
+ _VOID	_EXFUN(cfree,(_PTR));
+-#else
+-char *	_EXFUN(realpath,(const char *, char *));
+ #endif
++char *	_EXFUN(realpath,(const char *, char *));
+ void	_EXFUN(unsetenv,(const char *__string));
+ void	_EXFUN(_unsetenv_r,(struct _reent *, const char *__string));
+ int	_EXFUN(random,(_VOID));
+@@ -183,6 +182,8 @@
+ 
+ _VOID	_EXFUN(__eprintf,(const char *, const char *, unsigned int, const char *));
+ 
++int _EXFUN(daemon,(int,int));
++
+ #ifdef __CYGWIN__
+ #undef _malloc_r
+ #define _malloc_r(r, s) malloc (s)
+--- newlib/libc/include/sys/resource.h.orig	2004-05-19 21:37:03.000000000 -0400
++++ newlib/libc/include/sys/resource.h	2004-05-20 00:14:32.000000000 -0400
+@@ -11,5 +11,12 @@
+ 	struct timeval ru_stime;	/* system time used */
+ };
+ 
++#define PRIO_PROCESS 0
++#define PRIO_MIN -20
++#define PRIO_MAX 20
++
++int getpriority(int which, int who);
++int setpriority(int which, int who, int prio);
++
+ #endif
+ 
+--- newlib/libc/include/sys/signal.h.orig	2004-05-19 23:21:25.000000000 -0400
++++ newlib/libc/include/sys/signal.h	2004-05-20 00:12:55.000000000 -0400
+@@ -117,7 +117,7 @@
+ 
+ #define SA_NOCLDSTOP 1  /* only value supported now for sa_flags */
+ 
+-#ifdef __CYGWIN__
++#if 1
+ # define SA_RESTART   0x10000000 /* Restart syscall on signal return.  */
+ # define SA_NODEFER   0x40000000 /* Don't automatically block the signal when
+                                     its handler is being executed.  */

@@ -11,8 +11,9 @@
 #include <signal.h>
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
-#include <nestedvm/sockets.h>
 #include <paths.h>
+
+#include <nestedvm/socket.h>
 
 int _syscall_set_errno(struct _reent *ptr, int err) {
     ptr->_errno = -err;
