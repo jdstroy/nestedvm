@@ -1,13 +1,12 @@
 # Inspired by XWT's Makefile.upstream
 
 version_gcc = 3.3
-version_gpc = 20030830
-version_texinputs = 1.0
+
 url_gcc-core = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
 url_gcc-c++ = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
 patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
-configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++"
+configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
 
 version_gpc = 20030830
 url_gpc = http://www.gnu-pascal.de/alpha/gpc-$(version_gpc).tar.gz
@@ -86,6 +85,9 @@ gpc_flags += -Wl,-T,$(usr)/mips-unknown-elf/lib/linker.ld
 # FIXME ugly path hacks evil bad
 nestedvm := java -cp $(usr)/../build/bcel/bcel-5.1.jar:$(usr)/../../build org.ibex.nestedvm.Compiler -outformat class
 
+version_texinputs = 1.0
+url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
+
 tasks/download_tex:  ; mkdir -p build/tex; touch $@
 build/tex/tex.web:   ; curl -o $@ http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web
 build/dtex/tangle.p: ; curl http://www.gnu-pascal.de/crystal/gpc/en/attachments/5593/tangle.p.gz | zcat > $@
@@ -109,17 +111,6 @@ tasks/build_tex: build/tex/tex.mips
 	touch $@ 
 tasks/extract_texinputs: tasks/build_tex tasks/download_texinputs
 	cd build/tex; tar xvzf ../../download/texinputs-1.0.tgz
-	touch $@
-
-tasks/extract_linpack: tasks/download_linpack ; touch $@
-tasks/download_linpack:
-	mkdir -p build/linpack
-	cd build/linpack; wget -N http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
-	touch $@
-
-tasks/build_linpack: tasks/full_toolchain tasks/extract_linpack
-	cd build/linpack; $(g77) linpack_bench.f $(g77_flags) -o linpack.mips
-	cd build/linpack; $(nestedvm) -o unixruntime -outfile Linpack.class Linpack linpack.mips
 	touch $@
 
 tasks/download_%:
@@ -161,23 +152,6 @@ tasks/build_%: tasks/patch_%
 	touch $@
 
 tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
-	for f in crt0.o support.o support_aux.o; do \
-		rm -f "$(usr)/mips-unknown-elf/lib/$$f"; \
-		ln -s "$(root)/build/org/ibex/nestedvm/$$f" "$(usr)/mips-unknown-elf/lib/$$f"; \
-	done
-
-	rm -f "$(usr)/mips-unknown-elf/lib/linker.ld"
-	ln -s "$(root)/src/org/ibex/nestedvm/linker.ld" "$(usr)/mips-unknown-elf/lib/linker.ld"
-
-	if [ ! -e "$(usr)/mips-unknown-elf/include/getopt.h" ]; then \
-		echo '#include <unistd.h>' > "$(usr)/mips-unknown-elf/include/getopt.h"; \
-	fi
-	
-	mips-unknown-elf-gcc -dumpspecs \
-		| sed '/startfile:$$/{n;s/crt0%O%s/crt0%O%s support%O%s support_aux%O%s/;};' \
-		| sed '/link_command:$$/{n;s/%{T\*}/%{T*} %{!T:-T linker.ld%s}/;};' \
-		> "$(usr)/lib/gcc-lib/mips-unknown-elf/$(version_gcc)/specs"
-		
 	mkdir -p $(usr)
 	mkdir -p build/gcc-obj && cd build/gcc-obj && \
 		echo | ../gcc-$(version_gcc)/configure --prefix=$(usr) $(configure_gcc_step2) && \

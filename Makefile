@@ -199,10 +199,9 @@ tex.jar: $(mips_objects) $(runtime_classes:%=build/org/ibex/nestedvm/%.class) up
 	echo -e "Manifest-Version: 1.0\nMain-Class: TeX\n" > .manifest
 	cp upstream/build/tex/TeX.class build
 	cd build && jar cfm ../$@ ../.manifest \
-		TeX.class \
 		$(runtime_classes:%=org/ibex/nestedvm/%.class) \
-		org/ibex/nestedvm/*.class \
-		org/ibex/nestedvm/util/*.class
+		org/ibex/nestedvm/Runtime\$$*.class \
+		org/ibex/nestedvm/util/Seekable\$$*.class
 
 runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 	cd build && jar cf ../$@ \
@@ -427,7 +426,6 @@ doc/charts/%.pdf: doc/charts/%.dat doc/charts/%.gnuplot
 
 tex := java -cp $(usr)/../../build:.. TeX
 
-#tex := java -cp $(usr)/../../build:.. org.ibex.nestedvm.Interpreter ../tex.mips
 doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf) tex.jar upstream/tasks/extract_texinputs
 	cp upstream/build/tex/tex.pool upstream/build/tex/texinputs/tex.pool
 	cd upstream/build/tex/texinputs; echo '\latex.ltx' | $(tex)
