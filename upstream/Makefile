@@ -167,7 +167,6 @@ version_busybox = 1.00-pre9
 url_busybox = http://busybox.net/downloads/busybox-$(version_busybox).tar.gz
 patches_busybox = busybox.patch
 
-
 tasks/extract_libjpeg: tasks/download_libjpeg
 	mkdir -p build
 	cd build && \

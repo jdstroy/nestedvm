@@ -543,7 +543,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
         
-        private static class MP {
+        private static class MP implements Comparable {
             public MP(String path, FS fs) { this.path = path; this.fs = fs; }
             public String path;
             public FS fs;
@@ -650,7 +650,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
 
         public synchronized Object exec(UnixRuntime r, String path) throws ErrnoException {
             // FIXME: Hideous hack to make a standalone busybox possible
-            if(path.equals("bin/busybox") && r.getClass().getName().endsWith("BusyBox"))
+            if(path.equals("bin/busybox") && Boolean.valueOf(getSystemProperty("nestedvm.busyboxhack")).booleanValue())
                 return r.getClass();
             FStat fstat = stat(r,path);
             if(fstat == null) return null;
@@ -986,16 +986,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
         
         private FD devZeroFD = new FD() {
-            public boolean readable() { return true; }
-            public boolean writable() { return true; }
             public int read(byte[] a, int off, int length) { Arrays.fill(a,off,off+length,(byte)0); return length; }
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }
             public FStat _fstat() { return new DevFStat(){ public int inode() { return ZERO_INODE; } }; }
         };
         private FD devNullFD = new FD() {
-            public boolean readable() { return true; }
-            public boolean writable() { return true; }
             public int read(byte[] a, int off, int length) { return 0; }
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }

@@ -730,6 +730,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             return hostFSDirFD(f,data);
         }
         
+        // FIXME: Truncate
         final Seekable.File sf;
         try {
             sf = new Seekable.File(f,write);
@@ -802,6 +803,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     /** The stat/fstat syscall helper */
+    // FIXME: Populate uid/gid/nlink
     int stat(FStat fs, int addr) throws FaultException {
         memWrite(addr+0,(fs.dev()<<16)|(fs.inode()&0xffff)); // st_dev (top 16), // st_ino (bottom 16)
         memWrite(addr+4,((fs.type()&0xf000))|(fs.mode()&0xfff)); // st_mode
@@ -1339,7 +1341,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public int pc;
         
         public CPUState dup() {
-                CPUState c = new CPUState();
+            CPUState c = new CPUState();
             c.hi = hi;
             c.lo = lo;
             c.fcsr = fcsr;
