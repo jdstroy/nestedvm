@@ -942,7 +942,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 ret = callJavaCB.call(a,b,c,d);
             } catch(RuntimeException e) {
                 System.err.println("Error while executing callJavaCB");
-                    e.printStackTrace();
+                e.printStackTrace();
                 ret = 0;
             }
             state = RUNNING;
