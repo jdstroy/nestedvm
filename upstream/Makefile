@@ -51,7 +51,6 @@ tasks/build_gcc: tasks/build_linker
 tasks/build_newlib: tasks/build_gcc
 
 cross_root := $(usr)/mips-unknown-elf
-libc_a := $(cross_root)/lib/libc.a
 
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
@@ -95,12 +94,16 @@ tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
 	cd $(cross_root)/include && sh $<
 	touch $@
 
-tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob misc/extraheaders.sh $(patsubst %,$(root)/build/org/ibex/nestedvm/%.o, crt0 support support_aux)
-	# HACK: Get the top level makefile to build the support stuff
-	$(MAKE) -s -C $(root) $(patsubst %,build/org/ibex/nestedvm/%.o, crt0 support support_aux)
+top_lev_stuff := $(patsubst %,../build/org/ibex/nestedvm/%.o, crt0 support support_aux)
 
+$(top_lev_stuff):
+	# HACK: Get the top level makefile to build the support stuff
+	$(MAKE) -C .. $(top_lev_stuff:../%=%)
+
+tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob misc/extraheaders.sh $(top_lev_stuff)
 	# Add our support stuff to libc
-	mips-unknown-elf-ar sr $(libc_a) $(patsubst %,$(root)/build/org/ibex/nestedvm/%.o, support support_aux)
+	mips-unknown-elf-ar sr $(cross_root)/lib/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
+	mips-unknown-elf-ar sr $(cross_root)/lib/single-float/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
 	rm -f $(cross_root)/lib/crt0.o
 	cp $(root)/build/org/ibex/nestedvm/crt0.o $(cross_root)/lib/crt0.o
 

@@ -46,8 +46,8 @@ diff -urN ../gcc-3.3.1/gcc/config/mips/t-unknown ./gcc/config/mips/t-unknown
 --- ../gcc-3.3.1/gcc/config/mips/t-unknown	Wed Dec 31 19:00:00 1969
 +++ ./gcc/config/mips/t-unknown	Mon Sep  1 01:19:35 2003
 @@ -0,0 +1,3 @@
-+MULTILIB_OPTIONS= 
-+MULTILIB_DIRNAMES = 
++MULTILIB_OPTIONS= msingle-float
++MULTILIB_DIRNAMES = single-float
 +MULTILIB_MATCHES = 
 diff -urN ../gcc-3.3.1/gcc/config.gcc ./gcc/config.gcc
 --- ../gcc-3.3.1/gcc/config.gcc	Fri Jun 27 07:44:22 2003

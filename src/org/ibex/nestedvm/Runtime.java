@@ -2,8 +2,6 @@
 // Based on org.xwt.imp.MIPS by Adam Megacz
 // Portions Copyright 2003 Adam Megacz
 
-// FEATURE: Add a patch to gcc that enabled -Wall -Werror by default
-
 package org.ibex.nestedvm;
 
 import org.ibex.nestedvm.util.*;

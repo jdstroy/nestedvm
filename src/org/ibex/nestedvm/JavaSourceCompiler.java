@@ -33,6 +33,7 @@ public class JavaSourceCompiler extends Compiler {
     }
     
     protected void _go() throws Exn, IOException {
+        if(singleFloat) throw new Exn("JavaSourceCompiler doesn't support singleFloat");
         String packageName;
         String className;
         if (fullClassName.indexOf('.') != -1) {

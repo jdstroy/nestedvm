@@ -5,9 +5,7 @@ import java.io.*;
 import org.ibex.nestedvm.util.*;
 import org.ibex.classgen.*;
 
-// FEATURE: Use IINC where possible
-// FEATURE: Some kind of peephole optimization
-// FEATURE: Special mode to support single-precision only - regs are floats not ints
+// FEATURE: Eliminate unnecessary use of SWAP
 
 /* FEATURE: Span large binaries across several classfiles
  * We should be able to do this with no performance penalty
@@ -56,7 +54,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         try {
             __go();
         } catch(ClassGen.Exn e) {
-            e.printStackTrace();
+            e.printStackTrace(warn);
             throw new Exn("Class generation exception: " + e.toString());
         }
     }
@@ -76,7 +74,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         cg.addField("lo",Type.INT,ACC_PRIVATE);
         cg.addField("fcsr",Type.INT,ACC_PRIVATE);
         for(int i=1;i<32;i++) cg.addField("r" + i,Type.INT,ACC_PRIVATE);
-        for(int i=0;i<32;i++) cg.addField("f" + i,Type.INT,ACC_PRIVATE);
+        for(int i=0;i<32;i++) cg.addField("f" + i,singleFloat ? Type.FLOAT : Type.INT,ACC_PRIVATE);
         
         clinit = cg.addMethod("<clinit>",Type.VOID,Type.NO_ARGS,ACC_PRIVATE|ACC_STATIC);
         
@@ -276,12 +274,14 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             setCPUState.add(ALOAD_2);
             setCPUState.add(LDC,i);
             setCPUState.add(IALOAD);
-            setCPUState.add(PUTFIELD,new FieldRef(me,"f"+i,Type.INT));
+            if(singleFloat) setCPUState.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
+            setCPUState.add(PUTFIELD,new FieldRef(me,"f"+i,singleFloat ? Type.FLOAT : Type.INT));
             
             getCPUState.add(ALOAD_2);
             getCPUState.add(LDC,i);
             getCPUState.add(ALOAD_0);
-            getCPUState.add(GETFIELD,new FieldRef(me,"f"+i,Type.INT));
+            getCPUState.add(GETFIELD,new FieldRef(me,"f"+i,singleFloat ? Type.FLOAT: Type.INT));
+            if(singleFloat) getCPUState.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"floatToIntBits",Type.INT,new Type[]{Type.FLOAT}));
             getCPUState.add(IASTORE);            
         }
         
@@ -424,7 +424,13 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 continue;
             }
             try {
+                int o = preSetRegStackPos;
                 skipNext = emitInstruction(addr,insn,nextInsn);
+                if(o != preSetRegStackPos) throw new Exn("here");
+            } catch(Exn e) {
+                e.printStackTrace(warn);
+                warn.println("Exception at " + toHex(addr));
+                throw e;                
             } catch(RuntimeException e) {
                 warn.println("Exception at " + toHex(addr));
                 throw e;
@@ -605,12 +611,12 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         int fd = (insn >>> 6) & 0x1f;
         int subcode = insn & 0x3f;                     // bits 0-5 
         int breakCode = (insn >>> 6) & 0xfffff;         // bits 6-20
-
+    
         int jumpTarget = (insn & 0x03ffffff);          // bits 0-25
         int unsignedImmediate = insn & 0xffff;
         int signedImmediate = (insn << 16) >> 16;
         int branchTarget = signedImmediate;
-
+    
         // temporaries
         int b1,b2;
         
@@ -1039,9 +1045,16 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         case 8: // ADDI
             throw new Exn("ADDI (add immediate with oveflow trap) not suported");
         case 9: // ADDIU
-            preSetReg(R+rt);
-            addiu(rs,signedImmediate);
-            setReg();            
+            if(rs != 0 && signedImmediate != 0 && rs == rt && doLocal(rt) && signedImmediate >= -32768 && signedImmediate <= 32767) {
+                // HACK: This should be a little cleaner
+                regLocalReadCount[rt]++;
+                regLocalWriteCount[rt]++;
+                mg.add(IINC, new MethodGen.Pair(getLocalForReg(rt),signedImmediate));
+            } else {
+                preSetReg(R+rt);
+                addiu(rs,signedImmediate);
+                setReg();
+            }
             break;
         case 10: // SLTI
             preSetReg(R+rt);
@@ -1120,10 +1133,8 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 break;
             case 4: // MTC.1
                 preSetReg(F+rd);
-                if(rt != 0)
-                    pushReg(R+rt);
-                else
-                    mg.add(LDC,0);
+                if(rt != 0) pushReg(R+rt);
+                else mg.add(ICONST_0);
                 setReg();
                 break;
             case 6: // CTC.1
@@ -1198,13 +1209,12 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                     preSetReg(F+fd);
                     pushReg(F+fs);
                     setReg();
-                    
+                
                     if(d) {
                         preSetReg(F+fd+1);
                         pushReg(F+fs+1);
                         setReg();
                     }
-                    
                     break;
                 case 7: // NEG.X
                     preSetDouble(F+fd,d);
@@ -1684,7 +1694,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     
     private int getLocalForReg(int reg) {
         if(regLocalMapping[reg] != 0) return regLocalMapping[reg];
-        if(nextAvailLocal == 0) nextAvailLocal = onePage ? 3 : 4;
+        if(nextAvailLocal == 0) nextAvailLocal = onePage ? 4 : 5;
         regLocalMapping[reg] = nextAvailLocal++;
         return regLocalMapping[reg];
     }
@@ -1703,13 +1713,13 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         for(int i=0;i<REG_COUNT;i++) {
             if(regLocalMapping[i] == 0) continue;
             mg.set(p++,ALOAD_0);
-            mg.set(p++,GETFIELD,new FieldRef(me,regField(i),Type.INT));
+            mg.set(p++,GETFIELD,new FieldRef(me,regField[i],Type.INT));
             mg.set(p++,ISTORE,regLocalMapping[i]);
             
             if(regLocalWriteCount[i] > 0) {
                 mg.add(ALOAD_0);
                 mg.add(ILOAD,regLocalMapping[i]);
-                mg.add(PUTFIELD,new FieldRef(me,regField(i),Type.INT));
+                mg.add(PUTFIELD,new FieldRef(me,regField[i],Type.INT));
             }
         }
     }
@@ -1719,7 +1729,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             if(regLocalWriteCount[i] > 0) {
                 mg.add(ALOAD_0);
                 mg.add(ILOAD,regLocalMapping[i]);
-                mg.add(PUTFIELD,new FieldRef(me,regField(i),Type.INT));
+                mg.add(PUTFIELD,new FieldRef(me,regField[i],Type.INT));
             }
         }
     }
@@ -1737,8 +1747,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             
             "hi","lo","fcsr"
     };
-    
-    private static String regField(int reg) { return regField[reg]; }
         
     private int pushRegWZ(int reg) {
         if(reg == R+0) {
@@ -1759,10 +1767,13 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         if(doLocal(reg)) {
             regLocalReadCount[reg]++;
             mg.add(ILOAD,getLocalForReg(reg));
-            
+        } else if(reg >= F+0 && reg <= F+31 && singleFloat) {
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,regField[reg],Type.FLOAT));
+            mg.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"floatToIntBits",Type.INT,new Type[]{Type.FLOAT}));
         } else {
             mg.add(ALOAD_0);
-            mg.add(GETFIELD,new FieldRef(me,regField(reg),Type.INT));
+            mg.add(GETFIELD,new FieldRef(me,regField[reg],Type.INT));
         }
         return h;
     }
@@ -1772,7 +1783,6 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     
     // This can push ONE or ZERO words to the stack. If it pushed one it returns true
     private boolean preSetReg(int reg) {
-        regField(reg); // just to check for validity
         preSetRegStack[preSetRegStackPos] = reg;
         preSetRegStackPos++;
         if(doLocal(reg)) {
@@ -1791,8 +1801,11 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         if(doLocal(reg)) {
             mg.add(ISTORE,getLocalForReg(reg));
             regLocalWriteCount[reg]++;
+        } else if(reg >= F+0 && reg <= F+31 && singleFloat) {
+            mg.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
+            mg.add(PUTFIELD,new FieldRef(me,regField[reg],Type.FLOAT));            
         } else {
-            mg.add(PUTFIELD,new FieldRef(me,regField(reg),Type.INT));
+            mg.add(PUTFIELD,new FieldRef(me,regField[reg],Type.INT));
         }
         return h;
     }
@@ -1802,12 +1815,13 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         return mg.add(PUTFIELD,new FieldRef(me,"pc",Type.INT));
     }
     
-    //unused - private InstructionHandle pushFloat(int reg) throws CompilationException { return pushDouble(reg,false); }
     //unused - private InstructionHandle pushDouble(int reg) throws CompilationException { return pushDouble(reg,true); }
+    private int pushFloat(int reg) throws Exn { return pushDouble(reg,false); }
     private int pushDouble(int reg, boolean d) throws Exn {
         if(reg < F || reg >= F+32) throw new IllegalArgumentException(""+reg);
         int h = mg.size();
         if(d) {
+            if(singleFloat) throw new Exn("Double operations not supported when singleFloat is enabled");
             if(reg == F+31) throw new Exn("Tried to use a double in f31");
             pushReg(reg+1);
             mg.add(I2L);
@@ -1819,6 +1833,9 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             mg.add(LAND);
             mg.add(LOR);
             mg.add(INVOKESTATIC,new MethodRef(Type.DOUBLE_OBJECT,"longBitsToDouble",Type.DOUBLE,new Type[]{Type.LONG}));
+        } else if(singleFloat) {
+            mg.add(ALOAD_0);
+            mg.add(GETFIELD,new FieldRef(me,regField[reg],Type.FLOAT));
         } else {
             pushReg(reg);
             mg.add(INVOKESTATIC,new MethodRef("java.lang.Float","intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
@@ -1837,6 +1854,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         if(reg < F || reg >= F+32) throw new IllegalArgumentException(""+reg);
         int h = mg.size();
         if(d) {
+            if(singleFloat) throw new Exn("Double operations not supported when singleFloat is enabled");
             if(reg == F+31) throw new Exn("Tried to use a double in f31");
             mg.add(INVOKESTATIC,new MethodRef(Type.DOUBLE_OBJECT,"doubleToLongBits",Type.LONG,new Type[]{Type.DOUBLE}));
             mg.add(DUP2);
@@ -1848,6 +1866,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             setReg();
             mg.add(L2I);
             setReg(); // preSetReg was already done for this by preSetDouble
+        } else if(singleFloat) {
+            // HACK: Clean this up
+            preSetRegStackPos--;
+            mg.add(PUTFIELD,new FieldRef(me,regField[reg],Type.FLOAT));
         } else {
             //h = a(fac.createInvoke("java.lang.Float","floatToRawIntBits",Type.INT,new Type[]{Type.FLOAT},INVOKESTATIC));
             mg.add(INVOKESTATIC,new MethodRef(Type.FLOAT_OBJECT,"floatToRawIntBits",Type.INT,new Type[]{Type.FLOAT}));
@@ -1856,6 +1878,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         return h;
     }
     
+    private final int tmpVar = 1;
     private void pushTmp() { mg.add(ILOAD_1); }
     private void setTmp() { mg.add(ISTORE_1); }
     

@@ -425,7 +425,8 @@ public abstract class Compiler implements Registers {
         "pageSize",         "The page size (must be a power of two)",
         "totalPages",       "Total number of pages (total mem = pageSize*totalPages, must be a power of two)",
         "onePage",          "One page hack (FIXME: document this better)",
-        "lessConstants",    "Use less constants at the cost of speed (FIXME: document this better)"
+        "lessConstants",    "Use less constants at the cost of speed (FIXME: document this better)",
+        "singleFloat",      "Support single precision (32-bit) FP ops only"
     };
         
     private Option getOption(String name) {

@@ -305,7 +305,7 @@ paranoiatest: build/tests/Paranoia.class
 # Linpack
 build/tests/Linpack.mips: $(tasks)/download_linpack $(tasks)/build_gcc_step2
 	mkdir -p `dirname "$@"`
-	$(MIPS_G77) $(MIPS_CFLAGS) $(MIPS_LDFLAGS) -o $@ upstream/download/linpack_bench.f -lc
+	$(MIPS_G77) $(MIPS_CFLAGS) $(Linpack_CFLAGS) $(MIPS_LDFLAGS) -o $@ upstream/download/linpack_bench.f -lc
 
 linpacktest: build/tests/Linpack.class
 	$(JAVA) -cp build tests.Linpack
