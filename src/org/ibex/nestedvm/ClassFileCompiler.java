@@ -477,7 +477,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
     private InstructionHandle realStart;
     private MethodGen curMethod;
     
-    private boolean jumpable(int addr) { return jumpableAddresses.contains(new Integer(addr)); }
+    private boolean jumpable(int addr) { return jumpableAddresses.get(new Integer(addr)) != null; }
     
     private void emitText(int addr, DataInputStream dis, int size) throws Exn,IOException {
         if(textDone) throw new Exn("Multiple text segments");
@@ -570,7 +570,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             pushConst(firstAddrOfNext);
             setPC();
             // mark the start of the next method as jumpable
-            jumpableAddresses.add(new Integer(firstAddrOfNext));
+            jumpableAddresses.put(new Integer(firstAddrOfNext),Boolean.TRUE);
         }
         
         insnList.move(returnHandle,insnList.getEnd());
@@ -648,7 +648,7 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
         //System.err.println("Delay slot is jumpable - This code is untested + " + toHex(nextInsn));
         if(pc+4==endOfMethod) {
             // the delay slot is at the start of the next method
-            jumpableAddresses.add(new Integer(pc+8)); // make the 2nd insn of the next method jumpable
+            jumpableAddresses.put(new Integer(pc+8),Boolean.TRUE); // make the 2nd insn of the next method jumpable
             branch(pc,pc+8); // jump over it
             //System.err.println("delay slot: " + toHex(pc+8));
             unreachable = true;

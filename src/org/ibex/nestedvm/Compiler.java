@@ -83,7 +83,7 @@ public abstract class Compiler implements Registers {
     }
     
     /** A set of all addresses that can be jumped too (only available if pruneCases == true) */
-    protected Set jumpableAddresses;
+    protected Hashtable jumpableAddresses;
     
     /** Some important symbols */
     ELF.Symbol userInfo, gp;
@@ -211,9 +211,9 @@ public abstract class Compiler implements Registers {
         
         if(pruneCases) {
             // Find all possible branches
-            jumpableAddresses = new HashSet();
+            jumpableAddresses = new Hashtable();
             
-            jumpableAddresses.add(new Integer(elf.header.entry));
+            jumpableAddresses.put(new Integer(elf.header.entry),Boolean.TRUE);
             
             ELF.SHeader text = elf.sectionWithName(".text");
             if(text == null) throw new Exn("No .text segment");
@@ -244,13 +244,13 @@ public abstract class Compiler implements Registers {
         _go();
     }
     
-    private void findBranchesInSymtab(ELF.Symtab symtab, Set jumps) {
+    private void findBranchesInSymtab(ELF.Symtab symtab, Hashtable jumps) {
         ELF.Symbol[] symbols = symtab.symbols;
         int n=0;
         for(int i=0;i<symbols.length;i++) {
             ELF.Symbol s = symbols[i];
             if(s.type == ELF.Symbol.STT_FUNC) {
-                if(jumps.add(new Integer(s.addr))) {
+                if(jumps.put(new Integer(s.addr),Boolean.TRUE) == null) {
                     //System.err.println("Adding symbol from symtab: " + s.name + " at " + toHex(s.addr));
                     n++;
                 }
@@ -259,7 +259,7 @@ public abstract class Compiler implements Registers {
         if(printStats) System.err.println("Found " + n + " additional possible branch targets in Symtab");
     }
     
-    private void findBranchesInText(int base, DataInputStream dis, int size, Set jumps) throws IOException {
+    private void findBranchesInText(int base, DataInputStream dis, int size, Hashtable jumps) throws IOException {
         int count = size/4;
         int pc = base;
         int n=0;
@@ -282,10 +282,10 @@ public abstract class Compiler implements Registers {
                 case 0:
                     switch(subcode) {
                         case 9: // JALR
-                            if(jumps.add(new Integer(pc+8))) n++; // return address
+                            if(jumps.put(new Integer(pc+8),Boolean.TRUE) == null) n++; // return address
                             break;
                         case 12: // SYSCALL
-                            if(jumps.add(new Integer(pc+4))) n++; 
+                            if(jumps.put(new Integer(pc+4),Boolean.TRUE) == null) n++; 
                             break;
                     }
                     break;
@@ -293,31 +293,31 @@ public abstract class Compiler implements Registers {
                     switch(rt) {
                         case 16: // BLTZAL
                         case 17: // BGTZAL
-                            if(jumps.add(new Integer(pc+8))) n++; // return address
+                            if(jumps.put(new Integer(pc+8),Boolean.TRUE) == null) n++; // return address
                             // fall through
                         case 0: // BLTZ
                         case 1: // BGEZ
-                            if(jumps.add(new Integer(pc+branchTarget*4+4))) n++;
+                            if(jumps.put(new Integer(pc+branchTarget*4+4),Boolean.TRUE) == null) n++;
                             break;
                     }
                     break;
                 case 3: // JAL
-                    if(jumps.add(new Integer(pc+8))) n++; // return address
+                    if(jumps.put(new Integer(pc+8),Boolean.TRUE) == null) n++; // return address
                     // fall through
                 case 2: // J
-                    if(jumps.add(new Integer((pc&0xf0000000)|(jumpTarget << 2)))) n++;
+                    if(jumps.put(new Integer((pc&0xf0000000)|(jumpTarget << 2)),Boolean.TRUE) == null) n++;
                     break;
                 case 4: // BEQ
                 case 5: // BNE
                 case 6: // BLEZ
                 case 7: // BGTZ
-                    if(jumps.add(new Integer(pc+branchTarget*4+4))) n++;
+                    if(jumps.put(new Integer(pc+branchTarget*4+4),Boolean.TRUE) == null) n++;
                     break;
                 case 9: { // ADDIU
                     if(pc - lui_pc[rs] <= 4*32) {
                         int t = (lui_val[rs]<<16)+signedImmediate;
                         if((t&3)==0 && t >= base && t < base+size) {
-                            if(jumps.add(new Integer(t))) {
+                            if(jumps.put(new Integer(t),Boolean.TRUE) == null) {
                                 //System.err.println("Possible jump to " + toHex(t) + " (" + inter.sourceLine(t) + ") from " + toHex(pc) + " (" + inter.sourceLine(pc) + ")");
                                 n++;
                             }
@@ -336,7 +336,7 @@ public abstract class Compiler implements Registers {
                 case 17: // FPU Instructions
                     switch(rs) {
                         case 8: // BC1F, BC1T
-                            if(jumps.add(new Integer(pc+branchTarget*4+4))) n++;
+                            if(jumps.put(new Integer(pc+branchTarget*4+4),Boolean.TRUE) == null) n++;
                             break;
                     }
                     break;
@@ -346,13 +346,13 @@ public abstract class Compiler implements Registers {
         if(printStats) System.err.println("Found " + n + " additional possible branch targets in Text segment");
     }
     
-    private void findBranchesInData(DataInputStream dis, int size, Set jumps, int textStart, int textEnd) throws IOException {
+    private void findBranchesInData(DataInputStream dis, int size, Hashtable jumps, int textStart, int textEnd) throws IOException {
         int count = size/4;
         int n=0;
         for(int i=0;i<count;i++) {
             int word = dis.readInt();
             if((word&3)==0 && word >= textStart && word < textEnd) {
-                if(jumps.add(new Integer(word))) {
+                if(jumps.put(new Integer(word),Boolean.TRUE) == null) {
                     //System.err.println("Added " + toHex(word) + " as possible branch target (fron data segment)");
                     n++;
                 }
@@ -388,7 +388,7 @@ public abstract class Compiler implements Registers {
         public void set(Object val) {
             if(field == null) return;
             try {
-                field.setAccessible(true);
+                /*field.setAccessible(true); NOT in JDK 1.1 */
                 field.set(Compiler.this,val);
             } catch(IllegalAccessException e) {
                 System.err.println(e);
@@ -397,7 +397,7 @@ public abstract class Compiler implements Registers {
         public Object get() {
             if(field == null) return null;
             try {
-                field.setAccessible(true);
+                /*field.setAccessible(true); NOT in JDK 1.1 */
                 return field.get(Compiler.this);
             } catch(IllegalAccessException e) {
                 System.err.println(e); return null;

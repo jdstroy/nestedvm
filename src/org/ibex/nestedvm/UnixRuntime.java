@@ -41,19 +41,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             ? userdir.substring(1) : "";
     }
     
-    // NOTE: getDisplayName() is a Java2 function
     private static String posixTZ() {
         StringBuffer sb = new StringBuffer();
         TimeZone zone = TimeZone.getDefault();
         int off = zone.getRawOffset() / 1000;
-        sb.append(zone.getDisplayName(false,TimeZone.SHORT));
+        sb.append(Platform.timeZoneGetDisplayName(zone,false,false));
         if(off > 0) sb.append("-");
         else off = -off;
         sb.append(off/3600); off = off%3600;
         if(off > 0) sb.append(":").append(off/60); off=off%60;
         if(off > 0) sb.append(":").append(off);
         if(zone.useDaylightTime())
-            sb.append(zone.getDisplayName(true,TimeZone.SHORT));
+            sb.append(Platform.timeZoneGetDisplayName(zone,true,false));
         return sb.toString();
     }
     
@@ -93,7 +92,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 synchronized(parent.children) {
                     int i = parent.activeChildren.indexOf(prev);
                     if(i == -1) throw new Error("should never happen");
-                    parent.activeChildren.set(i,this);
+                    parent.activeChildren.setElementAt(this,i);
                 }
             } else {
                 int newpid = -1;
@@ -194,12 +193,15 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         synchronized(children) {
             for(;;) {
                 if(pid == -1) {
-                    if(exitedChildren.size() > 0) done = (UnixRuntime)exitedChildren.remove(exitedChildren.size() - 1);
+                    if(exitedChildren.size() > 0) {
+                        done = (UnixRuntime)exitedChildren.elementAt(exitedChildren.size() - 1);
+                        exitedChildren.removeElementAt(exitedChildren.size() - 1);
+                    }
                 } else if(pid > 0) {
                     UnixRuntime t = gs.tasks[pid];
                     if(t.parent != this) return -ECHILD;
                     if(t.state == EXITED) {
-                        if(!exitedChildren.remove(t)) throw new Error("should never happen");
+                        if(!exitedChildren.removeElement(t)) throw new Error("should never happen");
                         done = t;
                     }
                 } else {
@@ -227,12 +229,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 UnixRuntime child = (UnixRuntime) e.nextElement();
                 gs.tasks[child.pid] = null;
             }
-            exitedChildren.clear();
+            exitedChildren.removeAllElements();
             for(Enumeration e = activeChildren.elements(); e.hasMoreElements(); ) {
                 UnixRuntime child = (UnixRuntime) e.nextElement();
                 child.parent = null;
             }
-            activeChildren.clear();
+            activeChildren.removeAllElements();
         }
         
         UnixRuntime _parent = parent;
@@ -243,8 +245,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(parent == null) {
                     gs.tasks[pid] = null;
                 } else {
-                    if(!parent.activeChildren.remove(this)) throw new Error("should never happen _exited: pid: " + pid);
-                    parent.exitedChildren.add(this);
+                    if(!parent.activeChildren.removeElement(this)) throw new Error("should never happen _exited: pid: " + pid);
+                    parent.exitedChildren.addElement(this);
                     parent.children.notify();
                 }
             }
@@ -287,7 +289,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             activeChildren = new Vector();
             exitedChildren = new Vector();
         }
-        activeChildren.add(r);
+        activeChildren.addElement(r);
         
         state.r[V0] = 0; // return 0 to child
         state.pc += 4; // skip over syscall instruction
@@ -531,6 +533,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return n;
     }
     
+    // FIXME: UDP is totally broken
+    
     static class SocketFD extends FD {
         public static final int TYPE_STREAM = 0;
         public static final int TYPE_DGRAM = 1;
@@ -552,7 +556,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public void setOptions() {
             try {
                 if(o != null && type() == TYPE_STREAM && !listen()) {
-                    ((Socket)o).setKeepAlive((options & SO_KEEPALIVE) != 0);
+                    Platform.socketSetKeepAlive((Socket)o,(options & SO_KEEPALIVE) != 0);
                 }
             } catch(SocketException e) {
                 if(STDERR_DIAG) e.printStackTrace();
@@ -584,8 +588,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     throw new ErrnoException(EIO);
                 }
             } else {
+                if(off != 0) throw new IllegalArgumentException("off must be 0");
                 DatagramSocket ds = (DatagramSocket) o;
-                dp.setData(a,off,length);
+                dp.setData(a);
+                dp.setLength(length);
                 try {
                     ds.receive(dp);
                 } catch(IOException e) {
@@ -605,8 +611,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     throw new ErrnoException(EIO);
                 }
             } else {
+                if(off != 0) throw new IllegalArgumentException("off must be 0");
                 DatagramSocket ds = (DatagramSocket) o;
-                dp.setData(a,off,length);
+                dp.setData(a);
+                dp.setLength(length);
                 try {
                     ds.send(dp);
                 } catch(IOException e) {
@@ -653,7 +661,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         InetAddress inetAddr;
         try {
-            inetAddr = InetAddress.getByAddress(ip);
+            inetAddr = Platform.inetAddressFromBytes(ip);
         } catch(UnknownHostException e) {
             return -EADDRNOTAVAIL;
         }
@@ -669,9 +677,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     break;
                 }
                 case SocketFD.TYPE_DGRAM: {
-                    DatagramSocket s = (DatagramSocket) fd.o;
-                    if(s == null) s = new DatagramSocket();
-                    s.connect(inetAddr,port);
+                    if(fd.dp == null) fd.dp = new DatagramPacket(null,0);
+                    fd.dp.setAddress(inetAddr);
+                    fd.dp.setPort(port);
                     break;
                 }
                 default:
@@ -763,7 +771,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             copyin(addr+4,ip,4);
         
             try {
-                inetAddr = InetAddress.getByAddress(ip);
+                inetAddr = Platform.inetAddressFromBytes(ip);
             } catch(UnknownHostException e) {
                 return -EADDRNOTAVAIL;
             }
@@ -849,8 +857,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         Socket s = (Socket) fd.o;
         
         try {
-            if(how == SHUT_RD || how == SHUT_RDWR) s.shutdownInput();
-            if(how == SHUT_WR || how == SHUT_RDWR) s.shutdownOutput();
+            if(how == SHUT_RD || how == SHUT_RDWR) Platform.socketHalfClose(s,false);
+            if(how == SHUT_WR || how == SHUT_RDWR) Platform.socketHalfClose(s,true);
         } catch(IOException e) {
             return -EIO;
         }
@@ -978,7 +986,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
         
-        private static class MP implements Comparable {
+        private static class MP implements Sort.Sortable {
             public MP(String path, FS fs) { this.path = path; this.fs = fs; }
             public String path;
             public FS fs;
@@ -1010,7 +1018,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             MP[] newMPS = new MP[oldLength + 1];
             if(oldLength != 0) System.arraycopy(mps,0,newMPS,0,oldLength);
             newMPS[oldLength] = new MP(path,fs);
-            Arrays.sort(newMPS);
+            Sort.sort(newMPS);
             mps = newMPS;
             int highdevno = 0;
             for(int i=0;i<mps.length;i++) highdevno = max(highdevno,mps[i].fs.devno);
@@ -1321,20 +1329,30 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(r.sm != null && !r.sm.allowWrite(f)) throw new ErrnoException(EACCES);
             if(f.exists() && f.isDirectory()) throw new ErrnoException(EEXIST);
             if(f.exists()) throw new ErrnoException(ENOTDIR);
-            File parent = f.getParentFile();
+            File parent = getParentFile(f);
             if(parent!=null && (!parent.exists() || !parent.isDirectory())) throw new ErrnoException(ENOTDIR);
             if(!f.mkdir()) throw new ErrnoException(EIO);            
+        }
+        
+        private static File getParentFile(File f) {
+            String p = f.getParent();
+            return p == null ? null : new File(f,p);
         }
         
         public class HostDirFD extends DirFD {
             private final File f;
             private final File[] children;
-            public HostDirFD(File f) { this.f = f; children = f.listFiles(); }
+            public HostDirFD(File f) {
+                this.f = f;
+                String[] l = f.list();
+                children = new File[l.length];
+                for(int i=0;i<l.length;i++) children[i] = new File(f,l[i]);
+            }
             public int size() { return children.length; }
             public String name(int n) { return children[n].getName(); }
             public int inode(int n) { return inodes.get(children[n].getAbsolutePath()); }
             public int parentInode() {
-                File parent = f.getParentFile();
+                File parent = getParentFile(f);
                 return parent == null ? -1 : inodes.get(parent.getAbsolutePath());
             }
             public int myInode() { return inodes.get(f.getAbsolutePath()); }
@@ -1421,7 +1439,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
         
         private FD devZeroFD = new FD() {
-            public int read(byte[] a, int off, int length) { Arrays.fill(a,off,off+length,(byte)0); return length; }
+            public int read(byte[] a, int off, int length) { 
+                /*Arrays.fill(a,off,off+length,(byte)0);*/
+                for(int i=off;i<off+length;i++) a[i] = 0;
+                return length;
+            }
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }
             public FStat _fstat() { return new DevFStat(){ public int inode() { return ZERO_INODE; } }; }

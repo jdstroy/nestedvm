@@ -359,7 +359,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 if(page == null) throw new WriteFaultException(a<<2);
                 int index = a&pageWordMask;
                 int n = min(c,pageWords-index);
-                Arrays.fill(page,index,index+n,fourBytes);
+                /* Arrays.fill(page,index,index+n,fourBytes);*/
+                for(int i=index;i<index+n;i++) page[i] = fourBytes;
                 a += n; c -= n;
             }
             addr = a<<2; count&=3;
@@ -721,8 +722,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         if((flags & (O_EXCL|O_CREAT)) == (O_EXCL|O_CREAT)) {
             try {
-                // NOTE: createNewFile is a Java2 function
-                if(!f.createNewFile()) throw new ErrnoException(EEXIST);
+                if(Platform.atomicCreateFile(f)) throw new ErrnoException(EEXIST);
             } catch(IOException e) {
                 throw new ErrnoException(EIO);
             }

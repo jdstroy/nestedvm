@@ -37,12 +37,14 @@ public class InodeCache {
         clear();
     }
     
+    private static void fill(Object[] a,Object o) { for(int i=0;i<a.length;i++) a[i] = o; }
+    private static void fill(short[] a, short s)  { for(int i=0;i<a.length;i++) a[i] = s; }
     public final void clear() {
         size = usedSlots = 0;
         mru = lru = -1;
-        Arrays.fill(keys,null);
-        Arrays.fill(inodes,SHORT_NULL);
-        Arrays.fill(reverse,SHORT_NULL);
+        fill(keys,null);
+        fill(inodes,SHORT_NULL);
+        fill(reverse,SHORT_NULL);
     }
     
     public final short get(Object key) {
