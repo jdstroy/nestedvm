@@ -102,8 +102,8 @@ build/org/xwt/mips/util/.Dummy.class:
 $(java_classes): build/org/xwt/mips/util/.Dummy.class
 endif
 
-$(java_classes): $(java_sources) $(java_gen_sources) $(bcel_jar)
-	$(JAVAC) -classpath $(classpath) -d build $(java_sources) $(java_gen_sources)
+$(java_classes): $(tasks)/unpack_bcel $(java_sources) $(java_gen_sources)
+	$(JAVAC) -classpath $(CLASSPATH) -d build $(java_sources) $(java_gen_sources)
 
 build/org/xwt/mips/UsermodeConstants.java: src/org/xwt/mips/syscalls.h $(errno_h) $(unistd_h)
 	@mkdir -p `dirname $@`
@@ -152,15 +152,15 @@ build/%.mips.stripped: build/%.mips
 # MIPS Compiler generated class compilation
 ifdef DO_JAVASOURCE
 
-build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class
-	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
+build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class $(tasks)/unpack_bcel 
+	$(JAVA) -cp $(CLASSPATH) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
 
 build/%.class: build/%.java build/org/xwt/mips/Runtime.class
 	$(JAVAC) $(JAVAC_NODEBUG_FLAGS) -classpath build -d build $<
 else
 
-build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class
-	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
+build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class $(tasks)/unpack_bcel 
+	$(JAVA) -cp $(CLASSPATH) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
 
 
 endif
@@ -175,7 +175,7 @@ clean:
 #
 # env.sh
 #
-env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class
+env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class $(tasks)/unpack_bcel 
 	@rm -f "$@~"
 	@echo 'PATH="$(mips2java_root)/build:$(mips2java_root)/upstream/install/bin:$$PATH"; export PATH' >> $@~
 	@echo 'CC=mips-unknown-elf-gcc; export CC' >> $@~
