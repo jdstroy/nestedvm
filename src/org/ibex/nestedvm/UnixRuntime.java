@@ -37,9 +37,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         super(pageSize,totalPages);
                 
         // FEATURE: Do the proper mangling for non-unix hosts
-        String userdir = getSystemProperty("user.dir");
+        String userdir = Platform.getProperty("user.dir");
         cwd = 
-            userdir != null && userdir.startsWith("/") && File.separatorChar == '/' && getSystemProperty("nestedvm.root") == null
+            userdir != null && userdir.startsWith("/") && File.separatorChar == '/' && Platform.getProperty("nestedvm.root") == null
             ? userdir.substring(1) : "";
     }
     
@@ -68,10 +68,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         String[] defaults = new String[6];
         int n=0;
         if(extra == null) extra = new String[0];
-        if(!envHas("USER",extra) && getSystemProperty("user.name") != null)
-            defaults[n++] = "USER=" + getSystemProperty("user.name");
-        if(!envHas("HOME",extra) && getSystemProperty("user.home") != null)
-            defaults[n++] = "HOME=" + getSystemProperty("user.home");
+        if(!envHas("USER",extra) && Platform.getProperty("user.name") != null)
+            defaults[n++] = "USER=" + Platform.getProperty("user.name");
+        if(!envHas("HOME",extra) && Platform.getProperty("user.home") != null)
+            defaults[n++] = "HOME=" + Platform.getProperty("user.home");
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
         if(!envHas("TERM",extra))  defaults[n++] = "TERM=vt100";
         if(!envHas("TZ",extra))    defaults[n++] = "TZ=" + posixTZ();
@@ -1049,7 +1049,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
 
         public synchronized Object exec(UnixRuntime r, String path) throws ErrnoException {
             // HACK: Hideous hack to make a standalone busybox possible
-            if(path.equals("bin/busybox") && Boolean.valueOf(getSystemProperty("nestedvm.busyboxhack")).booleanValue())
+            if(path.equals("bin/busybox") && Boolean.valueOf(Platform.getProperty("nestedvm.busyboxhack")).booleanValue())
                 return r.getClass();
             FStat fstat = stat(r,path);
             if(fstat == null) return null;
@@ -1229,16 +1229,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public File getRoot() { return root; }
         
         private static File hostRootDir() {
-            if(getSystemProperty("nestedvm.root") != null) {
-                File f = new File(getSystemProperty("nestedvm.root"));
+            if(Platform.getProperty("nestedvm.root") != null) {
+                File f = new File(Platform.getProperty("nestedvm.root"));
                 if(f.isDirectory()) return f;
                 // fall through to case below
             }
-            String cwd = getSystemProperty("user.dir");
+            String cwd = Platform.getProperty("user.dir");
             File f = new File(cwd != null ? cwd : ".");
             if(!f.exists()) throw new Error("Couldn't get File for cwd");
             f = new File(f.getAbsolutePath());
             while(f.getParent() != null) f = new File(f.getParent());
+            // HACK: This works around a bug in some versions of ClassPath
+            if(f.getPath().length() == 0) f = new File("/");
             return f;
         }
         

@@ -13,7 +13,10 @@ public abstract class Platform {
     static {
         float version;
         try {
-            version = Float.valueOf(System.getProperty("java.specification.version")).floatValue();
+            if(getProperty("java.vm.name").equals("SableVM"))
+                version = 1.2f;
+            else
+                version = Float.valueOf(getProperty("java.specification.version")).floatValue();
         } catch(Exception e) {
             System.err.println("WARNING: " + e + " while trying to find jvm version -  assuming 1.1");
             version = 1.1f;
@@ -32,6 +35,15 @@ public abstract class Platform {
             throw new Error("Error instansiating platform class");
         }
     }
+    
+    public static String getProperty(String key) {
+        try {
+            return System.getProperty(key);
+        } catch(SecurityException e) {
+            return null;
+        }
+    }
+    
     
     abstract boolean _atomicCreateFile(File f) throws IOException;
     public static boolean atomicCreateFile(File f) throws IOException { return p._atomicCreateFile(f); }

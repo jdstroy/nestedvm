@@ -158,7 +158,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             }
         }
     
-        InputStream stdin = Boolean.valueOf(getSystemProperty("nestedvm.textstdin")).booleanValue() ? new TextInputStream(System.in) : System.in;
+        InputStream stdin = Boolean.valueOf(Platform.getProperty("nestedvm.textstdin")).booleanValue() ? new TextInputStream(System.in) : System.in;
         addFD(new TerminalFD(stdin));
         addFD(new TerminalFD(System.out));
         addFD(new TerminalFD(System.err));
@@ -1391,14 +1391,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         else if(_byteBuf.length < size)
             _byteBuf = new byte[min(max(_byteBuf.length*2,size),MAX_CHUNK)];
         return _byteBuf;
-    }
-    
-    static String getSystemProperty(String key) {
-        try {
-            return System.getProperty(key);
-        } catch(SecurityException e) {
-            return null;
-        }
     }
     
     /** Decode a packed string */
