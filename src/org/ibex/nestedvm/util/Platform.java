@@ -8,7 +8,30 @@ import java.text.DateFormatSymbols;
 
 public abstract class Platform {
     Platform() { }
-    private static final Platform p=null;
+    private static final Platform p;
+    
+    static {
+        float version;
+        try {
+            version = Float.parseFloat(System.getProperty("java.specification.version"));
+        } catch(Exception e) {
+            System.err.println("WARNING: " + e + " while trying to find jvm version -  assuming 1.1");
+            version = 1.1f;
+        }
+        String platformClass;
+        if(version >= 1.4f) platformClass = "Jdk14";
+        else if(version >= 1.3f) platformClass = "Jdk13";
+        else if(version >= 1.2f) platformClass = "Jdk12";
+        else if(version >= 1.1f) platformClass = "Jdk11";
+        else throw new Error("JVM Specification version: " + version + " is too old. (see org.ibex.util.Platform to add support)");
+        
+        try {
+            p = (Platform) Class.forName(Platform.class.getName() + "$" + platformClass).newInstance();
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw new Error("Error instansiating platform class");
+        }
+    }
     
     abstract boolean _atomicCreateFile(File f) throws IOException;
     public static boolean atomicCreateFile(File f) throws IOException { return p._atomicCreateFile(f); }
@@ -28,7 +51,8 @@ public abstract class Platform {
     
     static class Jdk11 extends Platform {
         boolean _atomicCreateFile(File f) throws IOException {
-            throw new Error("FIXME");
+            // FIXME: Just do this non-atomicly
+            throw new RuntimeException("FIXME");
         }
         void _socketHalfClose(Socket s, boolean output) throws IOException {
             throw new IOException("half closing sockets not supported");

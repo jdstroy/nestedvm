@@ -986,7 +986,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
         
-        private static class MP implements Sort.Sortable {
+        private static class MP implements Sort.Comparable {
             public MP(String path, FS fs) { this.path = path; this.fs = fs; }
             public String path;
             public FS fs;
