@@ -730,7 +730,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     public static class HostFS extends FS {
-        InodeCache inodes = new InodeCache(4096);
+        InodeCache inodes = new InodeCache(4000);
         protected File root;
         public File getRoot() { return root; }
         
