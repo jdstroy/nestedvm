@@ -399,6 +399,19 @@ ntlmtest: build/tests/NtlmAuth.class
 	@test -e smb.conf || cp upstream/build/samba/examples/smb.conf.default smb.conf
 	$(JAVA) -cp "$(classpath)" tests.NtlmAuth --username=brian --password=test --diagnostics -d 5
 
+ntlmauth.jar: build/tests/NtlmAuth.class
+	mkdir -p tmp/pruned
+	rm -rf tmp/pruned/*
+	java -cp \
+		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
+	com.brian_web.gcclass.GCClass \
+		"$(classpath)" tmp/pruned \
+		tests.NtlmAuth.main \
+		org.ibex.nestedvm.util.Platform\$$Jdk{11,12,13,14}.'<init>'
+	printf "Manifest-Version: 1.0\nMain-Class: tests.NtlmAuth\n" > .manifest.ntlm
+	cd tmp/pruned && jar cfm ../../$@ ../../.manifest.ntlm .
+	rm -f  .manifest.ntlm
+
 #
 # Speed tests
 #
