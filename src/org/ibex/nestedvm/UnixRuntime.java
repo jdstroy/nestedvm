@@ -4,13 +4,9 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 
-// FIXME: Fix readdir in support_aux.c
 // FIXME: Make plain old "mips-unknown-elf-gcc -o foo foo.c" work (modify spec file or whatever)
 
 // FEATURE: Remove System.{out,err}.printlns and throw Errors where applicable
-
-// FIXME: BusyBox's ASH doesn't like \r\n at the end of lines
-// is ash just broken or are many apps like this? if so workaround in nestedvm
 
 public abstract class UnixRuntime extends Runtime implements Cloneable {
     /** The pid of this "process" */
@@ -112,6 +108,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_getcwd: return sys_getcwd(a,b);
             case SYS_chdir: return sys_chdir(a);
             case SYS_exec: return sys_exec(a,b,c);
+            case SYS_getdents: return sys_getdents(a,b,c,d);
 
             default: return super._syscall(syscall,a,b,c,d);
         }
@@ -407,7 +404,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;
     }
    
-    
     private int sys_getcwd(int addr, int size) throws FaultException, ErrnoException {
         byte[] b = getBytes(cwd);
         if(size == 0) return -EINVAL;
@@ -427,6 +423,16 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;
     }
     
+    private int sys_getdents(int fdn, int addr, int count, int seekptr) throws FaultException, ErrnoException {
+        count = Math.min(count,MAX_CHUNK);
+        if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
+        if(fds[fdn] == null) return -EBADFD;
+        byte[] buf = byteBuf(count);
+        int n = fds[fdn].getdents(buf,0,count);
+        copyout(buf,addr,n);
+        return n;
+    }
+    
     //  FEATURE: Run through the fork/wait stuff one more time
     public static class GlobalState {    
         protected static final int OPEN = 1;
@@ -437,7 +443,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         final UnixRuntime[] tasks;
         int nextPID = 1;
         
-        private final MP[][] mps = new MP[128][];
+        private MP[] mps = new MP[0];
         private FS root;
         
         public GlobalState() { this(255); }
@@ -445,7 +451,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public GlobalState(int maxProcs, boolean defaultMounts) {
             tasks = new UnixRuntime[maxProcs+1];
             if(defaultMounts) {
-            	    root = new HostFS();
+            	    addMount("/",new HostFS());
                 addMount("/dev",new DevFS());
             }
         }
@@ -464,56 +470,70 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(!path.startsWith("/")) throw new IllegalArgumentException("Mount point doesn't start with a /");
             if(path.equals("/")) return root;
             path  = path.substring(1);
-            int f = path.charAt(0) & 0x7f;
-            for(int i=0;mps[f] != null && i < mps[f].length;i++)
-                if(mps[f][i].path.equals(path)) return mps[f][i].fs;
+            for(int i=0;i<mps.length;i++)
+                if(mps[i].path.equals(path)) return mps[i].fs;
             return null;
         }
         
         public synchronized void addMount(String path, FS fs) {
             if(getMount(path) != null) throw new IllegalArgumentException("mount point already exists");
             if(!path.startsWith("/")) throw new IllegalArgumentException("Mount point doesn't start with a /");
-            if(path.equals("/")) { root = fs; return; }
+            
+            if(fs.owner != null) fs.owner.removeMount(fs);
+            fs.owner = this;
+            
+            if(path.equals("/")) { root = fs; fs.devno = 1; return; }
             path = path.substring(1);
-            int f = path.charAt(0) & 0x7f;
-            int oldLength = mps[f] == null ? 0 : mps[f].length;
-            MP[] newList = new MP[oldLength + 1];
-            if(oldLength != 0) System.arraycopy(mps[f],0,newList,0,oldLength);
-            newList[oldLength] = new MP(path,fs);
-            Arrays.sort(newList);
-            mps[f] = newList;
+            int oldLength = mps.length;
+            MP[] newMPS = new MP[oldLength + 1];
+            if(oldLength != 0) System.arraycopy(mps,0,newMPS,0,oldLength);
+            newMPS[oldLength] = new MP(path,fs);
+            Arrays.sort(newMPS);
+            mps = newMPS;
+            int highdevno = 0;
+            for(int i=0;i<mps.length;i++) highdevno = max(highdevno,mps[i].fs.devno);
+            fs.devno = highdevno + 2;
+        }
+        
+        public synchronized void removeMount(FS fs) {
+            for(int i=0;i<mps.length;i++) if(mps[i].fs == fs) { removeMount(i); return; }
+            throw new IllegalArgumentException("mount point doesn't exist");
         }
         
         public synchronized void removeMount(String path) {
-            if(getMount(path) == null) throw new IllegalArgumentException("mount point doesn't exist");
             if(!path.startsWith("/")) throw new IllegalArgumentException("Mount point doesn't start with a /");
-            if(path.equals("/")) { root = null; return; }
-            path = path.substring(1);
-            int f = path.charAt(0) & 0x7f;
-            MP[] oldList = mps[f];
-            MP[] newList = new MP[oldList.length - 1];
-            int p = 0;
-            for(p=0;p<oldList.length;p++) if(oldList[p].path.equals(path)) break;
-            if(p == oldList.length) throw new Error("should never happen");
-            System.arraycopy(oldList,0,newList,0,p);
-            System.arraycopy(oldList,0,newList,p,oldList.length-p-1);
-            mps[f] = newList;
+            if(path.equals("/")) {
+            	    removeMount(-1);
+            } else {
+                path = path.substring(1);
+                int p;
+                for(p=0;p<mps.length;p++) if(mps[p].path.equals(path)) break;
+                if(p == mps.length) throw new Error("mount point doesn't exist");
+               removeMount(p);
+            }
         }
         
-        private Object fsop(int op, UnixRuntime r, String path, int arg1, int arg2) throws ErrnoException {
-            int pl = path.length();
+        private void removeMount(int index) {
+            if(index == -1) { root.owner = null; root = null; return; }
+            MP[] newMPS = new MP[mps.length - 1];
+            System.arraycopy(mps,0,newMPS,0,index);
+            System.arraycopy(mps,0,newMPS,index,mps.length-index-1);
+            mps = newMPS;
+        }
+        
+        private Object fsop(int op, UnixRuntime r, String normalizedPath, int arg1, int arg2) throws ErrnoException {
+            int pl = normalizedPath.length();
             if(pl != 0) {
-            	    MP[] list = mps[path.charAt(0) & 0x7f];
-                if(list != null) {
-                    for(int i=0;i<list.length;i++) {
-                    	    MP mp = list[i];
-                    	    int mpl = mp.path.length();
-                        if(path.startsWith(mp.path) && (pl == mpl || (pl < mpl && path.charAt(mpl) == '/')))
-                        	    return dispatch(mp.fs,op,r,pl == mpl ? "" : path.substring(mpl+1),arg1,arg2);
-                    }
+            	    MP[] list;
+                synchronized(this) { list = mps; }
+                for(int i=0;i<list.length;i++) {
+                	    MP mp = list[i];
+                	    int mpl = mp.path.length();
+                    if(normalizedPath.startsWith(mp.path) && (pl == mpl || (pl < mpl && normalizedPath.charAt(mpl) == '/')))
+                    	    return dispatch(mp.fs,op,r,pl == mpl ? "" : normalizedPath.substring(mpl+1),arg1,arg2);
                 }
             }
-            return dispatch(root,op,r,path,arg1,arg2);
+            return dispatch(root,op,r,normalizedPath,arg1,arg2);
         }
         
         private static Object dispatch(FS fs, int op, UnixRuntime r, String path, int arg1, int arg2) throws ErrnoException {
@@ -627,32 +647,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return ent.o;
         }
     }
-        
+    
     public abstract static class FS {
-		// FIXME: inode stuff
-        protected static FD directoryFD(String[] files, int hashCode)  {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream(bos);
-            try {
-            	    for(int i=0;i<files.length;i++) {
-                	    	byte[] b = getBytes(files[i]);
-                    int inode = (files[i].hashCode() ^ hashCode) & 0xfffff;
-                    dos.writeInt(inode);
-                    dos.writeInt(b.length);
-                    dos.write(b,0,b.length);
-                }
-            } catch(IOException e) {
-            	    return null;
-            }
-            final byte[] data = bos.toByteArray();
-            return new SeekableFD(new Seekable.ByteArray(data,false),RD_ONLY) {
-                protected FStat _fstat() { return  new FStat() {
-                    public int length() { return data.length; }
-                    public int type() { return S_IFDIR; }
-                }; }
-            };
-        }
-
+        GlobalState owner;
+        int devno;
+        
         public FStat lstat(UnixRuntime r, String path) throws ErrnoException { return stat(r,path); }
 
         // If this returns null it'll be truned into an ENOENT
@@ -706,7 +705,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return new String(out,0,outp);
     }
     
-    FStat hostFStat(final File f) {
+    FStat hostFStat(final File f, Object data) {
         boolean e = false;
         try {
             FileInputStream fis = new FileInputStream(f);
@@ -716,13 +715,22 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
             fis.close();
         } catch(IOException e2) { } 
-        return new HostFStat(f,e);
+        HostFS fs = (HostFS) data;
+        final int inode = fs.inodes.get(f.getAbsolutePath());
+        final int devno = fs.devno;
+        return new HostFStat(f,e) {
+            public int inode() { return inode; }
+            public int dev() { return devno; }
+        };
     }
 
-    // FIXME: inode stuff
-    FD hostFSDirFD(File f) { return FS.directoryFD(f.list(),f.hashCode()); }
+    FD hostFSDirFD(File f, Object _fs) {
+        HostFS fs = (HostFS) _fs;
+        return fs.new HostDirFD(f);
+    }
     
     public static class HostFS extends FS {
+        InodeCache inodes = new InodeCache(4096);
         protected File root;
         public File getRoot() { return root; }
         
@@ -755,14 +763,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
             final File f = hostFile(path);
-            return r.hostFSOpen(f,flags,mode);
+            return r.hostFSOpen(f,flags,mode,this);
         }
         
         public FStat stat(UnixRuntime r, String path) throws ErrnoException {
             File f = hostFile(path);
             if(r.sm != null && !r.sm.allowStat(f)) throw new ErrnoException(EACCES);
             if(!f.exists()) return null;
-            return r.hostFStat(f);
+            return r.hostFStat(f,this);
         }
         
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException {
@@ -774,30 +782,116 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(parent!=null && (!parent.exists() || !parent.isDirectory())) throw new ErrnoException(ENOTDIR);
             if(!f.mkdir()) throw new ErrnoException(EIO);            
         }
+        
+        public class HostDirFD extends DirFD {
+            private final File f;
+            private final File[] children;
+            public HostDirFD(File f) { this.f = f; children = f.listFiles(); }
+            public int size() { return children.length; }
+            public String name(int n) { return children[n].getName(); }
+            public int inode(int n) { return inodes.get(children[n].getAbsolutePath()); }
+            public int parentInode() {
+                File parent = f.getParentFile();
+                return parent == null ? -1 : inodes.get(parent.getAbsolutePath());
+            }
+            public int myInode() { return inodes.get(f.getAbsolutePath()); }
+            public int myDev() { return devno; } 
+        }
+    }
+    
+    private static void putInt(byte[] buf, int off, int n) {
+        buf[off+0] = (byte)((n>>>24)&0xff);
+        buf[off+1] = (byte)((n>>>16)&0xff);
+        buf[off+2] = (byte)((n>>> 8)&0xff);
+        buf[off+3] = (byte)((n>>> 0)&0xff);
+    }
+    
+    public static abstract class DirFD extends FD {
+        private int pos = -2;
+        
+        protected abstract int size();
+        protected abstract String name(int n);
+        protected abstract int inode(int n);
+        protected abstract int myDev();
+        protected int parentInode() { return -1; }
+        protected int myInode() { return -1; }
+        
+        public int getdents(byte[] buf, int off, int len) {
+            int ooff = off;
+            int ino;
+            int reclen;
+            OUTER: for(;len > 0 && pos < size();pos++){
+                switch(pos) {
+                	    case -2:
+                    case -1:
+                	    	    ino = pos == -1 ? parentInode() : myInode();
+                        if(ino == -1) continue;
+                        reclen = 9 + (pos == -1 ? 2 : 1);
+                        if(reclen > len) break OUTER;
+                        buf[off+8] = '.';
+                        if(pos == -1) buf[off+9] = '.';
+                        break;
+                    default: {
+                        String f = name(pos);
+                        byte[] fb = getBytes(f);
+                        reclen = fb.length + 9;
+                        if(reclen > len) break OUTER;
+                        ino = inode(pos);
+                        System.arraycopy(fb,0,buf,off+8,fb.length);
+                    }
+                }
+                buf[off+reclen-1] = 0; // null terminate
+                reclen = (reclen + 3) & ~3; // add padding
+                putInt(buf,off,reclen);
+                putInt(buf,off+4,ino);
+                off += reclen;
+                len -= reclen;    
+            }
+            return off-ooff;
+        }
+        
+        protected FStat _fstat() {
+            return new FStat() { 
+                public int type() { return S_IFDIR; }
+                public int inode() { return myInode(); }
+                public int dev() { return myDev(); }
+            };
+        }
     }
         
     public static class DevFS extends FS {
-        private static class DevFStat extends FStat {
-            public int dev() { return 1; }
+        private static final int ROOT_INODE = 1;
+        private static final int NULL_INODE = 2;
+        private static final int ZERO_INODE = 3;
+        private static final int FD_INODE = 4;
+        private static final int FD_INODES = 32;
+        
+        private class DevFStat extends FStat {
+            public int dev() { return devno; }
             public int mode() { return 0666; }
             public int type() { return S_IFCHR; }
             public int nlink() { return 1; }
         }
-        private static FD devZeroFD = new FD() {
+        
+        private abstract class DevDirFD extends DirFD {
+            public int myDev() { return devno; }
+        }
+        
+        private FD devZeroFD = new FD() {
             public boolean readable() { return true; }
             public boolean writable() { return true; }
             public int read(byte[] a, int off, int length) { Arrays.fill(a,off,off+length,(byte)0); return length; }
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }
-            public FStat _fstat() { return new DevFStat(); }
+            public FStat _fstat() { return new DevFStat(){ public int inode() { return ZERO_INODE; } }; }
         };
-        private static FD devNullFD = new FD() {
+        private FD devNullFD = new FD() {
             public boolean readable() { return true; }
             public boolean writable() { return true; }
             public int read(byte[] a, int off, int length) { return 0; }
             public int write(byte[] a, int off, int length) { return length; }
             public int seek(int n, int whence) { return 0; }
-            public FStat _fstat() { return new DevFStat(); }
+            public FStat _fstat() { return new DevFStat(){ public int inode() { return NULL_INODE; } }; }
         }; 
         
         public FD open(UnixRuntime r, String path, int mode, int flags) throws ErrnoException {
@@ -816,15 +910,42 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
             if(path.equals("fd")) {
                 int count=0;
-                for(int i=0;i<OPEN_MAX;i++) if(r.fds[i] != null) count++; 
-                String[] files = new String[count];
+                for(int i=0;i<OPEN_MAX;i++) if(r.fds[i] != null) { count++; }
+                final int[] files = new int[count];
                 count = 0;
-                for(int i=0;i<OPEN_MAX;i++) if(r.fds[i] != null) files[count++] = Integer.toString(i);
-                return directoryFD(files,hashCode());
+                for(int i=0;i<OPEN_MAX;i++) if(r.fds[i] != null) files[count++] = i;
+                return new DevDirFD() {
+                    public int myInode() { return FD_INODE; }
+                    public int parentInode() { return ROOT_INODE; }
+                    public int inode(int n) { return FD_INODES + n; }
+                    public String name(int n) { return Integer.toString(files[n]); }
+                    public int size() { return files.length; }
+                };
             }
             if(path.equals("")) {
-                String[] files = { "null", "zero", "fd" };
-                return directoryFD(files,hashCode());
+                return new DevDirFD() {
+                    public int myInode() { return ROOT_INODE; }
+                    // FEATURE: Get the real parent inode somehow
+                    public int parentInode() { return -1; }
+                    public int inode(int n) {
+                        switch(n) {
+                            case 0: return NULL_INODE;
+                            case 1: return ZERO_INODE;
+                            case 2: return FD_INODE;
+                            default: return -1;
+                        }
+                    }
+                    
+                    public String name(int n) {
+                        switch(n) {
+                        	    case 0: return "null";
+                            case 1: return "zero";
+                            case 2: return "fd";
+                            default: return null;
+                        }
+                    }
+                    public int size() { return 3; }
+                };
             }
             return null;
         }
@@ -843,6 +964,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(r.fds[n] == null) return null;
                 return r.fds[n].fstat();
             }
+            // FEATURE: inode stuff
             if(path.equals("fd")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
             if(path.equals("")) return new FStat() { public int type() { return S_IFDIR; } public int mode() { return 0444; }};
             return null;

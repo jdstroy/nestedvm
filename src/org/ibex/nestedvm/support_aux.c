@@ -50,6 +50,11 @@ int _fchown_r(struct _reent *ptr, int fd, uid_t uid, gid_t gid) { return 0; }
     rt f(t1 a, t2 b, t3 c) { return _##f##_r(_REENT,a,b,c); }
 #define REENT_WRAPPER3(f,t1,t2,t3) REENT_WRAPPER3R(f,int,t1,t2,t3)
 
+#define REENT_WRAPPER4R(f,rt,t1,t2,t3,t4) \
+extern rt _##f##_r(struct _reent *ptr, t1 a, t2 b, t3 c, t4 d); \
+rt f(t1 a, t2 b, t3 c, t4 d) { return _##f##_r(_REENT,a,b,c,d); }
+#define REENT_WRAPPER4(f,t1,t2,t3,t4) REENT_WRAPPER4R(f,int,t1,t2,t3,t4)
+
 REENT_WRAPPER2(mkdir,const char *,mode_t)
 REENT_WRAPPER2(access,const char *,int)
 REENT_WRAPPER1(rmdir,const char *)
@@ -60,6 +65,7 @@ REENT_WRAPPER1(pipe,int *)
 REENT_WRAPPER2(dup2,int,int)
 REENT_WRAPPER3(waitpid,pid_t,int *,int)
 REENT_WRAPPER2R(getcwd,char *,char *,size_t)
+REENT_WRAPPER2R(_getcwd,char *,char *,size_t)
 REENT_WRAPPER2(symlink,const char *,const char *)
 REENT_WRAPPER3(readlink,const char *, char *,int)
 REENT_WRAPPER3(chown,const char *,uid_t,gid_t)
@@ -67,21 +73,28 @@ REENT_WRAPPER3(fchown,int,uid_t,gid_t)
 REENT_WRAPPER2(chmod,const char *,mode_t)
 REENT_WRAPPER2(fchmod,int,mode_t)
 REENT_WRAPPER2(lstat,const char *,struct stat *)
+REENT_WRAPPER4(getdents,int, char *, size_t,long *)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
     return __execve_r(_REENT,path,argv,envp);
 }
 
-static int read_fully(int fd, void *buf, size_t size) {
-    int n;
-    while(size) {
-        n = read(fd,buf,size);
-        if(n <= 0) return -1;
-        size -= n;
-        buf += n;
+char *_getcwd_r(struct _reent *ptr, char *buf, size_t size) {
+    if(buf != NULL) {
+        buf = __getcwd_r(ptr,buf,size);
+        return (long)buf == -1 ? NULL : buf;
     }
-    return 0;
+    
+    size = 256;
+    for(;;) {
+        buf = malloc(size);
+        char *ret = __getcwd_r(ptr,buf,size);
+        if((long)ret != -1) return ret;
+        free(buf);
+        size *= 2;
+        if(ptr->_errno != ERANGE) return NULL;
+    }
 }
 
 DIR *opendir(const char *path) {
@@ -105,40 +118,35 @@ DIR *opendir(const char *path) {
         return NULL;
     }
     dir->dd_fd = fd;
-    //dir->dd_pos = 0;
+    dir->dd_buf = malloc(sizeof(struct dirent));
+    dir->dd_size = sizeof(struct dirent);
+    if(dir->dd_buf == NULL) {
+        close(fd);
+        free(dir);
+        return NULL;
+    }
+    dir->dd_loc = 0;
+    dir->dd_len = 0;
     return dir;
 }
 
-int readdir_r(DIR *dir,struct dirent *entry, struct dirent **result) {
-    struct {
-        int inode;
-        int name_len;
-    } h;
-    if(dir->dd_fd < 0) return -1;
-again:
-    if(read_fully(dir->dd_fd,&h,sizeof(h)) < 0) goto fail;
-    if(h.name_len < 0 || h.name_len >= sizeof(entry->d_name)-1) goto fail;
-    
-    entry->d_ino = h.inode;
-    if(read_fully(dir->dd_fd,entry->d_name,h.name_len) < 0) goto fail;
-    
-    entry->d_name[h.name_len] = '\0';
-    //dir->dd_pos += h.name_len + 8;
-    
-    if(result) *result = entry;
-    return 0;
-fail:
-    if(result) *result = NULL; 
-    return -1;    
+struct dirent *readdir(DIR *dir) {
+    struct dirent *dp;
+    errno = 0;
+    if(dir->dd_loc == 0 || dir->dd_loc == dir->dd_len) {
+        dir->dd_len = getdents(dir->dd_fd,dir->dd_buf,dir->dd_size,NULL);
+        dir->dd_loc = 0;
+        if(dir->dd_len <= 0) { dir->dd_len = 0; return NULL; }
+    }
+    dp = (struct dirent*) (dir->dd_buf + dir->dd_loc);
+    if(dp->d_reclen == 0 || dp->d_reclen > dir->dd_len - dir->dd_loc) return NULL;
+    dir->dd_loc += dp->d_reclen;
+    return dp;
 }
 
-// FIXME: Rewrite all this dirent stuff in terms of a getdirentries syscall
-static struct dirent static_dir_ent;
-
-struct dirent *readdir(DIR *dir) { return readdir_r(dir,&static_dir_ent,NULL) == 0 ? &static_dir_ent : NULL; }
-
 int closedir(DIR *dir) {
-    close(dir->dd_fd);
+    int fd = dir->dd_fd;
+    free(dir->dd_buf);
     free(dir);
-    return 0;
+    return close(fd);
 }

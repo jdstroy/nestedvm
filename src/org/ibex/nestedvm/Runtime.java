@@ -81,7 +81,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     private byte[] _byteBuf;
     /** Max size of temporary buffer
         @see Runtime#_byteBuf */
-    private final static int MAX_CHUNK = 16*1024*1024 - 1024;
+    final static int MAX_CHUNK = 16*1024*1024 - 1024;
         
     /** Subclasses should actually execute program in this method. They should continue 
         executing until state != RUNNING. Only syscall() can modify state. It is safe 
@@ -292,7 +292,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     public final void memcpy(int dst, int src, int count) throws FaultException {
         int pageWords = (1<<pageShift)>>>2;
         int pageWordMask = pageWords - 1;
-        
         if((dst&3) == 0 && (src&3)==0) {
             if((count&~3) != 0) {
                 int c = count>>2;
@@ -693,12 +692,12 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     public static final int O_TRUNC = 0x0400;
     public static final int O_NONBLOCK = 0x4000;
     
-    FD hostFSOpen(final File f, int flags, int mode) throws ErrnoException {
+    FD hostFSOpen(final File f, int flags, int mode, final Object data) throws ErrnoException {
         if((flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)) != 0) {
             System.err.println("WARNING: Unsupported flags passed to open(): " + toHex(flags & ~(3|O_CREAT|O_EXCL|O_APPEND|O_TRUNC)));
             throw new ErrnoException(ENOTSUP);
         }
-        boolean write = mode!=RD_ONLY;
+        boolean write = (flags&3) != RD_ONLY;
 
         if(sm != null && !(write ? sm.allowWrite(f) : sm.allowRead(f))) throw new ErrnoException(EACCES);
         
@@ -712,7 +711,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         } else if(!f.exists()) {
             if((flags&O_CREAT)==0) return null;
         } else if(f.isDirectory()) {
-            return hostFSDirFD(f);
+            return hostFSDirFD(f,data);
         }
         
         final Seekable.File sf;
@@ -723,14 +722,15 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             return null;
         } catch(IOException e) { throw new ErrnoException(EIO); }
         
-        return new SeekableFD(sf,flags) { protected FStat _fstat() { return hostFStat(f); } };
+        return new SeekableFD(sf,flags) { protected FStat _fstat() { return hostFStat(f,data); } };
     }
     
-    FStat hostFStat(File f) { return new HostFStat(f); }
-    FD hostFSDirFD(File f) { return null; }
+    FStat hostFStat(File f, Object data) { return new HostFStat(f); }
+    
+    FD hostFSDirFD(File f, Object data) { return null; }
     
     FD _open(String path, int flags, int mode) throws ErrnoException {
-        return hostFSOpen(new File(path),flags,mode);
+        return hostFSOpen(new File(path),flags,mode,null);
     }
     
     /** The open syscall */
@@ -743,34 +743,26 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
 
     /** The write syscall */
-    private int sys_write(int fdn, int addr, int count) throws FaultException {
+    
+    // FIXME: Handle pipe closed exception
+    private int sys_write(int fdn, int addr, int count) throws FaultException, ErrnoException {
         count = Math.min(count,MAX_CHUNK);
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
-        if(fds[fdn] == null || !fds[fdn].writable()) return -EBADFD;
-        try {
-            byte[] buf = byteBuf(count);
-            copyin(addr,buf,count);
-            return fds[fdn].write(buf,0,count);
-        } catch(IOException e) {
-            // NOTE: This should really send a SIGPIPE
-            if(e.getMessage().equals("Pipe closed")) return sys_exit(128+13);
-            return -EIO;
-        }
+        if(fds[fdn] == null) return -EBADFD;
+        byte[] buf = byteBuf(count);
+        copyin(addr,buf,count);
+        return fds[fdn].write(buf,0,count);
     }
 
     /** The read syscall */
-    private int sys_read(int fdn, int addr, int count) throws FaultException {
+    private int sys_read(int fdn, int addr, int count) throws FaultException, ErrnoException {
         count = Math.min(count,MAX_CHUNK);
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
-        if(fds[fdn] == null || !fds[fdn].readable()) return -EBADFD;
-        try {
-            byte[] buf = byteBuf(count);
-            int n = fds[fdn].read(buf,0,count);
-            copyout(buf,addr,n);
-            return n;
-        } catch(IOException e) {
-            return -EIO;
-        }
+        if(fds[fdn] == null) return -EBADFD;
+        byte[] buf = byteBuf(count);
+        int n = fds[fdn].read(buf,0,count);
+        copyout(buf,addr,n);
+        return n;
     }
     
     /** The close syscall */
@@ -780,16 +772,12 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
 
     
     /** The seek syscall */
-    private int sys_lseek(int fdn, int offset, int whence) {
+    private int sys_lseek(int fdn, int offset, int whence) throws ErrnoException {
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
         if(fds[fdn] == null) return -EBADFD;
         if(whence != SEEK_SET && whence !=  SEEK_CUR && whence !=  SEEK_END) return -EINVAL;
-        try {
-            int n = fds[fdn].seek(offset,whence);
-            return n < 0 ? -ESPIPE : n;
-        } catch(IOException e) {
-            return -ESPIPE;
-        }
+        int n = fds[fdn].seek(offset,whence);
+        return n < 0 ? -ESPIPE : n;
     }
     
     /** The stat/fstat syscall helper */
@@ -940,13 +928,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     private int sys_getpagesize() { return writePages.length == 1 ? 4096 : (1<<pageShift); }
     
-    private int sys_isatty(int fdn) {
-        if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
-        if(fds[fdn] == null) return -EBADFD;
-        return fds[fdn].isatty() ? 1 : 0;
-    }
-
-    
     /** Hook for subclasses to do something when the process exits  */
     void _exited() {  }
     
@@ -973,10 +954,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 fds[i] = fd.dup();
                 return 0;
             case F_GETFL:
-                int flags = 0;
-                if(fd.writable() && fd.readable())  flags = 2;
-                else if(fd.writable()) flags = 1;
-                return flags;
+                return fd.flags();
             case F_SETFD:
             	    closeOnExec[fdn] = arg != 0;
                 return 0;
@@ -1025,9 +1003,11 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case SYS_sleep: return sys_sleep(a);
             case SYS_times: return sys_times(a);
             case SYS_getpagesize: return sys_getpagesize();
-            case SYS_isatty: return sys_isatty(a);
             case SYS_fcntl: return sys_fcntl(a,b,c);
             case SYS_sysconf: return sys_sysconf(a);
+            
+            case SYS_memcpy: memcpy(a,b,c); return a;
+            case SYS_memset: memset(a,b,c); return a;
 
             case SYS_kill:
             case SYS_fork:
@@ -1087,27 +1067,22 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** File Descriptor class */
     public static abstract class FD {
         private int refCount = 1;
-    
-        /** returns true if the fd is readable */
-        public boolean readable() { return false; }
-        /** returns true if the fd is writable */
-        public boolean writable() { return false; }
         
         /** Read some bytes. Should return the number of bytes read, 0 on EOF, or throw an IOException on error */
-        public int read(byte[] a, int off, int length) throws IOException { throw new IOException("no definition"); }
+        public int read(byte[] a, int off, int length) throws ErrnoException { throw new ErrnoException(EBADFD); }
         /** Write. Should return the number of bytes written or throw an IOException on error */
-        public int write(byte[] a, int off, int length) throws IOException { throw new IOException("no definition"); }
+        public int write(byte[] a, int off, int length) throws ErrnoException { throw new ErrnoException(EBADFD); }
 
         /** Seek in the filedescriptor. Whence is SEEK_SET, SEEK_CUR, or SEEK_END. Should return -1 on error or the new position. */
-        public int seek(int n, int whence)  throws IOException  { return -1; }
+        public int seek(int n, int whence)  throws ErrnoException  { return -1; }
+        
+        public int getdents(byte[] a, int off, int length) throws ErrnoException { throw new ErrnoException(EBADFD); }
+        
+        public int flags() { return O_RDONLY; }
         
         /** Return a Seekable object representing this file descriptor (can be read only) 
             This is required for exec() */
         Seekable seekable() { return null; }
-        
-        /** Should return true if this is a tty */
-        // FIXME: get rid of the isatty syscall and just do with newlib's dumb isatty.c
-        public boolean isatty() { return false; }
         
         private FStat cachedFStat = null;
         public final FStat fstat() {
@@ -1128,35 +1103,48 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     public abstract static class SeekableFD extends FD {
         private final int flags;
         private final Seekable data;
-        public boolean readable() { return (flags&3) != WR_ONLY; }
-        public boolean writable() { return (flags&3) != RD_ONLY; }
         
         SeekableFD(Seekable data, int flags) { this.data = data; this.flags = flags; }
         
         protected abstract FStat _fstat();
+        public int flags() { return flags; }
 
         Seekable seekable() { return data; }
         
-        public int seek(int n, int whence) throws IOException {
-            switch(whence) {
-                case SEEK_SET: break;
-                case SEEK_CUR: n += data.pos(); break;
-                case SEEK_END: n += data.length(); break;
-                default: return -1;
+        public int seek(int n, int whence) throws ErrnoException {
+            try {
+            	    switch(whence) {
+            	    	    case SEEK_SET: break;
+            	    	    case SEEK_CUR: n += data.pos(); break;
+            	    	    case SEEK_END: n += data.length(); break;
+            	    	    default: return -1;
+            	    }
+            	    data.seek(n);
+            	    return n;
+            } catch(IOException e) {
+            	    throw new ErrnoException(ESPIPE);
             }
-            data.seek(n);
-            return n;
         }
         
-        public int write(byte[] a, int off, int length) throws IOException {
+        public int write(byte[] a, int off, int length) throws ErrnoException {
+            if((flags&3) == RD_ONLY) throw new ErrnoException(EBADFD);
             // NOTE: There is race condition here but we can't fix it in pure java
             if((flags&O_APPEND) != 0) seek(0,SEEK_END);
-            return data.write(a,off,length);
+            try {
+            	    return data.write(a,off,length);
+            } catch(IOException e) {
+            	    throw new ErrnoException(EIO);
+            }
         }
         
-        public int read(byte[] a, int off, int length) throws IOException {
-            int n = data.read(a,off,length);
-            return n < 0 ? 0 : n;
+        public int read(byte[] a, int off, int length) throws ErrnoException {
+            if((flags&3) == WR_ONLY) throw new ErrnoException(EBADFD);
+            try {
+            	    int n = data.read(a,off,length);
+            	    return n < 0 ? 0 : n;
+            } catch(IOException e) {
+            	    throw new ErrnoException(EIO);
+            }
         }
         
         protected void _close() { try { data.close(); } catch(IOException e) { /*ignore*/ } }        
@@ -1164,18 +1152,32 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     public static class OutputStreamFD extends FD {
         private OutputStream os;
-        public boolean writable() { return true; }
+        public int flags() { return O_WRONLY; }
         public OutputStreamFD(OutputStream os) { this.os = os; }
-        public int write(byte[] a, int off, int length) throws IOException { os.write(a,off,length); return length; }
+        public int write(byte[] a, int off, int length) throws ErrnoException {
+            try {
+            	    os.write(a,off,length);
+            	    return length;
+            } catch(IOException e) {
+            	    throw new ErrnoException(EIO);
+            }
+        }
         public void _close() { try { os.close(); } catch(IOException e) { /*ignore*/ }  }
         public FStat _fstat() { return new FStat(); }
     }
     
     public static class InputStreamFD extends FD {
         private InputStream is;
-        public boolean readable() { return true; }
+        public int flags() { return O_RDONLY; }
         public InputStreamFD(InputStream is) { this.is = is; }
-        public int read(byte[] a, int off, int length) throws IOException { int n = is.read(a,off,length); return n < 0 ? 0 : n; }
+        public int read(byte[] a, int off, int length) throws ErrnoException {
+            try {
+                int n = is.read(a,off,length);
+                return n < 0 ? 0 : n;
+            } catch(IOException e) {
+                throw new ErrnoException(EIO);
+            }
+        }
         public void _close() { try { is.close(); } catch(IOException e) { /*ignore*/ } }
         public FStat _fstat() { return new FStat(); }
     }
@@ -1184,14 +1186,12 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public StdinFD(InputStream is) { super(is); }
         public void _close() { /* noop */ }
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
-        public boolean isatty() { return true; }
     }
     
     static class StdoutFD extends OutputStreamFD {
         public StdoutFD(OutputStream os) { super(os); }
         public void _close() { /* noop */ }
         public FStat _fstat() { return new FStat() { public int type() { return S_IFCHR; } }; }
-        public boolean isatty() { return true; }
     }
     
     public static class FStat {
@@ -1200,9 +1200,8 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         public static final int S_IFDIR = 0040000;
         public static final int S_IFREG = 0100000;
         
-        public int dev() { return -1; }
-        // FIXME: inode numbers are calculated inconsistently throught the runtime
-        public int inode() { return hashCode() & 0xfffff; }
+        public int dev() { return 1; }
+        public int inode() { return hashCode() & 0x7fff; }
         public int mode() { return 0; }
         public int type() { return S_IFIFO; }
         public int nlink() { return 0; }
@@ -1308,7 +1307,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     }
     
     // Utility functions
-    private byte[] byteBuf(int size) {
+    byte[] byteBuf(int size) {
         if(_byteBuf==null) _byteBuf = new byte[size];
         else if(_byteBuf.length < size)
             _byteBuf = new byte[min(max(_byteBuf.length*2,size),MAX_CHUNK)];

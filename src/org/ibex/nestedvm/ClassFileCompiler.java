@@ -1073,23 +1073,10 @@ public class ClassFileCompiler extends Compiler implements org.apache.bcel.Const
             if(pc == -1) throw new Exn("pc modifying insn in delay slot");
             int target = (pc&0xf0000000)|(jumpTarget << 2);
             emitInstruction(-1,nextInsn,-1);
-            // FIXME: Have a memcpy syscall and just override memcpy in libnestedvm
-            if(optimizedMemcpy && (target == memcpy || target == memset)) {
-                a(InstructionConstants.ALOAD_0);
-                pushRegZ(R+4);
-                pushRegZ(R+5);
-                pushRegZ(R+6);
-                a(fac.createInvoke(fullClassName,target==memcpy ? "memcpy" : "memset", Type.VOID, new Type[]{Type.INT,Type.INT,Type.INT},INVOKEVIRTUAL));
-                preSetReg(R+2);
-                pushReg(R+4);
-                setReg();
-                branch(pc,pc+8);
-            } else {
-                preSetReg(R+RA);
-                pushConst(pc+8);
-                setReg();
-                branch(pc, target);
-            }
+            preSetReg(R+RA);
+            pushConst(pc+8);
+            setReg();
+            branch(pc, target);
             unreachable = true;
             break;
         }

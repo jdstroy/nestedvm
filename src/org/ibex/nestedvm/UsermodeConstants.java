@@ -12,7 +12,6 @@ public interface UsermodeConstants {
     public static final int SYS_write = 6;
     public static final int SYS_sbrk = 7;
     public static final int SYS_fstat = 8;
-    public static final int SYS_isatty = 9;
     public static final int SYS_lseek = 10;
     public static final int SYS_kill = 11;
     public static final int SYS_getpid = 12;
@@ -39,6 +38,9 @@ public interface UsermodeConstants {
     public static final int SYS_lstat = 33;
     public static final int SYS_symlink = 34;
     public static final int SYS_link = 35;
+    public static final int SYS_getdents = 36;
+    public static final int SYS_memcpy = 37;
+    public static final int SYS_memset = 38;
     public static final int EPERM = 1; /* Not super-user */
     public static final int ENOENT = 2; /* No such file or directory */
     public static final int ESRCH = 3; /* No such process */

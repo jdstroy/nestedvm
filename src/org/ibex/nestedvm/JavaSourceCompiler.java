@@ -549,17 +549,8 @@ public class JavaSourceCompiler extends Compiler {
                 if(pc == -1) throw new Error("pc modifying insn in delay slot");
                 int target = (pc&0xf0000000)|(jumpTarget << 2);
                 emitInstruction(-1,nextInsn,-1);
-                if(optimizedMemcpy && (target == memcpy || target == memset)) {
-                    if(target == memcpy)
-                        p("memcpy(r4,r5,r6);");
-                    else if(target == memset)
-                        p("memset(r4,r5,r6);");
-                    p("r2 = r4;");
-                    branch(pc,pc+8);
-                } else {
-                    p("r" + RA + "=" + constant(pc+8 /*skip this insn and delay slot*/) + ";");
-                    branch(pc, target);
-                }
+                p("r" + RA + "=" + constant(pc+8 /*skip this insn and delay slot*/) + ";");
+                branch(pc, target);
                 unreachable = true;
                 break;
             }

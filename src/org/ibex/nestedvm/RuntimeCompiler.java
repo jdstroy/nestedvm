@@ -5,8 +5,9 @@ import java.io.*;
 import org.ibex.nestedvm.util.*;
 
 // FEATURE: This need a lot of work to support binaries spanned across many classes
-public class RuntimeCompiler {          
-    private static final SingleClassLoader singleClassLoader = new SingleClassLoader();
+public class RuntimeCompiler {  
+    // FEATURE: Do we need to periodicly create a new classloader to allow old clases to be GCed?
+    private static SingleClassLoader singleClassLoader = new SingleClassLoader();
     // FEATURE: Is it ok if this overflows?
     private static long nextID = 1;
     private static synchronized String uniqueID() { return Long.toString(nextID++); }

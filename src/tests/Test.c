@@ -137,8 +137,13 @@ int main(int argc, char **argv) {
         printf("Trying to opendir .\n");
         dir = opendir(".");
         if(dir) {
-            while((dent=readdir(dir))!=NULL)
-                printf("\t[%s] %lu\n",dent->d_name,dent->d_ino);
+            printf("Success!\n");
+            while((dent=readdir(dir))!=NULL) {
+                struct stat statbuf;
+                stat(dent->d_name,&statbuf);
+                printf("\t[%s] %lu %i %i\n",dent->d_name,dent->d_ino,statbuf.st_ino,statbuf.st_dev);
+            }
+            if(errno != 0) { fprintf(stderr,"readdir errno: %d\n",errno); perror("readdir"); }
             closedir(dir);
         } else {
             perror("opendir");
@@ -178,6 +183,13 @@ int main(int argc, char **argv) {
         }
     }
         
+    {
+        char buf[1024];
+        memcpy(buf,"Hello, World",sizeof("Hello, World"));
+        printf("%s\n",buf);
+    }
+    printf("cwd: %s\n",getcwd(NULL,0));
+    printf("isatty(0): %d\n",isatty(0));
     printf("exiting\n");
     return 0;
 }

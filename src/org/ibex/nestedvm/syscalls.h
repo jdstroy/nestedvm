@@ -7,7 +7,6 @@
 #define SYS_write 6
 #define SYS_sbrk 7
 #define SYS_fstat 8
-#define SYS_isatty 9
 #define SYS_lseek 10
 #define SYS_kill 11
 #define SYS_getpid 12
@@ -34,3 +33,6 @@
 #define SYS_lstat 33
 #define SYS_symlink 34
 #define SYS_link 35
+#define SYS_getdents 36
+#define SYS_memcpy 37
+#define SYS_memset 38

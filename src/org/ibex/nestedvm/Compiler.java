@@ -50,8 +50,6 @@ public abstract class Compiler implements Registers {
     
     protected boolean assumeTailCalls = true;
     
-    protected boolean optimizedMemcpy = true;
-    
     // True to insert some code in the output to help diagnore compiler problems
     protected boolean debugCompiler = false;
     
@@ -83,12 +81,6 @@ public abstract class Compiler implements Registers {
         if((totalPages&(totalPages-1)) != 0) throw new Exn("totalPages not a multiple of two");
         while(pageSize>>>pageShift != 1) pageShift++;
     }
-    
-    /** The address of the memcpy function in the binary (used for optimizedMemcpy) */
-    protected int memcpy;
-
-    /** The address of the memset function in the binary (used for optimizedMemcpy) */
-    protected int memset;
     
     /** A set of all addresses that can be jumped too (only available if pruneCases == true) */
     protected Set jumpableAddresses;
@@ -212,13 +204,6 @@ public abstract class Compiler implements Registers {
         ELF.Symtab symtab = elf.getSymtab();
         if(symtab == null) throw new Exn("Binary has no symtab (did you strip it?)");
         ELF.Symbol sym;
-        
-        // Check for some functions we can override
-        sym = symtab.getGlobalSymbol("memcpy");
-        memcpy = sym == null ? -1 : sym.addr;
-        
-        sym = symtab.getGlobalSymbol("memset");
-        memset = sym == null ? -1 : sym.addr;
         
         userInfo = symtab.getGlobalSymbol("user_info");
         gp = symtab.getGlobalSymbol("_gp");
