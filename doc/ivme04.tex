@@ -31,7 +31,7 @@ Complete Translation of Unsafe Native Code to Safe Bytecode
 
 \maketitle
 
-{\it This document was typeset using D. E. Knuth's original \TeX 89,
+{\it This document was typeset using D. E. Knuth's original \TeX ,
      which was both compiled and executed entirely within a Java
      Virtual Machine without the use of native code.}
 
@@ -54,8 +54,8 @@ discuss its application to six software packages: LINPACK (Fortran),
 which was used as one of our performance tests, \TeX\ (Pascal), which
 was used to typeset this document, {\tt libjpeg}, {\tt libmspack}, and
 FreeType (all C source), which are currently in production use as part
-of the Ibex Project, and {\tt gcc}, which was used to compile all of
-the aforementioned.
+of the Ibex Project \cite{ibex}, and {\tt gcc}, which was used to
+compile all of the aforementioned.
 
 Performance measurements indicate a best case performance within 3x of
 native code and worst case typically within 10x, making it an
@@ -306,7 +306,7 @@ instead opting for {\it binary-to-source} and {\it binary-to-binary}
 translation.  This offers three immediate advantages:
 
 \begin{itemize}
-\item {\bf Language Agnostic}
+\item {\bf Language Agnosticism}
 
       Because NestedVM does not attempt to implement the parsing and
       code generation steps of compilation, it is freed from the
@@ -347,7 +347,7 @@ totality:
       always succeeds for valid input binaries.
 \end{itemize}
 
-This is a much more important factor than is obvious at first glance.
+This last point has important software engineering implications.
 If post-translation human intervention is required, then the {\it
 human becomes part of the build process}.  This means that if a third
 party library used in the project needs to be upgraded, {\it a human
@@ -357,53 +357,62 @@ requires specialized knowledge which becomes tied to the particular
 individual performing this task, rather than being encoded in build
 scripts which persist throughout the lifetime of the project.
 
-\subsection{Why MIPS?}
+\subsection{Mapping the R2000 onto the JVM}
 
 We chose MIPS as a source format for three reasons: the availability
-of tools to compile legacy code into MIPS binaries, the close
-similarity (FIXME: explain) between the MIPS ISA and the Java Virtual
-Machine, and the relatively high degree of program structure that can
-be inferred from ABI-adherent binaries.
+of tools to compile legacy code into MIPS binaries, the many
+similarities between the MIPS ISA and the Java Virtual Machine, and
+the relatively high degree of program structure that can be inferred
+from ABI-adherent binaries.
 
 The MIPS architecture has been around for quite some time, and is well
 supported by the GNU Compiler Collection, which is capable of
 compiling C, C++, Java, Fortran, Pascal, and Objective C
 into MIPS binaries.
 
-The MIPS R2000 ISA bears a striking similarity to the Java Virtual
-Machine:
+The MIPS R2000 ISA bears many similarities to the Java Virtual
+Machine.  Most of the instructions in the original MIPS ISA operate
+only on 32-bit aligned memory locations. This allows NestedVM to
+represent memory as a Java {\tt int[][]} array indexed by page (the
+top $n$ bits of the address) and offset (the remaining bits) without
+introducing additional overhead.  MIPS's non-aligned memory load
+instructions are only rarely emitted by most compilers since they
+carry a performance penalty on physical MIPS implementations.
 
-\begin{itemize}
+Our choice of a paged representation for memory carries only a small
+performance disadvantage:
 
-\item Most of the instructions in the original MIPS ISA operate only
-      on 32-bit aligned memory locations. This allows NestedVM to
-      represent memory as a Java {\tt int[]} array without introducing
-      additional overhead.  The remaining non-aligned memory load
-      instructions are only rarely emitted by most compilers since
-      they carry a performance penalty on physical MIPS
-      implementations.
+\epsfig{file=charts/chart5,width=3in}
 
-\item Unlike its predecessor, the R2000 supports 32-bit by 32-bit
-      multiply and divide instructions as well as a single and double
-      precision floating point unit.  These capabilities map nicely
-      onto Java's arithmetic instructions.
+Additionally, this representation lets us to take advantage of the
+fact that on most JVM's, checking for a {\tt NullPointerException}
+carries no performance penalty unless the exception is thrown (the
+host CPU's MMU is generally used to detect this condition).  This
+allows us to lazily expand the MIPS memory space as it is used.
+Additionally, we maintain two page arrays, one which is used for read
+operations and another for writes.  Most of the time these page arrays
+will have identical entries; however, we can simulate a portion of the
+MIPS MMU functionality by setting the appropriate entry in the write
+page table to {\tt null}, thereby write protecting the page while
+still allowing reads.
 
-\item Although MIPS offers unsigned arithmetic and Java does not, few
-      MIPS instructions actually depend on non-two's-complement
-      handling of integer math.  Furthermore, since most high-level
-      languages such as C do not expose access to arithmetic-overflow
-      exceptions, these instructions are rarely found except in
-      hand-coded assembler.  In the few situations where these
-      instructions {\it are} encountered, the {\tt unsigned int} is
-      cast (bitwise) to a Java {\tt long}, the operation is performed,
-      and the result is cast back.  On architectures offering 64-bit
-      integer math this conversion carries no overhead.
-      
-\end{itemize}
+Unlike its predecessor, the R2000 supports 32-bit by 32-bit multiply
+and divide instructions as well as a single and double precision
+floating point unit.  These capabilities map nicely onto Java's
+arithmetic instructions and {\tt int}, {\tt long}, {\tt float}, and
+{\tt double} types.
 
-Finally, the MIPS ISA and ABI convey quite a bit of information about
-program structure.  This information can be used for optimization
-purposes:
+Although MIPS offers unsigned arithmetic and Java does not, few MIPS
+instructions actually depend on non-two's-complement handling of
+integer math.  In the few situations where these instructions {\it
+are} encountered, the {\tt unsigned int} is cast (bitwise) to a Java
+{\tt long}, the operation is performed, and the result is cast back.
+On host architectures offering 64-bit arithmetic this operation
+carries no performance penalty.
+
+In addition to its similarities to the JVM, the MIPS ISA and ABI
+convey quite a bit of information about program structure.  This
+information can be used for optimization purposes:
 
 \begin{itemize}
 
@@ -421,7 +430,7 @@ purposes:
 
 
 
-\subsection{Binary-to-Source}
+\subsection{Binary-to-Source Mode}
 
 The simplest operational mode for NestedVM is binary-to-source
 translation.  In this mode, NestedVM translates MIPS binaries into
@@ -510,27 +519,22 @@ public void trampoline() {
 Translating unsafe code for use within a JVM proceeds as follows:
 
 \begin{enumerate}
+\item The unsafe source code is compiled to a statically linked
+      binary, including any libraries (including {\tt libc}) it needs.
 
-\item Compile the source code to a statically linked binary, targeting
-      the MIPS R2000 ISA.  Typically this will involve linking against
-      {\tt libc}, which translates system requests (such as {\tt
-      open()}, {\tt read()}, or {\tt write()}) into appropriate
-      invocations of the MIPS {\tt SYSCALL} instruction.  Any other
-      libraries which are not tied to a particular OS kernel can be
-      linked in (even in binary form) using standard linker commands.
-      
-\item Invoke {\tt NestedVM} on the statically linked binary.
+\item {\tt NestedVM} is invoked on the statically linked binary, and
+      emits a {\tt .java} file.
 
-\item Compile the resulting {\tt .java} code using {\tt jikes}
-      \cite{jikes} or {\tt javac}.
+\item The resulting {\tt .java} code is compiled into a {\tt .class}
+      file using {\tt jikes} \cite{jikes} or {\tt javac}.
 
-\item From java code, invoke the {\tt run()} method on the generated
-      class.  This is equivalent to the {\tt main()} entry point.
-
+\item At runtime, the host Java code invokes the {\tt run()} method on
+      the generated class.  This is equivalent to the {\tt main()}
+      entry point.
 \end{enumerate}
 
 
-\subsection{Binary-to-Binary}
+\subsection{Binary-to-Binary Mode}
 
 After implementing the binary-to-source compiler, a binary-to-binary
 translation mode was added.
@@ -573,18 +577,13 @@ This mode has several advantages:
 
 \end{itemize}
 
+
 \section{The NestedVM Runtime}
 
-In addition to binary-to-source and binary-to-binary translation,
-NestedVM also includes a MIPS binary interpreter.  All three
-translation approaches expose the same API to both the translated
-binary and the surrounding VM (including peer Java code).
-
-The NestedVM Runtime (various subclasses of {\tt
-org.ibex.nestedvm.Runtime}) fill the role of an OS Kernel.
-Communication between MIPS code and the outside world is via the MIPS
+The NestedVM runtime fills the role typically assmed by an OS Kernel.
+Communication between MIPS code and the runtime is mediated by the
 {\tt SYSCALL} instruction, just as the {\tt libc}-kernel interface is
-on real MIPS implementations.
+on other MIPS implementations.
 
 Two implemenations of the runtime are offered; a simple runtime with
 the minimum support required to comply with ANSI C, and a more
@@ -596,28 +595,27 @@ The ANSI C runtime offers typical file I/O operations including {\tt
 open()}, {\tt close()}, {\tt read()}, {\tt write()}, and {\tt seek()}.
 File descriptors are implemented much as they are in OS kernels; a
 table of open files is maintained and descriptors act as an index into
-that table.  Each file is represented as a Java {\tt RandomAccessFile}
-in order to match the semantics of {\tt seek()}.
+that table.  Each file descriptor is represented as a Java {\tt
+RandomAccessFile} in order to match the semantics of {\tt seek()}.
 
 Process-level memory management is done through the {\tt sbrk()}
 system call, which extends the process heap by adding more pages to
 the memory page table.  Fast memory clear and copy operations can be
 performed with {\tt memset()} and {\tt memcpy()}, which invoke the
-Java {\tt System.arraycopy()} method, which is generally much faster
-than a {\tt for()} loop.
+Java {\tt System.arraycopy()} method.
 
-The {\tt exit()} call records the exit status, marks the VM instance
-as terminated and halts execution.  The {\tt pause()} syscall
+The {\tt exit()} call records the process' exit status, marks the VM
+instance as terminated and halts execution.  The {\tt pause()} syscall
 implements a crude form of Java-MIPS communication by returning
 control to the Java code which spawned the MIPS process.
 
+
 \subsection{The Unix Runtime}
 
-The Unix runtime extends the simple ANSI file I/O model to include a
-single-root filesystem, and device nodes, as well as {\tt fcntl()}
-APIs to manipulate these.  Device nodes are generally simulated by
-mapping reads, writes, and {\tt fcntl()}s on the device to the
-appropriate Java API.
+The Unix runtime extends the simple ANSI C file I/O model to include a
+unified-root filesystem, device nodes, and {\tt fcntl()} APIs.  Device
+nodes are generally simulated by mapping reads, writes, and {\tt
+fcntl()}s on the device to the appropriate Java API.
 
 MIPS processes can ``mount'' other filesystems within the virtual
 filesystem made visible to the MIPS process.  Each filesystem is
@@ -626,34 +624,46 @@ the host filesystem (including {\tt state()}, {\tt lstat()}, {\tt
 mkdir}, and {\tt unlink()}, and {\tt getdents()}), the contents of a
 zip archive, or even a remote HTTP server.
 
-MIPS processes can also spawn subprocesses using the {\tt fork()} and
-{\tt exec()} calls, which create new Java threads to run the process.
-The {\tt fork()} call -- which is supposed to duplicate the memory
-image of a process -- is implemented in an elegant manner by calling
+The {\tt fork()} call is implemented in an elegant manner by calling
 the Java {\tt clone()} method (deep copy) on the VM object itself.
-Copy-on-write is not currently implemented.  The new instance is added
-to a static process table to facilitate interprocess communication.
-
-The {\tt waitpid()} API allows a parent process to block pending the
-completion of a child process, which is done quite easily with the
-Java {\tt wait()} method.
+The new instance is then added to a static process table to facilitate
+interprocess communication.
 
 The {\tt exec()} method actually loads a MIPS binary image from the
 filesystem, feeds it to the MIPS-to-bytecode translator, and then
 loads the resulting bytecode on the fly using {\tt
-ClassLoader.loadBytes()}.  The {\tt pipe()} system call permits
+ClassLoader.loadBytes()}.
+
+The {\tt waitpid()} API allows a parent process to block pending the
+completion of a child process, which is modeled quite easily with the
+Java {\tt wait()} method.  The {\tt pipe()} system call permits
 parent-to-child IPC just as on a normal Unix system.
 
 Simple networking support is provided by the {\tt opensocket()}, {\tt
-listensocket()}, and {\tt accept()} methods, which are not currently
-compatible with the usual Berkeley sockets API.
+listensocket()}, and {\tt accept()} methods, which are not yet fully
+compatible with the standard Berkeley sockets API.
 
 
 \subsection{Security Concerns}
 
-RuntimeExceptions don't escape, they care caught and turned into
-checked exceptions filesystem access does though security manager
-(NestedVM Runtime.SecurityManager, and the JVM's)
+NestedVM processes are completely isolated from the outside world
+except for the {\tt SYSCALL} instruction.  As previously mentioned,
+the programmer can choose from various runtime implementations which
+translate these invocations into operations in the outside world.  By
+default, none of these implementations allows file or network I/O;
+this must be explicitly enabled, typically on a per-file basis.
+
+Wild writes within the MIPS VM have no effect on the larger JVM or the
+host OS; they can only cause the {\tt SYSCALL} instruction to be
+invoked.  A judicious choice of which system calls to enable offers
+extremely strong security; for example, the {\tt libjpeg} library does
+not need any host services whatsoever -- its sole task is to
+decompress one image (which is pre-written into memory before it
+starts up), write the decompressed image to another part of memory,
+and exit.  With all system calls disabled, {\tt libjpeg} will function
+correctly, and even if it is compromised (for example by a
+maliciously-constructed invalid image), the only effect it can have on
+the host is to generate an incorrect decompressed image.
 
 
 \subsection{Threading}
@@ -661,29 +671,29 @@ checked exceptions filesystem access does though security manager
 The NestedVM runtime currently does not support threading.  Providing
 robust support for ``true threads'', whereby each MIPS thread maps to
 a Java thread is probably not possible as the Java Memory Model
-[CITE], since all MIPS memory is stored in a set of {\tt int[]}'s and
-the Java Memory Model does not permit varying treatment or coherency
-policies at the granularity of a single array element.
+\cite{jmm}, since all MIPS memory is stored in a set of {\tt
+int[]}'s and the Java Memory Model does not permit varying treatment
+or coherency policies at the granularity of a single array element.
 
 While this presents a major barrier for applications that use
-sophisticated locking schemes (such as {\it hash synchronization})
-which depend on atomic memory operations, it is probably possible to
-apply this threading model to ``well behaved'' multithreaded
-applications which depend only on OS-provided semaphores and mutexes
-for synchronization.
+sophisticated locking schemes such as {\it hash synchronization} and
+depend on atomic memory operations, it is probably possible to apply
+this threading model to ``well behaved'' multithreaded applications
+which make no concurrency assumptions other than those explicitly
+offered by OS-provided semaphores and mutexes.
 
 Complex synchronization and incorrectly synchronized applications can
 be supported by implementing a variant of {\it user threads} within a
 single Java thread by providing a timer interrupt (via a Java
 asynchronous exception).  Unfortunately this requires that the
-compiled binary be able to restart from any arbitrary instruction
+compiled binary be able to restart at any arbitrary instruction
 address, which would require a {\tt case} statement for every
 instruction (rather than every jump target), which would degrade
 performance and increase the size of the resulting class file.
 
 \section{Optimization and Performance}
 
-\subsection{Binary-to-Source mode}
+\subsection{Binary-to-Source Mode}
 
 Generating Java source code instead of bytecode frees NestedVM from
 having to perform simple constant propagation optimizations, as most
@@ -692,10 +702,12 @@ of the {\tt r0} register, which is fixed as {\tt 0} in the MIPS ISA.
 
 Lacking the ability to generate specially optimized bytecode
 sequences, a straightforward mapping of the general purpose hardware
-registers to 32 {\tt int} fields turned out to be optimal.
+registers to 32 {\tt int} fields turned out to be optimal.  Using
+local variables for registers did not offer much of a performance
+advantage, presumably since the JVM's JIT is intelligent enough to
+register-allocate temporaries for fields.
 
-
-\epsfig{file=charts/chart1,width=3in}
+\epsfig{file=charts/chart4,width=3in}
 
 Unfortunately, Java imposes a 64kb limit on the size of the bytecode
 for a single method.  This presents a problem for NestedVM, and
@@ -740,9 +752,7 @@ methods invoked from the trampoline.  Trial and error led to the
 onclusion that HotSpot \cite{hotspot} -- the most widely deployed JVM
 -- performs best when 128 MIPS instructions are mapped to each method.
 
-\epsfig{file=charts/chart5,width=3in}
-
-\epsfig{file=charts/chart6,width=3in}
+\epsfig{file=charts/chart1,width=3in}
 
 This phenomenon is due to two factors:
 
@@ -760,10 +770,11 @@ This phenomenon is due to two factors:
 \end{itemize}
 
 After tuning method sizes, our next performance boost came from
-eliminating exraneous case branches.  Having case statements before
-each instruction prevents JIT compilers from being able to optimize
-across instruction boundaries, since control flow can enter the body
-of a {\tt switch} statement at any of the {\tt case}s.  In order to
+eliminating exraneous case branches, which yielded approximately a
+10\%-25\% performance improvement.  Having case statements before each
+instruction prevents JIT compilers from being able to optimize across
+instruction boundaries, since control flow can enter the body of a
+{\tt switch} statement at any of the {\tt case}s.  In order to
 eliminate unnecessary case statements we needed to identify all
 possible jump targets.  Jump targets can come from three sources:
 
@@ -773,13 +784,13 @@ possible jump targets.  Jump targets can come from three sources:
 
       Every instruction in the text segment is scanned, and every
       branch instruction's destination is added to the list of
-      possible branch targets.  In addition, any function that sets
-      the link register is added to the list \footnote{actually {\tt addr+8}}.
-      Finally, combinations of {\tt LUI} (Load Upper Immediate) and
-      {\tt ADDIU} (Add Immediate Unsigned) are scanned for possible
-      addresses in the {\tt .text} segment since this combination of
-      instructions is often used to load a 32-bit word into a
-      register.
+      possible branch targets.  In addition, the
+      address\footnote{actually {\tt addr+8}} of any function that
+      sets the link register is added to the list.  Finally,
+      combinations of {\tt LUI} (Load Upper Immediate) and {\tt ADDIU}
+      (Add Immediate Unsigned) are scanned for possible addresses in
+      the {\tt .text} segment since this combination of instructions
+      is often used to load a 32-bit word into a register.
 
 \item {\bf The {\tt .data} segment}
 
@@ -791,17 +802,15 @@ possible jump targets.  Jump targets can come from three sources:
       
 \item {\bf The symbol table}
 
-      This is mainly used as a backup.  Scanning the {\tt .text} and
-      {\tt .data} segments should identify any possible jump targets;
-      however, adding all function symbols in the ELF symbol table
-      also catches functions that are never called directly from the
-      MIPS binary, such as those invoked only via the NestedVM
-      runtime's {\tt call()} method.
+      The symbol table is used primarily as a backup source of jump
+      targets.  Scanning the {\tt .text} and {\tt .data} segments
+      should identify any possible jump targets; however, adding all
+      function symbols in the ELF symbol table also catches functions
+      that are never called directly from the MIPS binary, such as
+      those invoked only via the NestedVM runtime's {\tt call()}
+      method.
 
 \end{itemize}
-
-Eliminating unnecessary {\tt case} statements provided a 10-25\% speed
-increase.
 
 Despite all the above optimizations, one insurmountable obstacle
 remained: the Java {\tt .class} file format limits the constant pool
@@ -819,13 +828,15 @@ degredation and a similarly small increase in the size of the {\tt
 directly to {\tt .class} files (without the intermediate {\tt .java}
 file) eliminates this problem entirely.
 
-\subsection{Binary-to-Binary mode}
+\subsection{Binary-to-Binary Mode}
 
-Most of the performance improvemen where made where in the handling of
-branch instructions and in taking advantage of the JVM stack to
-eliminate unnecessary {\tt LOAD}s and {\tt STORE}s to local variables.
+Compiling directly to bytecode offers a substantial performance gain:
 
-\epsfig{file=charts/chart7,width=3in}
+\epsfig{file=charts/chart3,width=3in}
+
+Most of this improvement comes from the handling of branch
+instructions and from taking advantage of the JVM stack to eliminate
+unnecessary {\tt LOAD}s and {\tt STORE}s to local variables.
 
 The first optimization gained by direct bytecode generation came from
 the use of the JVM {\tt GOTO} instruction.  Despite the fact that the
@@ -849,7 +860,7 @@ into Java source code like this:
 This requires a branch in the JVM {\it regardless} of whether the MIPS
 branch is actually taken.  If {\tt condition} is false the JVM has to
 jump over the code to set {\tt pc} and go back to the {\tt switch}
-statemenmt; if {\tt condition} is true the JVM has to jump to the {\tt
+statement; if {\tt condition} is true the JVM has to jump to the {\tt
 switch} block.  By generating bytecode directly, NestedVM is able to
 emit a JVM bytecode branching directly to the address corresponding to
 the target of the MIPS branch.  In the case where the branch is not
@@ -873,20 +884,20 @@ instruction in the delay slot is actually executed {\it before} the
 branch is taken.  To further complicate matters, values from the
 register file are loaded {\it before} the delay slot is executed.
 
-Fortunately there is a very elegent solution to this problem which can
-be expressed in JVM bytecode.  When a branch instruction is
-encountered, the registers needed for the comparison are pushed onto
-the stack to prepare for the JVM branch instruction.  Then, {\it
-after} the values are on the stack the delay slot instruction is
-emitted, followed by the actual JVM branch instruction.  Because the
-values were pushed to the stack before the delay slot was executed, any
-changes the delay slot made to the registers are not visible to the
-branch bytecode.
+Fortunately there is a very elegant solution to this problem when
+directly emitting bytecode.  When a branch instruction is encountered,
+the registers needed for the comparison are pushed onto the stack to
+prepare for the JVM branch instruction.  Then, {\it after} the values
+are on the stack the delay slot instruction is emitted, followed by
+the actual JVM branch instruction.  Because the values were pushed to
+the stack before the delay slot was executed, any changes the delay
+slot instruction makes to the registers are not visible to the branch
+bytecode.
 
-One final advantage that generating bytecode directly allows is a
-reduction in the size of the ultimate {\tt .class} file.  All the
-optimizations above lead to more compact bytecode as a beneficial side
-effect; in addition, NestedVM performs a few additional optimizations.
+One final advantage of emitting bytecode is a reduction in the size of
+the ultimate {\tt .class} file.  All the optimizations above lead to
+more compact bytecode as a beneficial side effect in addition,
+NestedVM performs a few additional size optimizations.
 
 When encountering the following {\tt switch} block, both {\tt javac}
 and {\tt jikes} generate redundant bytecode.
@@ -905,6 +916,11 @@ ALOAD\_0} to prepare for a {\tt INVOKESPECIAL} call.  By simply
 lifting this bytecode outside of the {\tt switch} statement, each {\tt
 case} arm shrinks by one instruction.
 
+The net result is quite reasonably sized {\tt .class} files:
+
+\epsfig{file=charts/chart9,width=3in}
+
+
 \subsection{Compiler Flags}
 
 Although NestedVM perfectly emulates a MIPS R2000 CPU, its performance
@@ -912,7 +928,8 @@ profile is nothing like that of actual silicon.  In particular, {\tt
 gcc} makes several optimizations that increase performance on an
 actually MIPS CPU but actually decrease the performance of
 NestedVM-generated bytecode.  We found the following compiler options
-could be used to improve performance:
+generally improve performance when using {\tt gcc} as the
+source-to-MIPS compiler:
 
 \begin{itemize}
 
@@ -920,11 +937,12 @@ could be used to improve performance:
 
       Normally a function's location in memory has no effect on its
       execution speed.  However, in the NestedVM binary translator,
-      the {\tt .text} segment is split on power-of-two boundaries.  If
-      a function starts near the end of one of these boundaries, a
-      performance critical part of the function winds up spanning two
-      Java methods.  Telling {\tt gcc} to align all functions along
-      these boundaries decreases the chance of this sort of splitting.
+      the {\tt .text} segment is split on power-of-two boundaries due
+      to the trampoline.  If a function starts near the end of one of
+      these boundaries, a performance critical part of the function
+      winds up spanning two Java methods.  Telling {\tt gcc} to align
+      all functions along these boundaries decreases the chance of
+      this sort of splitting.
 
 \item {\tt -fno-rename-registers}
 
@@ -941,36 +959,32 @@ could be used to improve performance:
       two} instructions after the load.  Without the {\tt
       -fno-schedule-insns} instruction, {\tt gcc} will attempt to
       reorder instructions to do other useful work during this period
-      of unavailability.  NestedVM is under no such constraint, so
-      removing this reordering typically generates simpler machine
-      code.
+      of unavailability.  NestedVM is under no such constraint, and
+      removing this reordering typically results in simpler bytecode.
 
 \item {\tt -mmemcpy}
 
       Enabling this instruction causes {\tt gcc} to use the system
       {\tt memcpy()} routine instead of generating loads and stores.
-      As explained in the next section, the NestedVM runtime
+      As explained in the previous section, the NestedVM runtime
       implements {\tt memcpy()} using {\tt System.arraycopy()}, which
       is substantially more efficient.
 
 \item {\tt -ffunction-sections -fdata-sections}
 
       These two options are used in conjunction with the {\tt
-      --gc-section} linker option, prompting the linker to more
+      --gc-sections} linker option, prompting the linker to more
       aggressively prune dead code.
 
 \end{itemize}
 
-The effects of the various optimizations presented in this chapter are
-summarized in the table below.
-
-\epsfig{file=charts/chart4,width=3in}
-
-\epsfig{file=charts/chart3,width=3in}
+\subsection{Overall Performance}
 
 \epsfig{file=charts/chart8,width=3in}
 
-\epsfig{file=charts/chart9,width=3in}
+\epsfig{file=charts/chart7,width=3in}
+
+\epsfig{file=charts/chart6,width=3in}
 
 \section{Sample Applications}
 
@@ -981,7 +995,8 @@ equivalent exists.  The first is the FreeType font library, which
 parses, hints, and rasterizes TrueType and Postscript fonts with
 exceptional quality.  The project also needed an open source JPEG
 decompressor; surprisingly, none exist for Java.  While encoders are
-plentiful
+plentiful, decoders are rare, since Sun's J2SE VM includes a native
+method to invoke {\tt libjpeg}.
 
 These three libraries make minimal use of the standard library and OS
 services, and are all written in very portable ANSI C code, which made
@@ -989,23 +1004,23 @@ them easy targets for initial development.
 
 \subsection{The GNU Compiler Collection}
 
-Our next target, {\tt gcc}, was chosen in order to relieve developers
-from the time-consuming and complex task of building a compiler
-themselves.  The Ibex Project requires a specially configured and
-patched version of {\tt gcc} and its ahead-of-time Java compiler ({\tt
-gcj}) which is not distributed in binary form.
+Our next target, {\tt gcc}, was initially chosen in order to relieve
+developers from the time-consuming and complex task of building a
+compiler themselves; The Ibex Project requires a specially configured
+and patched version of {\tt gcc} and its ahead-of-time Java compiler
+({\tt gcj}) which is cumbersome to build.
 
-GCC was the first ``major'' application NestedVM was used on, and
-drove the development of most of the system library interface
+{\tt Gcc} was the first ``major'' application NestedVM was used on,
+and drove the development of most of the system library interface
 development; particularly support for {\tt fork()} and {\tt exec()},
 which require the NestedVM Runtime to perform binary-to-bytecode
 translation on the fly.
 
-GCC also makes extensive use of 64-bit integers ({\tt long long}),
-which -- for performance reasons -- are typically manipulated using
-nonobvious instruction sequences on the 32-bit MIPS architecture.
-Dealing with these operations uncovered a number of bugs in the
-translator.
+{\tt Gcc} also makes extensive use of 64-bit integers ({\tt long
+long}), which -- for performance reasons -- are typically manipulated
+using nonobvious instruction sequences on the 32-bit MIPS
+architecture.  Dealing with these operations uncovered a number of
+bugs in the translator.
 
 Despite our original goal, we have not yet been able to translate the
 {\tt C++} or Java front-ends, as the resulting binary produces a
@@ -1013,11 +1028,10 @@ trampoline which exceeds the maximum size of a single method.  Future
 work will explore a multi-level trampoline to address this issue.
 
 
-
 \subsection{\TeX and LINPACK}
 
 In order to distinguish NestedVM from other single-language
-translators for the JVM, we undertook the task of translating \TeX 89
+translators for the JVM, we undertook the task of translating \TeX\
 (written in Pascal) and the Fortran source code for LINPACK into Java
 bytecodes.
 
@@ -1036,15 +1050,13 @@ substitute wall-clock time on an otherwise-quiescent machine as an
 approximation.
 
 
-
-
-
 \section{Conclusion}
 
-\subsection{Theoretical Limitations}
-
-Theoretical limitations: threads, reading from code, self-modifying
-code, COW?
+We have presented a novel technique for using libraries written in
+unsafe languages within a safe virtual machine without resorting to
+native interfaces.  We have implemented this technique in NestedVM and
+demonstrated its utility by translating six popular software
+applications.
 
 \subsection{Future Directions}
 
@@ -1055,7 +1067,7 @@ the translator to the Microsoft Intermediate Language \cite{msil}.
 
 Additionally, we would like to explore other uses for dynamic loading
 of translated MIPS binaries by combining NestedVM (which itself is
-written in Java) and the {\tt ClassLoader.fromBytes()} mechanism.
+written in Java) and the {\tt ClassLoader.defineClass()} mechanism.
 
 \subsection{Availability}
 
@@ -1068,11 +1080,11 @@ obtained from
 \appendix
 \section{Appendix: Testing Methodology}
 
-All times are measured in seconds. These were all run on a dual 1Ghz
-Macintosh G4 running Apple's latest JVM (Sun HotSpot JDK 1.4.1). Each
-test was run 8 times within a single VM. The highest and lowest times
-were removed and the remaining 6 were averaged.  In each case only the
-first run differed significantly from the rest.
+All times are measured in seconds.  All tests were performed on a dual
+1Ghz Macintosh G4 running Apple's latest JVM (Sun HotSpot JDK
+1.4.1). Each test was run 8 times within a single VM. The highest and
+lowest times were removed and the remaining 6 were averaged.  In each
+case only the first run differed significantly from the rest.
 
 The {\tt libjpeg} test consisted of decoding a 1280x1024 jpeg and
 writing a tga.  The {\tt mspack} test consisted of extracting all

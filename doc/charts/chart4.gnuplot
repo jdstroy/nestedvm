@@ -2,7 +2,7 @@
 set terminal postscript landscape color "Helvetica" 19 
 set output 'unfilled.eps'
 
-set yrange [0:5.0]
+set yrange [0:5.5]
 set xrange [1:5.8]
 set data style boxes
 set boxwidth 0.4
