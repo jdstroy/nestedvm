@@ -174,8 +174,11 @@ env.sh: Makefile $(tasks)/full_toolchain build/org/ibex/nestedvm/Compiler.class
 runtime_classes = Runtime Registers UsermodeConstants util/Seekable
 
 runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
-	cd build && jar cf ../$@ $(runtime_classes:%=org/ibex/nestedvm/%*.class)
-
+	cd build && jar cf ../$@ \
+		$(runtime_classes:%=org/ibex/nestedvm/%.class) \
+		org/ibex/nestedvm/Runtime\$$*.class \
+		org/ibex/nestedvm/util/Seekable\$$*.class
+		
 .manifest:
 	echo -ne "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
 
