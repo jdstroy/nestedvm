@@ -67,7 +67,8 @@ mips_objects = $(mips_sources:%.c=build/org/xwt/mips/%.o) $(mips_asm_sources:%.s
 
 .SECONDARY:
 
-PATH := $(mips2java_root)/upstream/install/bin:$(PATH)
+usr = $(mips2java_root)/upstream/install
+PATH := $(usr)/bin:$(PATH)
 export PATH
 
 #
@@ -79,15 +80,15 @@ all: build/mips2java$(EXE_EXT) $(mips_objects)
 endif
 
 $(tasks)/%:
-	$(MAKE) -C upstream tasks/$* MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_CFLAGS="$(flags) $(mips_optflags)"
+	$(MAKE) -C upstream tasks/$* usr="$(usr)" MIPS_LDFLAGS="$(MIPS_LDFLAGS)" MIPS_CFLAGS="$(flags) $(mips_optflags)"
 
 upstream_clean_%:
-	$(MAKE) -C upstream clean_$*
+	$(MAKE) -C upstream clean_$* usr="$(usr)"
 
-errno_h = upstream/install/mips-unknown-elf/include/sys/errno.h
+errno_h = $(usr)/mips-unknown-elf/include/sys/errno.h
 $(errno_h): $(tasks)/build_newlib
 
-unistd_h = upstream/install/mips-unknown-elf/include/sys/unistd.h
+unistd_h = $(usr)/mips-unknown-elf/include/sys/unistd.h
 $(unistd_h): $(tasks)/build_newlib
 
 #
@@ -102,8 +103,8 @@ build/org/xwt/mips/util/.Dummy.class:
 $(java_classes): build/org/xwt/mips/util/.Dummy.class
 endif
 
-$(java_classes): $(tasks)/unpack_bcel $(java_sources) $(java_gen_sources)
-	$(JAVAC) -classpath $(CLASSPATH) -d build $(java_sources) $(java_gen_sources)
+$(java_classes): $(java_sources) $(java_gen_sources) $(bcel_jar)
+	$(JAVAC) -classpath $(classpath) -d build $(java_sources) $(java_gen_sources)
 
 build/org/xwt/mips/UsermodeConstants.java: src/org/xwt/mips/syscalls.h $(errno_h) $(unistd_h)
 	@mkdir -p `dirname $@`
@@ -152,15 +153,15 @@ build/%.mips.stripped: build/%.mips
 # MIPS Compiler generated class compilation
 ifdef DO_JAVASOURCE
 
-build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class $(tasks)/unpack_bcel 
-	$(JAVA) -cp $(CLASSPATH) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
+build/%.java: build/%.mips build/org/xwt/mips/JavaSourceCompiler.class 
+	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat javasource $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $< > build/$*.java
 
 build/%.class: build/%.java build/org/xwt/mips/Runtime.class
 	$(JAVAC) $(JAVAC_NODEBUG_FLAGS) -classpath build -d build $<
 else
 
-build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class $(tasks)/unpack_bcel 
-	$(JAVA) -cp $(CLASSPATH) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
+build/%.class: build/%.mips build/org/xwt/mips/ClassFileCompiler.class
+	$(JAVA) -cp $(classpath) org.xwt.mips.Compiler -outformat class -outfile $@ $(compiler_flags) $($(notdir $*)_COMPILERFLAGS) $(subst /,.,$*) $<
 
 
 endif
@@ -175,9 +176,9 @@ clean:
 #
 # env.sh
 #
-env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class $(tasks)/unpack_bcel 
+env.sh: Makefile $(tasks)/full_toolchain build/org/xwt/mips/Compiler.class
 	@rm -f "$@~"
-	@echo 'PATH="$(mips2java_root)/build:$(mips2java_root)/upstream/install/bin:$$PATH"; export PATH' >> $@~
+	@echo 'PATH="$(mips2java_root)/build:$(usr)/bin:$$PATH"; export PATH' >> $@~
 	@echo 'CC=mips-unknown-elf-gcc; export CC' >> $@~
 	@echo 'CXX=mips-unknown-elf-g++; export CXX' >> $@~
 	@echo 'AS=mips-unknown-elf-as; export AS' >> $@~

@@ -27,9 +27,9 @@ url_bcel = http://mirrors.mix5.com/apache/jakarta/bcel/binaries/bcel-$(version_b
 
 upstream = $(shell pwd)
 root = $(shell dirname "`pwd`")
-prefix = $(upstream)/install
+usr = $(upstream)/install
 
-PATH := $(prefix)/bin:$(PATH)
+PATH := $(usr)/bin:$(PATH)
 export PATH
 
 # Solaris' patch doesn't work, use gnu patch on solaris
@@ -42,9 +42,9 @@ tasks/build_gcc: tasks/build_binutils
 tasks/build_newlib: tasks/build_gcc
 
 tasks/build_libc: tasks/build_newlib tasks/build_regex tasks/build_openbsdglob
-	rm -f install/mips-unknown-elf/lib/crt0.o
-	ln -s $(root)/build/org/xwt/mips/crt0.o install/mips-unknown-elf/lib/crt0.o 
-	echo '#include <unistd.h>' > install/mips-unknown-elf/include/getopt.h
+	rm -f $(usr)/mips-unknown-elf/lib/crt0.o
+	ln -s $(root)/build/org/xwt/mips/crt0.o $(usr)/mips-unknown-elf/lib/crt0.o 
+	echo '#include <unistd.h>' > $(usr)/mips-unknown-elf/include/getopt.h
 	touch $@
 
 clean_%:
@@ -82,44 +82,44 @@ tasks/patch_%: tasks/extract_%
 	touch $@
 
 tasks/build_%: tasks/patch_%
-	mkdir -p install
-	@[ "$*" = "newlib" ] && rm -f install/mips-unknown-elf/lib/crt0.o || true
+	mkdir -p $(usr)
+	@[ "$*" = "newlib" ] && rm -f $(usr)/mips-unknown-elf/lib/crt0.o || true
 	mkdir -p build/$*-obj && cd build/$*-obj && \
-		../$*-$(version_$*)/configure --prefix=$(prefix) $(configure_$*) && \
+		../$*-$(version_$*)/configure --prefix=$(usr) $(configure_$*) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		$(MAKE) install
 	touch $@
 
 tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
-	mkdir -p install
+	mkdir -p $(usr)
 	mkdir -p build/gcc-obj && cd build/gcc-obj && \
-		../gcc-$(version_gcc)/configure --prefix=$(prefix) $(configure_gcc_step2) && \
+		../gcc-$(version_gcc)/configure --prefix=$(usr) $(configure_gcc_step2) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		$(MAKE) install
 	touch $@
 
 tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
-	@mkdir -p install/mips-unknown-elf/{include,lib}
+	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
 	cd build && gzip -dc ../download/openbsdglob.tar.gz | tar xf -
 	cd build/openbsdglob && \
 		mips-unknown-elf-gcc '-Dissetugid()=0' -DARG_MAX=65536 $(MIPS_CFLAGS) -I. -c -o glob.o glob.c && \
 		mips-unknown-elf-gcc -O2 -Wall -Werror -I. -c -o fnmatch.o fnmatch.c && \
 		mips-unknown-elf-ar cr libglob.a *.o && \
 		mips-unknown-elf-ranlib libglob.a && \
-		cp *.h ../../install/mips-unknown-elf/include && \
-		cp *.a ../../install/mips-unknown-elf/lib
+		cp *.h $(usr)/mips-unknown-elf/include && \
+		cp *.a $(usr)/mips-unknown-elf/lib
 	touch $@
 
 tasks/build_regex: tasks/download_regex tasks/build_newlib
-	@mkdir -p install/mips-unknown-elf/{include,lib}
+	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
 	mkdir -p build/regex build/regex/fake
 	cd build/regex && \
 		sh ../../download/regex.shar && \
 		make CC=mips-unknown-elf-gcc CFLAGS="-I. $(MIPS_CFLAGS)" regcomp.o regexec.o regerror.o regfree.o && \
 		mips-unknown-elf-ar cr libregex.a regcomp.o regexec.o regerror.o regfree.o && \
 		mips-unknown-elf-ranlib libregex.a && \
-		cp regex.h ../../install/mips-unknown-elf/include && \
-		cp libregex.a ../../install/mips-unknown-elf/lib 
+		cp regex.h $(usr)/mips-unknown-elf/include && \
+		cp libregex.a $(usr)/mips-unknown-elf/lib 
 	touch $@
 
 
