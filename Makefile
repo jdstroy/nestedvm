@@ -113,7 +113,9 @@ build/mips2java$(EXE_EXT): $(java_sources) $(java_gen_sources)
 #
 # MIPS Binary compilation
 #
-build/%.o: src/%.c $(tasks)/full_toolchain
+
+# The nestedvm support library is special, it doesn't a full libc
+$(mips_c_objects): build/%.o: src/%.c $(tasks)/build_gcc $(tasks)/build_newlib $(tasks)/build_extraheaders
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) $(MIPS_CFLAGS) -c -o $@ $<
 
@@ -122,7 +124,7 @@ build/%.o: src/%.c $(tasks)/build_gcc $(tasks)/build_libc
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) $(MIPS_CFLAGS) $($(notdir $*)_CFLAGS) -c -o $@ $<
 
-build/%.o: src/%.s $(tasks)/full_toolchain
+build/%.o: src/%.s $(tasks)/build_gcc
 	@mkdir -p `dirname $@`
 	$(MIPS_CC) -x assembler-with-cpp -c -o $@ $<
 
