@@ -174,6 +174,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_fchown: return sys_fchown(a,b,c);
             case SYS_chmod: return sys_chmod(a,b,c);
             case SYS_fchmod: return sys_fchmod(a,b,c);
+            case SYS_umask: return sys_umask(a);
             
             default: return super._syscall(syscall,a,b,c,d,e,f);
         }
@@ -202,7 +203,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private int sys_fchmod(int fd, int uid, int gid) {
         return 0;
     }
-    
+    private int sys_umask(int mask) {
+        return 0;
+    }
     
     private int sys_access(int cstring, int mode) throws ErrnoException, ReadFaultException {
         // FEATURE: sys_access
@@ -505,13 +508,16 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         if(p == buf.length) break OUTER;
                         n = s.read(buf,p,buf.length-p);
                     }
-                    int arg;
-                    for(arg=2;arg<p;arg++) if(buf[arg] == ' ') break;
-                    int cmdEnd = arg;
-                    while(arg < p && buf[arg] == ' ') arg++;
+                    int cmdStart = 2;
+                    for(;cmdStart<p;cmdStart++) if(buf[cmdStart]!=' ') break;
+                    if(cmdStart == p) throw new ErrnoException(ENOEXEC);
+                    int argStart = cmdStart;
+                    for(;argStart<p;argStart++) if(buf[argStart] == ' ') break;
+                    int cmdEnd = argStart;
+                    while(argStart < p && buf[argStart] == ' ') argStart++;
                     String[] command = new String[] {
-                        new String(buf,2,cmdEnd),
-                        arg < p ? new String(buf,arg,p-arg) : null
+                        new String(buf,cmdStart,cmdEnd-cmdStart),
+                        argStart < p ? new String(buf,argStart,p-argStart) : null
                     };
                     gs.execCache.put(path,new GlobalState.CacheEnt(mtime,size,command));
                     return execScript(path,command,argv,envp);
@@ -526,13 +532,16 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     public int execScript(String path, String[] command, String[] argv, String[] envp) throws ErrnoException {
-        String[] newArgv = new String[argv.length + command[1] != null ? 2 : 1];
+        String[] newArgv = new String[argv.length-1 + (command[1] != null ? 3 : 2)];
         int p = command[0].lastIndexOf('/');
         newArgv[0] = p == -1 ? command[0] : command[0].substring(p+1);
-        p = 1;
+        newArgv[1] = "/" + path;
+        p = 2;
         if(command[1] != null) newArgv[p++] = command[1];
-        newArgv[p++] = "/" + path;
         for(int i=1;i<argv.length;i++) newArgv[p++] = argv[i];
+        if(p != newArgv.length) throw new Error("p != newArgv.length");
+        System.err.println("Execing: " + command[0]);
+        for(int i=0;i<newArgv.length;i++) System.err.println("execing [" + i + "] " + newArgv[i]);
         return exec(command[0],newArgv,envp);
     }
     
@@ -1318,6 +1327,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         char[] in = new char[path.length()+1];
         char[] out = new char[in.length + (absolute ? -1 : cwd.length())];
+        path.getChars(0,path.length(),in,0);
         int inp=0, outp=0;
         
         if(absolute) {
@@ -1327,7 +1337,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             outp = cwdl;
         }
 
-        path.getChars(0,path.length(),in,0);
         while(in[inp] != 0) {
             if(inp != 0) {
                 while(in[inp] != 0 && in[inp] != '/') { out[outp++] = in[inp++]; }
@@ -1355,7 +1364,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
         if(outp > 0 && out[outp-1] == '/') outp--;
         //System.err.println("normalize: " + path + " -> " + new String(out,0,outp) + " (cwd: " + cwd + ")");
-        return new String(out,0,outp);
+        int outStart = out[0] == '/' ? 1 : 0;
+        return new String(out,outStart,outp - outStart);
     }
     
     FStat hostFStat(final File f, Object data) {

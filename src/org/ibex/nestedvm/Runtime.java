@@ -1031,9 +1031,11 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     protected final int syscall(int syscall, int a, int b, int c, int d, int e, int f) {
         try {
             int n = _syscall(syscall,a,b,c,d,e,f);
-            //if(n < 0) System.err.println("syscall: " + syscall + " returned " + n);
+            //if(n<0) throw new ErrnoException(-n);
             return n;
         } catch(ErrnoException ex) {
+            //System.err.println("While executing syscall: " + syscall + ":");
+            //if(syscall == SYS_open) try { System.err.println("Failed to open " + cstring(a) + " errno " + ex.errno); } catch(Exception e2) { }
             //ex.printStackTrace();
             return -ex.errno;
         } catch(FaultException ex) {
