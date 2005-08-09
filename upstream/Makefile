@@ -10,9 +10,9 @@ patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
 configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
-
 version_gpc = 20030830
-url_gpc = http://www.gnu-pascal.de/alpha/gpc-$(version_gpc).tar.gz
+#url_gpc = http://www.gnu-pascal.de/alpha/gpc-$(version_gpc).tar.gz
+url_gpc = http://www.megacz.com/upstream/gpc-$(version_gpc).tar.gz
 patches_gpc = $(patches_gcc) gpc-with-3.3.3.patch gpc-noutils.patch
 configure_gpc = $(configure_gcc) --enable-languages="pascal"
 
@@ -59,7 +59,7 @@ cross_root := $(usr)/mips-unknown-elf
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
 	mkdir -p download
-	cd download && wget --passive-ftp -N $(url_$*)
+	cd download && curl -O $(url_$*)
 	touch $@
 
 tasks/extract_%: tasks/download_%
@@ -95,19 +95,20 @@ tasks/build_darcs_%: tasks/extract_darcs_%
 	cd "build/$*" && $(MAKE)
 	touch $@
 
+# Add extra nestedvm specific headers to include
 tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
-	# Add extra nestedvm specific headers to include
+
 	cd $(cross_root)/include && sh $<
 	touch $@
 
 top_lev_stuff := $(patsubst %,../build/org/ibex/nestedvm/%.o, crt0 support support_aux)
 
+# HACK: Get the top level makefile to build the support stuff
 $(top_lev_stuff):
-	# HACK: Get the top level makefile to build the support stuff
 	$(MAKE) -C .. $(top_lev_stuff:../%=%)
 
+# Add our support stuff to libc
 tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob misc/extraheaders.sh $(top_lev_stuff)
-	# Add our support stuff to libc
 	mips-unknown-elf-ar sr $(cross_root)/lib/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
 	mips-unknown-elf-ar sr $(cross_root)/lib/single-float/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
 	rm -f $(cross_root)/lib/crt0.o
@@ -177,15 +178,15 @@ tasks/extract_gpc: tasks/download_gcc tasks/download_gpc
 
 tasks/build_gpc: tasks/patch_gpc tasks/build_libc
 	mkdir -p $(usr)
-	# We need to preapply this patch because gpc's configury doesn't like 3.3.3
+	 # We need to preapply this patch because gpc's configury doesn't like 3.3.3
 	cd build/gpc-$(version_gpc) && cat gcc/version.c | grep -q GPC || $(PATCH) -p0 < gcc/p/diffs/gcc-3.3.diff
-	
-	# echo | is to dismiss the gcc version warning
+
+	 # echo | is to dismiss the gcc version warning
 	mkdir -p build/gpc-obj && cd build/gpc-obj && \
 		echo | ../gpc-$(version_gpc)/configure --prefix=$(usr) $(configure_gpc) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		cd gcc && $(MAKE) pascal.install
-	
+
 	touch $@
 
 tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
@@ -328,9 +329,7 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 
 tasks/extract_tex_tangle:
 	@mkdir -p build/tex
-	cd build/tex && \
-		curl -o tex.web http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web && \
-		curl http://www.gnu-pascal.de/crystal/gpc/en/attachments/5593/tangle.p.gz | zcat > tangle.p 
+	cd build/tex && curl -o tex.web http://www.math.uni.wroc.pl/~hebisch/tex_p/tex.web
 	touch $@
 
 tasks/build_tex_tangle: tasks/extract_tex_tangle tasks/build_gpc
@@ -340,10 +339,10 @@ tasks/build_tex_tangle: tasks/extract_tex_tangle tasks/build_gpc
 
 tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
 	@mkdir -p build/tex
-	
-	# HACK: Build Tangel.class
+
+	 # HACK: Build Tangel.class
 	make -C $(root) build/tests/Tangle.class
-	
+
 	rm -f build/tex/tex.p build/tex/tex.pool
 	cp misc/tex.ch build/tex/tex.ch
 	cd build/tex && \
