@@ -31,6 +31,10 @@ url_regex = ftp://ftp.zoo.toronto.edu/pub/regex.shar
 
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
 
+version_gmp = 4.1.4
+url_gmp = ftp://ftp.gnu.org/gnu/gmp/gmp-$(version_gmp).tar.gz
+configure_gmp = --host=mips-unknown-elf
+
 darcs_gcclass = http://darcs.brianweb.net/gcclass
 darcs_classgen = http://darcs.brianweb.net/classgen
 
@@ -208,7 +212,14 @@ tasks/build_regex: tasks/download_regex tasks/build_newlib
 		cp libregex.a $(usr)/mips-unknown-elf/lib 
 	touch $@
 
-
+tasks/build_gmp: tasks/patch_gmp tasks/build_libc
+	cd build/gmp && \
+		CFLAGS="$(MIPS_CFLAGS)" LDFLAGS="$(MIPS_LDFLAGS)" \
+		./configure --prefix=$(usr) $(configure_gmp) && \
+		make && \
+		make install exec_prefix=$(usr)/mips-unknown-elf includedir=$(usr)/mips-unknown-elf/include
+	touch $@
+	
 #
 # Tests
 # These are simply here for convenience. They aren't required 

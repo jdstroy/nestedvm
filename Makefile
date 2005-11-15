@@ -407,6 +407,10 @@ ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_darcs_gcclass .gcclass_h
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest.ntlm .
 	rm -f  .manifest.ntlm
 
+gmptest: $(tasks)/build_gmp
+	cd upstream/build/gmp && \
+	make check TESTS_ENVIRONMENT="java -cp \"$(classpath)\" org.ibex.nestedvm.RuntimeCompiler"
+
 #
 # Speed tests
 #
