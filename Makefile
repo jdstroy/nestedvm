@@ -199,6 +199,7 @@ env.sh: Makefile $(tasks)/build_gcc $(tasks)/build_libc build/org/ibex/nestedvm/
 #
 
 runtime_classes = Runtime Registers UsermodeConstants util/Seekable
+unix_runtime_classes = $(runtime_classes) UnixRuntime util/Platform util/InodeCache
 
 tex.jar: $(mips_objects) $(runtime_classes:%=build/org/ibex/nestedvm/%.class) build/tests/TeX.class
 	echo -e "Manifest-Version: 1.0\nMain-Class: Tex\n" > .manifest
@@ -213,6 +214,16 @@ runtime.jar: $(runtime_classes:%=build/org/ibex/nestedvm/%.class)
 		$(runtime_classes:%=org/ibex/nestedvm/%.class) \
 		org/ibex/nestedvm/Runtime\$$*.class \
 		org/ibex/nestedvm/util/Seekable\$$*.class
+
+unix_runtime.jar: $(unix_runtime_classes:%=build/org/ibex/nestedvm/%.class)
+	cd build && jar cf ../$@ \
+		$(unix_runtime_classes:%=org/ibex/nestedvm/%.class) \
+		org/ibex/nestedvm/Runtime\$$*.class \
+		org/ibex/nestedvm/util/Seekable\$$*.class \
+		org/ibex/nestedvm/UnixRuntime\$$*.class \
+		org/ibex/nestedvm/util/Platform\$$*.class
+	cd upstream/build/classgen/build && jar -uf ../../../../$@ \
+		org/ibex/classgen/util/Sort*.class
 
 .manifest:
 	printf "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
