@@ -234,11 +234,12 @@ url_libmspack = http://www.kyz.uklinux.net/downloads/libmspack-$(version_libmspa
 patches_libmspack = libmspack.patch
 
 version_freetype = 2.1.4
-url_freetype = http://umn.dl.sourceforge.net/sourceforge/freetype/freetype-$(version_freetype).tar.gz
+url_freetype = http://easynews.dl.sourceforge.net/sourceforge/freetype/freetype-$(version_freetype).tar.gz
 patches_freetype = freetype.patch ft-nostdio.patch
 
 version_boehmgc = 6.3alpha2
-url_boehmgc = http://www.hpl.hp.com/personal/Hans_Boehm/gc/gc_source/gc$(version_boehmgc).tar.gz
+#url_boehmgc = http://www.hpl.hp.com/personal/Hans_Boehm/gc/gc_source/gc$(version_boehmgc).tar.gz
+url_boehmgc = http://www.brianweb.net/misc/gc$(version_boehmgc).tar.gz
 patches_boehmgc = boehm-gc.patch
 
 version_busybox = 1.00-pre9
