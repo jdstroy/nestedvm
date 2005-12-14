@@ -470,9 +470,10 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
-                switch(addr&2) {
+                switch(addr&3) {
                     case 0: tmp = (tmp>>>16)&0xffff; break;
                     case 2: tmp = (tmp>>> 0)&0xffff; break;
+                    default: throw new ReadFaultException(addr);
                 }
                 if((tmp&0x8000)!=0) tmp |= 0xffff0000; // sign extend
                 r[rt] = tmp;
@@ -523,9 +524,10 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
-                switch(addr&2) {
+                switch(addr&3) {
                     case 0: r[rt] = (tmp>>>16)&0xffff; break;
                     case 2: r[rt] = (tmp>>> 0)&0xffff; break;
+                    default: throw new ReadFaultException(addr);
                 }
                 break;
             }
@@ -571,9 +573,10 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                 } catch(RuntimeException e) {
                     tmp = memRead(addr&~3);
                 }
-                switch(addr&2) {
+                switch(addr&3) {
                     case 0: tmp = (tmp&0x0000ffff) | ((r[rt]&0xffff)<<16); break;
                     case 2: tmp = (tmp&0xffff0000) | ((r[rt]&0xffff)<< 0); break;
+                    default: throw new WriteFaultException(addr);
                 }
                 try {
                     writePages[addr>>>pageShift][(addr>>>2)&(PAGE_WORDS-1)] = tmp;
