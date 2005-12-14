@@ -43,7 +43,7 @@ MIPS_LDFLAGS= $(flags) --static -Wl,--gc-sections
 MIPS_STRIP = mips-unknown-elf-strip
 
 # Java compiler/VM settings
-JAVAC = javac
+JAVAC = javac -source 1.3
 JAVA = java
 ifeq ($(firstword $(JAVAC)),gcj)
 	JAVAC_NODEBUG_FLAGS = -g0
