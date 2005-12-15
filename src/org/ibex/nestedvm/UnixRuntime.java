@@ -1405,8 +1405,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             File root = HostFS.hostRootDir();
             String s = new File(f).getAbsolutePath();
             File d = new File(s);
-            System.err.println(s);
-            System.err.println(d);
             while(!d.equals(root)) {
                 vec.addElement(d.getName());
                 if((s = d.getParent()) == null) break;
@@ -1417,7 +1415,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 ret="/";
                 for(int i=vec.size()-1;i>=0;i--) ret += (String) vec.elementAt(i) + (i==0?"":"/");
             }
-            System.err.println("reverseMap: " + f + " => " + ret);
             return ret;
         }
         
