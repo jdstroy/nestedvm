@@ -2,7 +2,7 @@
 
 [ -z "$JAVA" ] && JAVA=java
 
-MD5SUM=`whic md5sum`
+MD5SUM=`which md5sum`
 [ -z "$MD5SUM" ] && MD5SUM=`which gmd5sum`
 if [ -z "$MD5SUM" ]; then
     echo "could not find an md5sum command"
