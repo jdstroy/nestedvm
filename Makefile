@@ -43,7 +43,7 @@ MIPS_LDFLAGS= $(flags) --static -Wl,--gc-sections
 MIPS_STRIP = mips-unknown-elf-strip
 
 # Java compiler/VM settings
-JAVAC = javac -source 1.3
+JAVAC = javac -source 1.3 -target 1.3
 JAVA = java
 ifeq ($(firstword $(JAVAC)),gcj)
 	JAVAC_NODEBUG_FLAGS = -g0
@@ -238,7 +238,7 @@ nestedvm.jar: $(java_classes) .manifest
 compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcclass .gcclass_hints
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
-	java -cp \
+	$(JAVA) -cp \
 		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
 	com.brian_web.gcclass.GCClass \
 		"$(classpath)" tmp/pruned org.ibex.nestedvm.RuntimeCompiler.main `cat .gcclass_hints`
