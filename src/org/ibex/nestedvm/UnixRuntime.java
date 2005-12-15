@@ -59,7 +59,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     System.err.println(s);
                     System.err.println(d);
                     while(!d.equals(root)) {
-                        System.err.println("Got " + d.getName());
                         vec.addElement(d.getName());
                         if((s = d.getParent()) == null) break;
                         d = new File(s);
