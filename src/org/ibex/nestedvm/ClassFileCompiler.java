@@ -62,7 +62,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     }
     private ClassFileCompiler(Seekable binary, String className) throws IOException {
         super(binary,className);
-        me = Type.fromClass(fullClassName);
+        me = Type.Class.instance(fullClassName);
     }
     
     public void setWarnWriter(PrintStream warn) { this.warn = warn; }
@@ -80,7 +80,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         if(!pruneCases) throw new Exn("-o prunecases MUST be enabled for ClassFileCompiler");
 
         // Class
-        Type.Class superClass = Type.fromClass(runtimeClass);
+        Type.Class superClass = Type.Class.instance(runtimeClass);
         cg = new ClassFile(me,superClass,PUBLIC|FINAL|SUPER);
         if(source != null) cg.setSourceFile(source);
         
@@ -142,7 +142,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         }
         
         if(supportCall)
-            cg.addField("symbols",Type.fromClass(hashClass),PRIVATE|STATIC|FINAL);
+            cg.addField("symbols",Type.Class.instance(hashClass),PRIVATE|STATIC|FINAL);
         
         int highestAddr = 0;
         
@@ -169,7 +169,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         
         // Finish clinit
         if(supportCall) {
-            Type.Class hash = Type.fromClass(hashClass);
+            Type.Class hash = Type.Class.instance(hashClass);
             clinit.add(NEW,hash);
             clinit.add(DUP);
             clinit.add(DUP);
@@ -224,7 +224,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         tsi.setDefaultTarget(tramp.size());
         
         tramp.add(POP);
-        tramp.add(NEW,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException"));
+        tramp.add(NEW,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException"));
         tramp.add(DUP);
         tramp.add(NEW, Type.STRINGBUFFER);
         tramp.add(DUP);
@@ -242,7 +242,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         tramp.add(INVOKEVIRTUAL,Type.STRINGBUFFER.method("append",Type.STRINGBUFFER,new Type[]{Type.STRING}));
         tramp.add(INVOKEVIRTUAL,Type.STRINGBUFFER.method("toString",Type.STRING,Type.NO_ARGS));
         // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime$ExecutionException.<init>
-        tramp.add(INVOKESPECIAL,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
+        tramp.add(INVOKESPECIAL,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
         tramp.add(ATHROW);
         
         addConstReturnMethod("gp",gp.addr);
@@ -255,7 +255,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         }
         
         if(supportCall) {
-            Type.Class hashClassType = Type.fromClass(hashClass);
+            Type.Class hashClassType = Type.Class.instance(hashClass);
             MethodGen ls = cg.addMethod("lookupSymbol",Type.INT,new Type[]{Type.STRING},PROTECTED);
             ls.add(GETSTATIC,me.field("symbols",hashClassType));
             ls.add(ALOAD_1);
@@ -273,7 +273,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         
         // Kind of a hack, referencing dup() gets us all the fields for free
         // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime$CPUState.dup
-        Type.Class cpuStateType = Type.fromClass("org.ibex.nestedvm.Runtime$CPUState");
+        Type.Class cpuStateType = Type.Class.instance("org.ibex.nestedvm.Runtime$CPUState");
         MethodGen setCPUState = cg.addMethod("setCPUState",Type.VOID,new Type[]{cpuStateType},PROTECTED);
         MethodGen getCPUState = cg.addMethod("getCPUState",Type.VOID,new Type[]{cpuStateType},PROTECTED);
         
@@ -346,15 +346,15 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         
         int catchInsn = execute.size();
         execute.add(ASTORE_1);
-        execute.add(NEW, Type.fromClass("org.ibex.nestedvm.Runtime$FaultException"));
+        execute.add(NEW, Type.Class.instance("org.ibex.nestedvm.Runtime$FaultException"));
         execute.add(DUP);
         execute.add(ALOAD_1);
         // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime$FaultException.<init>
-        execute.add(INVOKESPECIAL,Type.fromClass("org.ibex.nestedvm.Runtime$FaultException").method("<init>",Type.VOID,new Type[]{Type.fromClass("java.lang.RuntimeException")}));
+        execute.add(INVOKESPECIAL,Type.Class.instance("org.ibex.nestedvm.Runtime$FaultException").method("<init>",Type.VOID,new Type[]{Type.Class.instance("java.lang.RuntimeException")}));
         execute.add(ATHROW);
         
-        execute.addExceptionHandler(tryStart,tryEnd,catchInsn,Type.fromClass("java.lang.RuntimeException"));
-        execute.addThrow(Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException"));
+        execute.addExceptionHandler(tryStart,tryEnd,catchInsn,Type.Class.instance("java.lang.RuntimeException"));
+        execute.addThrow(Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException"));
 
         MethodGen main = cg.addMethod("main",Type.VOID,new Type[]{Type.STRING.makeArray()},STATIC|PUBLIC);
         main.add(NEW,me);
@@ -363,14 +363,14 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         main.add(LDC,fullClassName);
         main.add(ALOAD_0);
         if(unixRuntime) {
-            Type.Class ur = Type.fromClass("org.ibex.nestedvm.UnixRuntime");
+            Type.Class ur = Type.Class.instance("org.ibex.nestedvm.UnixRuntime");
             // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.runAndExec
             main.add(INVOKESTATIC,ur.method("runAndExec",Type.INT,new Type[]{ur,Type.STRING,Type.STRING.makeArray()}));
         } else {
             // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.run
             main.add(INVOKEVIRTUAL,me.method("run",Type.INT,new Type[]{Type.STRING,Type.STRING.makeArray()}));
         }
-        main.add(INVOKESTATIC,Type.fromClass("java.lang.System").method("exit",Type.VOID,new Type[]{Type.INT}));
+        main.add(INVOKESTATIC,Type.Class.instance("java.lang.System").method("exit",Type.VOID,new Type[]{Type.INT}));
         main.add(RETURN);
         
         if(outDir != null) {
@@ -410,7 +410,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             clinit.add(LDC,sb.toString());
             clinit.add(LDC,segSize/4);
             // GCCLASS_HINT: org.ibex.nestedvm.RuntimeCompiler.compile org.ibex.nestedvm.Runtime.decodeData
-            clinit.add(INVOKESTATIC,Type.fromClass("org.ibex.nestedvm.Runtime").method("decodeData",Type.INT.makeArray(),new Type[]{Type.STRING,Type.INT}));
+            clinit.add(INVOKESTATIC,Type.Class.instance("org.ibex.nestedvm.Runtime").method("decodeData",Type.INT.makeArray(),new Type[]{Type.STRING,Type.INT}));
             clinit.add(PUTSTATIC,me.field(fieldname,Type.INT.makeArray()));
             init.add(ALOAD_0);
             init.add(GETSTATIC,me.field(fieldname,Type.INT.makeArray()));
@@ -555,7 +555,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
         defaultTarget.setTarget(mg.size());
         
         if(debugCompiler) {
-            mg.add(NEW,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException"));
+            mg.add(NEW,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException"));
             mg.add(DUP);
             mg.add(NEW,Type.STRINGBUFFER);
             mg.add(DUP);
@@ -565,13 +565,13 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             mg.add(GETFIELD,me.field("pc",Type.INT));
             mg.add(INVOKEVIRTUAL,Type.STRINGBUFFER.method("append",Type.STRINGBUFFER,new Type[]{Type.INT}));
             mg.add(INVOKEVIRTUAL,Type.STRINGBUFFER.method("toString",Type.STRING,Type.NO_ARGS));
-            mg.add(INVOKESPECIAL,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
+            mg.add(INVOKESPECIAL,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
             mg.add(ATHROW);
         } else {
-            mg.add(NEW,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException"));
+            mg.add(NEW,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException"));
             mg.add(DUP);
             mg.add(LDC,"Jumped to invalid address");
-            mg.add(INVOKESPECIAL,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
+            mg.add(INVOKESPECIAL,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
             mg.add(ATHROW);
         }
         
@@ -769,10 +769,10 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                 mg.setArg(b1,mg.size());
                 break;
             case 13: // BREAK
-                mg.add(NEW,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException"));
+                mg.add(NEW,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException"));
                 mg.add(DUP);
                 mg.add(LDC,"BREAK Code " + toHex(breakCode));
-                mg.add(INVOKESPECIAL,Type.fromClass("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
+                mg.add(INVOKESPECIAL,Type.Class.instance("org.ibex.nestedvm.Runtime$ExecutionException").method("<init>",Type.VOID,new Type[]{Type.STRING}));
                 mg.add(ATHROW);
                 ret |= UNREACHABLE;
                 break;
@@ -1298,7 +1298,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                     // Round towards plus infinity
                     tsi.setTarget(2,mg.size());
                     if(!d) mg.add(F2D); // Ugh.. java.lang.Math doesn't have a float ceil/floor
-                    mg.add(INVOKESTATIC,Type.fromClass("java.lang.Math").method("ceil",Type.DOUBLE,new Type[]{Type.DOUBLE}));
+                    mg.add(INVOKESTATIC,Type.Class.instance("java.lang.Math").method("ceil",Type.DOUBLE,new Type[]{Type.DOUBLE}));
                     if(!d) mg.add(D2F);
                     b1 = mg.add(GOTO);
                     
@@ -1311,7 +1311,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
                     // Round towards minus infinity
                     tsi.setTarget(3,mg.size());
                     if(!d) mg.add(F2D);
-                    mg.add(INVOKESTATIC,Type.fromClass("java.lang.Math").method("floor",Type.DOUBLE,new Type[]{Type.DOUBLE}));
+                    mg.add(INVOKESTATIC,Type.Class.instance("java.lang.Math").method("floor",Type.DOUBLE,new Type[]{Type.DOUBLE}));
                     if(!d) mg.add(D2F);
                     
                     tsi.setTarget(1,mg.size());
@@ -1887,7 +1887,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             mg.add(GETFIELD,me.field(regField[reg],Type.FLOAT));
         } else {
             pushReg(reg);
-            mg.add(INVOKESTATIC,Type.fromClass("java.lang.Float").method("intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
+            mg.add(INVOKESTATIC,Type.Class.instance("java.lang.Float").method("intBitsToFloat",Type.FLOAT,new Type[]{Type.INT}));
         }
         return h;
     }
