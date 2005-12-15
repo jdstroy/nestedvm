@@ -46,27 +46,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(!exec) {
             gs = defaultGS;
             String userdir = Platform.getProperty("user.dir");
-            String nvroot = Platform.getProperty("nestedvm.root");
-            cwd = "";
-            if(userdir != null && nvroot == null) {
-                if(userdir.startsWith("/") && File.separatorChar == '/') {
-                    cwd = userdir.substring(1);
-                } else {
-                    Vector vec = new Vector();
-                    File root = HostFS.hostRootDir();
-                    String s = new File(userdir).getAbsolutePath();
-                    File d = new File(s);
-                    System.err.println(s);
-                    System.err.println(d);
-                    while(!d.equals(root)) {
-                        vec.addElement(d.getName());
-                        if((s = d.getParent()) == null) break;
-                        d = new File(s);
-                    }
-                    if(s != null)
-                        for(int i=vec.size()-1;i>=0;i--) cwd += (String) vec.elementAt(i) + (i==0?"":"/");
-                }
-            }
+            cwd = (userdir == null || Platform.getProperty("nestedvm.root") != null) ? null : HostFS.reverseMap(userdir);
+            if(cwd == null) cwd = "/";
+            cwd = cwd.substring(1);
         }
     }
     
@@ -95,12 +77,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         String[] defaults = new String[7];
         int n=0;
         if(extra == null) extra = new String[0];
+        String tmp;
         if(!envHas("USER",extra) && Platform.getProperty("user.name") != null)
             defaults[n++] = "USER=" + Platform.getProperty("user.name");
-        if(!envHas("HOME",extra) && Platform.getProperty("user.home") != null)
-            defaults[n++] = "HOME=" + Platform.getProperty("user.home");
-        if(!envHas("TMPDIR",extra) && Platform.getProperty("java.io.tmpdir") != null)
-            defaults[n++] = "TMPDIR=" + Platform.getProperty("java.io.tmpdir");
+        if(!envHas("HOME",extra) && (tmp=Platform.getProperty("user.home")) != null && (tmp=HostFS.reverseMap(tmp)) != null)
+            defaults[n++] = "HOME=" + tmp;
+        if(!envHas("TMPDIR",extra) && (tmp=Platform.getProperty("java.io.tmpdir")) != null && (tmp=HostFS.reverseMap(tmp)) != null)
+            defaults[n++] = "TMPDIR=" + tmp;
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
         if(!envHas("TERM",extra) && !win32Hacks)  defaults[n++] = "TERM=vt100";
         if(!envHas("TZ",extra))    defaults[n++] = "TZ=" + posixTZ();
@@ -1413,6 +1396,29 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             // This works around a bug in some versions of ClassPath
             if(f.getPath().length() == 0) f = new File("/");
             return f;
+        }
+        
+        static String reverseMap(String f) {
+            if(f.startsWith("/") && File.separatorChar == '/') return f;
+                
+            Vector vec = new Vector();
+            File root = HostFS.hostRootDir();
+            String s = new File(f).getAbsolutePath();
+            File d = new File(s);
+            System.err.println(s);
+            System.err.println(d);
+            while(!d.equals(root)) {
+                vec.addElement(d.getName());
+                if((s = d.getParent()) == null) break;
+                d = new File(s);
+            }
+            String ret = null;
+            if(s != null) {
+                ret="/";
+                for(int i=vec.size()-1;i>=0;i--) ret += (String) vec.elementAt(i) + (i==0?"":"/");
+            }
+            System.err.println("reverseMap: " + f + " => " + ret);
+            return ret;
         }
         
         private File hostFile(String path) {
