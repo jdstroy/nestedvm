@@ -92,13 +92,15 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     String[] createEnv(String[] extra) {
-        String[] defaults = new String[6];
+        String[] defaults = new String[7];
         int n=0;
         if(extra == null) extra = new String[0];
         if(!envHas("USER",extra) && Platform.getProperty("user.name") != null)
             defaults[n++] = "USER=" + Platform.getProperty("user.name");
         if(!envHas("HOME",extra) && Platform.getProperty("user.home") != null)
             defaults[n++] = "HOME=" + Platform.getProperty("user.home");
+        if(!envHas("TMPDIR",extra) && Platform.getProperty("java.io.tmpdir") != null)
+            defaults[n++] = "TMPDIR=" + Platform.getProperty("java.io.tmpdir");
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
         if(!envHas("TERM",extra) && !win32Hacks)  defaults[n++] = "TERM=vt100";
         if(!envHas("TZ",extra))    defaults[n++] = "TZ=" + posixTZ();
