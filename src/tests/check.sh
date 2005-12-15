@@ -1,7 +1,14 @@
 #!/bin/sh -e
 
 [ -z "$JAVA" ] && JAVA=java
- 
+
+MD5SUM=`whic md5sum`
+[ -z "$MD5SUM" ] && MD5SUM=`which gmd5sum`
+if [ -z "$MD5SUM" ]; then
+    echo "could not find an md5sum command"
+    exit 1
+fi
+
 CLASSPATH="$(pwd)/build"; export CLASSPATH
 if [ "$1" != "running_from_make" ]; then
 	echo "Please don't run this scipt directly. Use make check" >&2
@@ -28,7 +35,7 @@ done
 echo "Extracting MS Core Fonts using MSPackBench..."
 $JAVA tests.MSPackBench *32.exe
 
-cat <<EOF | md5sum -cv
+cat <<EOF | $MD5SUM -c
 663974c9fe3ba55b228724fd4d4e445f  AndaleMo.TTF
 3e7043e8125f1c8998347310f2c315bc  AriBlk.TTF
 f11c0317db527bdd80fa0afa04703441  Arial.TTF
@@ -106,10 +113,10 @@ rm -f *.tga
 [ -e banner.jpg ] || exit 1
 
 $JAVA tests.DJpeg -targa -outfile thebride_1280.tga thebride_1280.jpg 
-echo "e90f6b915aee2fc0d2eb9fc60ace6203  thebride_1280.tga" | md5sum -cv
+echo "e90f6b915aee2fc0d2eb9fc60ace6203  thebride_1280.tga" | $MD5SUM -c
 
 $JAVA tests.DJpeg -targa -outfile banner.tga banner.jpg
-echo "4c7cc29ae2094191a9b0308cf9a04fbd  banner.tga" | md5sum -cv
+echo "4c7cc29ae2094191a9b0308cf9a04fbd  banner.tga" | $MD5SUM -c
 
 echo "JPEGs decoded successfully!"
 
@@ -131,7 +138,7 @@ for f in Verdana.TTF Arial.TTF Comic.TTF; do
 	$JAVA tests.FTBench "$f" "$f".render
 done
 
-cat <<EOF|md5sum -cv
+cat <<EOF|$MD5SUM -c
 e33b9db5a413af214b2524265af18026  Arial.TTF.render
 61dee4f697a61ebc1b47decbed04b2da  Comic.TTF.render
 d5a6d39a63e49c597ed860913e27d2bb  Verdana.TTF.render
