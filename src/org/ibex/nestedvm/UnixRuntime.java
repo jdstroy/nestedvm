@@ -1188,6 +1188,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(defaultMounts) {
                 addMount("/",new HostFS());
                 addMount("/dev",new DevFS());
+                addMount("/resource",new ResourceFS());
             }
         }
         
@@ -1664,5 +1665,55 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { throw new ErrnoException(EROFS); }
         public void unlink(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
-    }    
+    }
+    
+    
+    public static class ResourceFS extends FS {
+        final InodeCache inodes = new InodeCache(500);
+        
+        public FStat lstat(UnixRuntime r, String path) throws ErrnoException { return stat(r,path); }
+        public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { throw new ErrnoException(EROFS); }
+        public void unlink(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
+        
+        FStat connFStat(final URLConnection conn) {
+            return new FStat() {
+                public int type() { return S_IFREG; }
+                public int nlink() { return 1; }
+                public int mode() { return 0444; }
+                public int size() { return conn.getContentLength(); }
+                public int mtime() { return (int)(conn.getDate() / 1000); }
+                public int inode() { return inodes.get(conn.getURL().toString()); }
+                public int dev() { return devno; }
+            };
+        }
+        
+        public FStat stat(UnixRuntime r, String path) throws ErrnoException {
+            URL url = r.getClass().getResource("/" + path);
+            if(url == null) return null;
+            try {
+                return connFStat(url.openConnection());
+            } catch(IOException e) {
+                throw new ErrnoException(EIO);
+            }
+        }
+        
+        public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
+            if((flags & ~3) != 0) {
+                if(STDERR_DIAG)
+                    System.err.println("WARNING: Unsupported flags passed to ResourceFS.open(\"" + path + "\"): " + toHex(flags & ~3));
+                throw new ErrnoException(ENOTSUP);
+            }
+            if((flags&3) != RD_ONLY) throw new ErrnoException(EROFS);
+            URL url = r.getClass().getResource("/" + path);
+            if(url == null) return null;
+            try {
+                final URLConnection conn = url.openConnection();
+                Seekable.InputStream si = new Seekable.InputStream(conn.getInputStream());
+                return new SeekableFD(si,flags) { protected FStat _fstat() { return connFStat(conn); } };
+            } catch(FileNotFoundException e) {
+                if(e.getMessage() != null && e.getMessage().indexOf("Permission denied") >= 0) throw new ErrnoException(EACCES);
+                return null;
+            } catch(IOException e) { throw new ErrnoException(EIO); }
+        }
+    }
 }
