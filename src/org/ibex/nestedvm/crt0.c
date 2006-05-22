@@ -8,10 +8,15 @@ extern int atexit(void (*f)());
 extern void _init();
 extern void _fini();
 
+extern char _gp[];
+register char *gp asm("$28");
+ 
 char **environ;
     
 void _start(char **argv, char **environ_) {
     int argc;
+    
+    if(!gp) gp = _gp;
     
     environ = environ_;
     
