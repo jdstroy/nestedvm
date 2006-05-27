@@ -1293,7 +1293,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 pos++; len--; pb = true;
             }
             int n = parent.read(buf,pos,len);
-            if(n == -1) return -1;
+            if(n == -1) return pb ? 1 : -1;
             for(int i=0;i<n;i++) {
                 if(buf[pos+i] == '\r') {
                     if(i==n-1) {
