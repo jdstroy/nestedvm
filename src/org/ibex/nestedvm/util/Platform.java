@@ -75,6 +75,12 @@ public abstract class Platform {
     abstract RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException;
     public static RandomAccessFile truncatedRandomAccessFile(File f, String mode) throws IOException { return p._truncatedRandomAccessFile(f,mode); }
     
+    abstract File[] _listRoots();
+    public static File[] listRoots() { return p._listRoots(); }
+    
+    abstract File _getRoot(File f);
+    public static File getRoot(File f) { return p._getRoot(f); }
+    
     static class Jdk11 extends Platform {
         boolean _atomicCreateFile(File f) throws IOException {
             // This is not atomic, but its the best we can do on jdk 1.1
@@ -112,6 +118,40 @@ public abstract class Platform {
             new FileOutputStream(f).close();
             return new RandomAccessFile(f,mode);
         }
+        
+        File[] _listRoots() {
+            String[] rootProps = new String[]{"java.home","java.class.path","java.library.path","java.io.tmpdir","java.ext.dirs","user.home","user.dir" };
+            Hashtable known = new Hashtable();
+            for(int i=0;i<rootProps.length;i++) {
+                String prop = getProperty(rootProps[i]);
+                if(prop == null) continue;
+                for(;;) {
+                    String path = prop;
+                    int p;
+                    if((p = prop.indexOf(File.pathSeparatorChar)) != -1) {
+                        path = prop.substring(0,p);
+                        prop = prop.substring(p+1);
+                    }
+                    File root = getRoot(new File(path));
+                    //System.err.println(rootProps[i] + ": " + path + " -> " + root);
+                    known.put(root,Boolean.TRUE);
+                    if(p == -1) break;
+                }
+            }
+            File[] ret = new File[known.size()];
+            int i=0;
+            for(Enumeration e = known.keys();e.hasMoreElements();)
+                ret[i++] = (File) e.nextElement();
+            return ret;
+        }
+        
+        File _getRoot(File f) {
+            if(!f.isAbsolute()) f = new File(f.getAbsolutePath());
+            String p;
+            while((p = f.getParent()) != null) f = new File(p);
+            if(f.getPath().length() == 0) f = new File("/"); // work around a classpath bug
+            return f;
+        }
     }
     
     static class Jdk12 extends Jdk11 {
@@ -127,7 +167,9 @@ public abstract class Platform {
             RandomAccessFile raf = new RandomAccessFile(f,mode);
             raf.setLength(0);
             return raf;
-        }       
+        }
+        
+        File[] _listRoots() { return File.listRoots(); }
     }
     
     static class Jdk13 extends Jdk12 {
