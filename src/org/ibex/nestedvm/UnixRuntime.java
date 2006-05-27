@@ -46,7 +46,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         if(!exec) {
             gs = defaultGS;
             String userdir = Platform.getProperty("user.dir");
-            cwd = (userdir == null || Platform.getProperty("nestedvm.root") != null) ? null : HostFS.reverseMap(userdir);
+            cwd = userdir == null ? null : gs.mapHostPath(userdir);
             if(cwd == null) cwd = "/";
             cwd = cwd.substring(1);
         }
@@ -80,9 +80,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         String tmp;
         if(!envHas("USER",extra) && Platform.getProperty("user.name") != null)
             defaults[n++] = "USER=" + Platform.getProperty("user.name");
-        if(!envHas("HOME",extra) && (tmp=Platform.getProperty("user.home")) != null && (tmp=HostFS.reverseMap(tmp)) != null)
+        if(!envHas("HOME",extra) && (tmp=Platform.getProperty("user.home")) != null && (tmp=gs.mapHostPath(tmp)) != null)
             defaults[n++] = "HOME=" + tmp;
-        if(!envHas("TMPDIR",extra) && (tmp=Platform.getProperty("java.io.tmpdir")) != null && (tmp=HostFS.reverseMap(tmp)) != null)
+        if(!envHas("TMPDIR",extra) && (tmp=Platform.getProperty("java.io.tmpdir")) != null && (tmp=gs.mapHostPath(tmp)) != null)
             defaults[n++] = "TMPDIR=" + tmp;
         if(!envHas("SHELL",extra)) defaults[n++] = "SHELL=/bin/sh";
         if(!envHas("TERM",extra) && !win32Hacks)  defaults[n++] = "TERM=vt100";
@@ -1170,10 +1170,61 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public GlobalState(int maxProcs, boolean defaultMounts) {
             tasks = new UnixRuntime[maxProcs+1];
             if(defaultMounts) {
-                addMount("/",new HostFS());
+                File root = null;
+                if(Platform.getProperty("nestedvm.root") != null) {
+                    root = new File(Platform.getProperty("nestedvm.root"));
+                    if(!root.isDirectory()) throw new IllegalArgumentException("nestedvm.root is not a directory");
+                } else {
+                    String cwd = Platform.getProperty("user.dir");
+                    root = Platform.getRoot(new File(cwd != null ? cwd : "."));
+                }
+                
+                addMount("/",new HostFS(root));
+                
+                if(Platform.getProperty("nestedvm.root") == null) {
+                    File[] roots = Platform.listRoots();
+                    for(int i=0;i<roots.length;i++) {
+                        String name = roots[i].getPath();
+                        if(name.endsWith(File.separator))
+                            name = name.substring(0,name.length()-1);
+                        if(name.length() == 0 || name.indexOf('/') != -1) continue;
+                        addMount("/" + name.toLowerCase(),new HostFS(roots[i]));
+                    }
+                }
+                
                 addMount("/dev",new DevFS());
                 addMount("/resource",new ResourceFS());
             }
+        }
+        
+        public String mapHostPath(String s) { return mapHostPath(new File(s)); }
+        public String mapHostPath(File f) {
+            MP[] list;
+            FS root;
+            synchronized(this) { mps = this.mps; root = this.root; }
+            if(!f.isAbsolute()) f = new File(f.getAbsolutePath());
+            for(int i=mps.length;i>=0;i--) {
+                FS fs = i == mps.length ? root : mps[i].fs;
+                String path = i == mps.length ? "" : mps[i].path;
+                if(!(fs instanceof HostFS)) continue;
+                File fsroot = ((HostFS)fs).getRoot();
+                if(!fsroot.isAbsolute()) fsroot = new File(fsroot.getAbsolutePath());
+                if(f.getPath().startsWith(fsroot.getPath())) {
+                    char sep = File.separatorChar;
+                    String child = f.getPath().substring(fsroot.getPath().length());
+                    if(sep != '/') {
+                        char[] child_ = child.toCharArray();
+                        for(int j=0;j<child_.length;j++) {
+                            if(child_[j] == '/') child_[j] = sep;
+                            else if(child_[j] == sep) child_[j] = '/';
+                        }
+                        child = new String(child_);
+                    }
+                    String mapped = "/" + (path.length()==0?"":path+"/") + child;
+                    return mapped;
+                }
+            }
+            return null;
         }
         
         static class MP implements Sort.Comparable {
@@ -1240,7 +1291,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             System.arraycopy(mps,0,newMPS,index,mps.length-index-1);
             mps = newMPS;
         }
-        
+
         private Object fsop(int op, UnixRuntime r, String normalizedPath, int arg1, int arg2) throws ErrnoException {
             int pl = normalizedPath.length();
             if(pl != 0) {
@@ -1301,7 +1352,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public abstract void unlink(UnixRuntime r, String path) throws ErrnoException;
     }
         
-    // chroot support should go in here if it is ever implemented chroot support in here
+    // chroot support should go in here if it is ever implemented
     private String normalizePath(String path) {
         boolean absolute = path.startsWith("/");
         int cwdl = cwd.length();
@@ -1382,42 +1433,6 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected File root;
         public File getRoot() { return root; }
         
-        static File hostRootDir() {
-            if(Platform.getProperty("nestedvm.root") != null) {
-                File f = new File(Platform.getProperty("nestedvm.root"));
-                if(f.isDirectory()) return f;
-                // fall through to case below
-            }
-            String cwd = Platform.getProperty("user.dir");
-            File f = new File(cwd != null ? cwd : ".");
-            if(!f.exists()) throw new Error("Couldn't get File for cwd");
-            f = new File(f.getAbsolutePath());
-            while(f.getParent() != null) f = new File(f.getParent());
-            // This works around a bug in some versions of ClassPath
-            if(f.getPath().length() == 0) f = new File("/");
-            return f;
-        }
-        
-        static String reverseMap(String f) {
-            if(f.startsWith("/") && File.separatorChar == '/') return f;
-                
-            Vector vec = new Vector();
-            File root = HostFS.hostRootDir();
-            String s = new File(f).getAbsolutePath();
-            File d = new File(s);
-            while(!d.equals(root)) {
-                vec.addElement(d.getName());
-                if((s = d.getParent()) == null) break;
-                d = new File(s);
-            }
-            String ret = null;
-            if(s != null) {
-                ret="/";
-                for(int i=vec.size()-1;i>=0;i--) ret += (String) vec.elementAt(i) + (i==0?"":"/");
-            }
-            return ret;
-        }
-        
         private File hostFile(String path) {
             char sep = File.separatorChar;
             if(sep != '/') {
@@ -1432,10 +1447,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return new File(root,path);
         }
         
-        public HostFS() { this(hostRootDir()); }
         public HostFS(String root) { this(new File(root)); }
         public HostFS(File root) { this.root = root; }
-        
         
         public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
             final File f = hostFile(path);
