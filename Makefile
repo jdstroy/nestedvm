@@ -239,7 +239,7 @@ compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcc
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
 	$(JAVA) -cp \
-		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.1/bcel-5.1.jar \
+		upstream/build/gcclass/build:upstream/build/gcclass/upstream/bcel-5.2/bcel-5.2.jar \
 	com.brian_web.gcclass.GCClass \
 		"$(classpath)" tmp/pruned org.ibex.nestedvm.RuntimeCompiler.main `cat .gcclass_hints`
 	cd tmp/pruned && jar cfm ../../$@ ../../.manifest .
