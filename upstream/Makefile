@@ -22,7 +22,7 @@ patches_binutils = binutils-no64.patch binutils-nocompilein.patch
 configure_binutils = --target=mips-unknown-elf
 
 version_newlib = 1.11.0
-url_newlib = http://mirrors.kernel.org/gnu/newlib/newlib-$(version_newlib).tar.gz
+url_newlib = ftp://sources.redhat.com/pub/newlib/newlib-$(version_newlib).tar.gz
 patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
