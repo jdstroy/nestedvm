@@ -27,7 +27,7 @@ patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
 url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
-url_regex = ftp://ftp.zoo.toronto.edu/pub/regex.shar
+url_regex = http://arglist.com/regex/regex3.8a.tar.gz
 
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
 
@@ -204,8 +204,8 @@ tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
 tasks/build_regex: tasks/download_regex tasks/build_newlib
 	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
 	mkdir -p build/regex build/regex/fake
-	cd build/regex && \
-		sh ../../download/regex.shar && \
+	cd build && \
+		tar xvzf ../download/regex3.8a.tar.gz && cd regex && \
 		make CC=mips-unknown-elf-gcc CFLAGS="-I. $(MIPS_CFLAGS)" regcomp.o regexec.o regerror.o regfree.o && \
 		mips-unknown-elf-ar cr libregex.a regcomp.o regexec.o regerror.o regfree.o && \
 		mips-unknown-elf-ranlib libregex.a && \
