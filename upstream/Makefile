@@ -30,6 +30,12 @@ url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
 url_regex = http://arglist.com/regex/regex3.8a.tar.gz
 
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
+version_zlib = 1.2.3
+url_zlib = http://www.zlib.net/zlib-$(version_zlib).tar.gz
+
+version_expat = 2.0.0
+url_expat = http://umn.dl.sourceforge.net/sourceforge/expat/expat-$(version_expat).tar.gz
+configure_expat = --host= --target=mips-unknown-elf
 
 version_gmp = 4.1.4
 url_gmp = ftp://ftp.gnu.org/gnu/gmp/gmp-$(version_gmp).tar.gz
@@ -152,6 +158,14 @@ tasks/build_%: tasks/patch_%
 	mkdir -p $(usr)
 	mkdir -p build/$*-obj && cd build/$*-obj && \
 		../$*-$(version_$*)/configure --prefix=$(usr) $(configure_$*) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		$(MAKE) install
+	touch $@
+
+tasks/build_zlib: tasks/patch_zlib
+	mkdir -p $(usr)
+	cd build/zlib-$(version_zlib) && \
+		AR="mips-unknown-elf-ar rc" CC=mips-unknown-elf-gcc ./configure --prefix=$(usr) $(configure_$*) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		$(MAKE) install
 	touch $@
