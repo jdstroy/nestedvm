@@ -1252,6 +1252,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     /** Helper function to read a cstring from main memory */
     public final String cstring(int addr) throws ReadFaultException {
+        if (addr == 0) return null;
         StringBuffer sb = new StringBuffer();
         for(;;) {
             int word = memRead(addr&~3);
