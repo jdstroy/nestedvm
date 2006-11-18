@@ -704,6 +704,20 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         if(state == EXITED || state == EXECED) throw new IllegalStateException("closeFD called in inappropriate state");
         if(fdn < 0 || fdn >= OPEN_MAX) return false;
         if(fds[fdn] == null) return false;
+
+        // release all fcntl locks on this file
+        Seekable s = fds[fdn].seekable();
+        if (s != null) {
+            try {
+                for (int i=0; i < LOCK_MAX; i++) {
+                    if (locks[i] != null && s.equals(locks[i].seekable())) {
+                        locks[i].release();
+                        locks[i] = null;
+                    }
+                }
+            } catch (IOException e) { throw new RuntimeException(e); }
+        }
+
         fds[fdn].close();
         fds[fdn] = null;        
         return true;
