@@ -809,6 +809,17 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         copyout(buf,addr,n);
         return n;
     }
+
+    /** The ftruncate syscall */
+    private int sys_ftruncate(int fdn, long length) {
+      if (fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
+      if (fds[fdn] == null) return -EBADFD;
+
+      Seekable seekable = fds[fdn].seekable();
+      if (length < 0 || seekable == null) return -EINVAL;
+      try { seekable.resize(length); } catch (IOException e) { return -EIO; }
+      return 0;
+    }
     
     /** The close syscall */
     private int sys_close(int fdn) {
@@ -1058,6 +1069,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case SYS_close: return sys_close(a);
             case SYS_read: return sys_read(a,b,c);
             case SYS_lseek: return sys_lseek(a,b,c);
+            case SYS_ftruncate: return sys_ftruncate(a,b);
             case SYS_getpid: return sys_getpid();
             case SYS_calljava: return sys_calljava(a,b,c,d);
             case SYS_gettimeofday: return sys_gettimeofday(a,b);

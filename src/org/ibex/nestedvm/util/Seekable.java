@@ -13,6 +13,10 @@ public abstract class Seekable {
     public abstract void seek(int pos) throws IOException;
     public abstract void close() throws IOException;
     public abstract int pos() throws IOException;
+
+    public void resize(long length) throws IOException {
+        throw new IOException("resize not implemented for " + getClass());
+    }
     
     public int read() throws IOException {
         byte[] buf = new byte[1];
@@ -83,6 +87,7 @@ public abstract class Seekable {
         public int pos()  throws IOException { return (int) raf.getFilePointer(); }
         public int length() throws IOException { return (int)raf.length(); }
         public void close() throws IOException { raf.close(); }
+        public void resize(long length) throws IOException { raf.setLength(length); }
     }
     
     public static class InputStream extends Seekable {
