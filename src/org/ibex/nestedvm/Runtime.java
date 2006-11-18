@@ -102,7 +102,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     /** Subclasses should return the address of the symbol <i>symbol</i> or -1 it it doesn't exits in this method 
         This method is only required if the call() function is used */
-    protected int lookupSymbol(String symbol) { return -1; }
+    public int lookupSymbol(String symbol) { return -1; }
     
     /** Subclasses should populate a CPUState object representing the cpu state */
     protected abstract void getCPUState(CPUState state);
