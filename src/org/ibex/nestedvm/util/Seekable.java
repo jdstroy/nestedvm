@@ -17,6 +17,10 @@ public abstract class Seekable {
     public void resize(long length) throws IOException {
         throw new IOException("resize not implemented for " + getClass());
     }
+    /** If pos == 0 and size == 0 lock covers whole file. */
+    public Lock lock(long pos, long size, boolean shared) throws IOException {
+        throw new IOException("lock not implemented for " + getClass());
+    }
     
     public int read() throws IOException {
         byte[] buf = new byte[1];
@@ -71,12 +75,14 @@ public abstract class Seekable {
     }
     
     public static class File extends Seekable {
+        private final java.io.File file;
         private final RandomAccessFile raf;
         
         public File(String fileName) throws IOException { this(fileName,false); }
         public File(String fileName, boolean writable) throws IOException { this(new java.io.File(fileName),writable,false); }    
         
         public File(java.io.File file, boolean writable, boolean truncate) throws IOException {
+            this.file = file;
             String mode = writable ? "rw" : "r";
             raf = truncate ? Platform.truncatedRandomAccessFile(file,mode) : new RandomAccessFile(file,mode);
         }
@@ -88,6 +94,14 @@ public abstract class Seekable {
         public int length() throws IOException { return (int)raf.length(); }
         public void close() throws IOException { raf.close(); }
         public void resize(long length) throws IOException { raf.setLength(length); }
+        public boolean equals(Object o) {
+            return o != null && o instanceof File
+                   && file.equals(((File)o).file);
+        }
+        public Lock lock(long pos, long size, boolean shared)
+                throws IOException {
+            return Platform.lockFile(this, raf, pos, size, shared);
+        }
     }
     
     public static class InputStream extends Seekable {
@@ -135,4 +149,12 @@ public abstract class Seekable {
         public void close() throws IOException { is.close(); }
     }
     
+    public interface Lock {
+        public Seekable seekable();
+        public boolean isShared();
+        public boolean isValid();
+        public void release() throws IOException;
+        public long position();
+        public long size();
+    }
 }

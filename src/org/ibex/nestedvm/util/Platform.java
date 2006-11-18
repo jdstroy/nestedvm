@@ -5,6 +5,7 @@
 package org.ibex.nestedvm.util;
 
 import java.io.*;
+import java.nio.channels.*;
 import java.net.*;
 import java.util.*;
 
@@ -58,6 +59,10 @@ public abstract class Platform {
     
     abstract boolean _atomicCreateFile(File f) throws IOException;
     public static boolean atomicCreateFile(File f) throws IOException { return p._atomicCreateFile(f); }
+
+    abstract Seekable.Lock _lockFile(Seekable s, RandomAccessFile raf, long pos, long size, boolean shared) throws IOException;
+    public static Seekable.Lock lockFile(Seekable s, RandomAccessFile raf, long pos, long size, boolean shared) throws IOException {
+        return p._lockFile(s, raf, pos, size, shared); }
     
     abstract void _socketHalfClose(Socket s, boolean output) throws IOException;
     public static void socketHalfClose(Socket s, boolean output) throws IOException { p._socketHalfClose(s,output); }
@@ -87,6 +92,9 @@ public abstract class Platform {
             if(f.exists()) return false;
             new FileOutputStream(f).close();
             return true;
+        }
+        Seekable.Lock _lockFile(Seekable s, RandomAccessFile raf, long p, long size, boolean shared) throws IOException {
+            throw new IOException("file locking requires jdk 1.4+");
         }
         void _socketHalfClose(Socket s, boolean output) throws IOException {
             throw new IOException("half closing sockets not supported");
@@ -185,5 +193,29 @@ public abstract class Platform {
     
     static class Jdk14 extends Jdk13 {
         InetAddress _inetAddressFromBytes(byte[] a) throws UnknownHostException { return InetAddress.getByAddress(a); } 
+
+        Seekable.Lock _lockFile(Seekable s, RandomAccessFile r, long pos, long size, boolean shared) throws IOException {
+            FileLock flock;
+            try {
+                flock = pos == 0 && size == 0 ? r.getChannel().lock() :
+                    r.getChannel().tryLock(pos, size, shared);
+            } catch (OverlappingFileLockException e) { flock = null; }
+            if (flock == null) return null; // region already locked
+            return new Jdk14FileLock(s, flock);
+        }
+    }
+
+    private static final class Jdk14FileLock implements Seekable.Lock {
+        private final Seekable s;
+        private final FileLock l;
+
+        Jdk14FileLock(Seekable sk, FileLock flock) { s = sk; l = flock; }
+        public Seekable seekable() { return s; }
+        public boolean isShared() { return l.isShared(); }
+        public boolean isValid() { return l.isValid(); }
+        public void release() throws IOException { l.release(); }
+        public long position() { return l.position(); }
+        public long size() { return l.size(); }
+        public String toString() { return l.toString(); }
     }
 }
