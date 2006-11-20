@@ -5,8 +5,6 @@
 package org.ibex.nestedvm;
 
 import org.ibex.nestedvm.util.*;
-// HACK: This is ugly, this stuff needs to be in org.ibex.util or something
-import org.ibex.classgen.util.Sort;
 import java.io.*;
 import java.util.*;
 import java.net.*;
