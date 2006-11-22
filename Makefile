@@ -191,6 +191,7 @@ env.sh: Makefile $(tasks)/build_gcc $(tasks)/build_libc build/org/ibex/nestedvm/
 	@echo 'CXXFLAGS="$(mips_optflags)"; export CXXFLAGS' >> $@~
 	@echo 'LDFLAGS="$(MIPS_LDFLAGS)"; export LDFLAGS' >> $@~
 	@echo 'CLASSPATH=$(mips2java_root)/build:$(mips2java_root)/upstream/build/classgen/build:.; export CLASSPATH' >> $@~
+	@chmod a+x "$@~"
 	@mv "$@~" "$@"
 	@echo "$@ created successfully"
 
