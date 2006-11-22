@@ -1263,7 +1263,35 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
         return addr;
     }
-    
+
+    // TODO: less memory copying (custom utf-8 reader)
+    //       or at least roll strlen() into copyin()
+    public final String utfstring(int addr) throws ReadFaultException {
+        if (addr == 0) return null;
+
+        // determine length
+        int i=addr;
+        for(int word = 1; word != 0; i++) {
+            word = memRead(i&~3);
+            switch(i&3) {
+                case 0: word = (word>>>24)&0xff; break;
+                case 1: word = (word>>>16)&0xff; break;
+                case 2: word = (word>>> 8)&0xff; break;
+                case 3: word = (word>>> 0)&0xff; break;
+            }
+        }
+        if (i > addr) i--; // do not count null
+
+        byte[] bytes = new byte[i-addr];
+        copyin(addr, bytes, bytes.length);
+
+        try {
+            return new String(bytes, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e); // should never happen with UTF-8
+        }
+    }
+
     /** Helper function to read a cstring from main memory */
     public final String cstring(int addr) throws ReadFaultException {
         if (addr == 0) return null;
@@ -1603,7 +1631,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     static byte[] getBytes(String s) {
         try {
-            return s.getBytes("ISO-8859-1");
+            return s.getBytes("UTF-8");
         } catch(UnsupportedEncodingException e) {
             return null; // should never happen
         }
