@@ -596,7 +596,12 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         
         _started();        
     }
-    
+
+    public final void stop() {
+        if (state != RUNNING && state != PAUSED) throw new IllegalStateException("stop() called in inappropriate state");
+        exit(0, false);
+    }
+
     /** Hook for subclasses to do their own startup */
     void _started() {  }
     
