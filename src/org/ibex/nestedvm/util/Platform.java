@@ -205,7 +205,7 @@ public abstract class Platform {
         }
     }
 
-    private static final class Jdk14FileLock implements Seekable.Lock {
+    private static final class Jdk14FileLock extends Seekable.Lock {
         private final Seekable s;
         private final FileLock l;
 

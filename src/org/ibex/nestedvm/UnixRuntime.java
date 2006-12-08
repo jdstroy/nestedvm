@@ -156,6 +156,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_fchown: return sys_fchown(a,b,c);
             case SYS_chmod: return sys_chmod(a,b,c);
             case SYS_fchmod: return sys_fchmod(a,b,c);
+            case SYS_fcntl: return sys_fcntl_lock(a,b,c);
             case SYS_umask: return sys_umask(a);
             
             default: return super._syscall(syscall,a,b,c,d,e,f);
@@ -701,7 +702,163 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         copyout(buf,addr,n);
         return n;
     }
-    
+
+    void _closedFD(FD fd) {
+        // release all fcntl locks on this file
+        Seekable s = fd.seekable();
+        if (s == null) return;
+
+        try {
+            for (int i=0; i < gs.locks.length; i++) {
+                Seekable.Lock l = gs.locks[i];
+                if (l == null) continue;
+                if (s.equals(l.seekable()) && l.getOwner() == this) {
+                    l.release();
+                    gs.locks[i] = null;
+                }
+            }
+        } catch (IOException e) { throw new RuntimeException(e); }
+    }
+
+    /** Implements the F_GETLK and F_SETLK cases of fcntl syscall.
+     *  If l_start = 0 and l_len = 0 the lock refers to the entire file.
+     *  Uses GlobalState to ensure locking across processes in the same JVM.
+     struct flock {
+       short   l_type;         // lock type: F_UNLCK, F_RDLCK, F_WRLCK
+       short   l_whence;       // type of l_start: SEEK_SET, SEEK_CUR, SEEK_END
+       long    l_start;        // starting offset, bytes
+       long    l_len;          // len = 0 means until EOF
+       short   l_pid;          // lock owner
+       short   l_xxx;          // padding
+     };
+     */
+    private int sys_fcntl_lock(int fdn, int cmd, int arg) throws FaultException{
+        if (cmd != F_GETLK && cmd != F_SETLK) return sys_fcntl(fdn, cmd, arg);
+
+        if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
+        if(fds[fdn] == null) return -EBADFD;
+        FD fd = fds[fdn];
+
+        if (arg == 0) return -EINVAL;
+        int word     = memRead(arg);
+        int l_start  = memRead(arg+4);
+        int l_len    = memRead(arg+8);
+        int l_type   = word>>16;
+        int l_whence = word&0x00ff;
+
+        Seekable.Lock[] locks = gs.locks;
+        Seekable s = fd.seekable();
+        if (s == null) return -EINVAL;
+
+        try {
+
+        switch (l_whence) {
+            case SEEK_SET: break;
+            case SEEK_CUR: l_start += s.pos(); break;
+            case SEEK_END: l_start += s.length(); break;
+            default: return -1;
+        }
+
+        if (cmd == F_GETLK) {
+            // The simple Java file locking below will happily return
+            // a lock that overlaps one already held by the JVM. Thus
+            // we must check over all the locks held by other Runtimes
+            for (int i=0; i < locks.length; i++) {
+                if (locks[i] == null || !s.equals(locks[i].seekable()))
+                    continue;
+                if (!locks[i].overlaps(l_start, l_len))
+                    continue;
+                if (locks[i].getOwner() == this)
+                    continue;
+                if (locks[i].isShared() && l_type == F_RDLCK)
+                    continue;
+
+                // overlapping lock held by another process
+                return 0;
+            }
+
+            // check if an area is lockable by attempting to obtain a lock
+            Seekable.Lock lock = s.lock(l_start, l_len, l_type == F_RDLCK);
+
+            if (lock != null) { // no lock exists
+                memWrite(arg, SEEK_SET|(F_UNLCK<<16));
+                lock.release();
+            }
+
+            return 0;
+        }
+
+        // now processing F_SETLK
+        if (cmd != F_SETLK) return -EINVAL;
+
+        if (l_type == F_UNLCK) {
+            // release all locks that fall within the boundaries given
+            for (int i=0; i < locks.length; i++) {
+                if (locks[i] == null || !s.equals(locks[i].seekable()))
+                    continue;
+                if (locks[i].getOwner() != this) continue;
+
+                int pos = (int)locks[i].position();
+                if (pos < l_start) continue;
+                if (l_start != 0 && l_len != 0) // start/len 0 means unlock all
+                    if (pos + locks[i].size() > l_start + l_len)
+                        continue;
+
+                locks[i].release();
+                locks[i] = null;
+            }
+            return 0;
+
+        } else if (l_type == F_RDLCK || l_type == F_WRLCK) {
+            // first see if a lock already exists
+            for (int i=0; i < locks.length; i++) {
+                if (locks[i] == null || !s.equals(locks[i].seekable()))
+                    continue;
+
+                if (locks[i].getOwner() == this) {
+                    // if this Runtime owns an overlapping lock work with it
+                    if (locks[i].contained(l_start, l_len)) {
+                        locks[i].release();
+                        locks[i] = null;
+                    } else if (locks[i].contains(l_start, l_len)) {
+                        if (locks[i].isShared() == (l_type == F_RDLCK)) {
+                            // return this more general lock
+                            memWrite(arg+4, (int)locks[i].position());
+                            memWrite(arg+8, (int)locks[i].size());
+                            return 0;
+                        } else {
+                            locks[i].release();
+                            locks[i] = null;
+                        }
+                    }
+                } else {
+                    // if another Runtime has an lock and it is exclusive or
+                    // we want an exclusive lock then fail
+                    if (locks[i].overlaps(l_start, l_len)
+                            && (!locks[i].isShared() || l_type == F_WRLCK))
+                        return -EAGAIN;
+                }
+            }
+
+            // create the lock
+            Seekable.Lock lock = s.lock(l_start, l_len, l_type == F_RDLCK);
+            if (lock == null) return -EAGAIN;
+            lock.setOwner(this);
+
+            int i;
+            for (i=0; i < locks.length; i++)
+                if (locks[i] == null) break;
+            if (i == locks.length) return -ENOLCK;
+            locks[i] = lock;
+            return 0;
+
+        } else {
+            return -EINVAL;
+        }
+
+        } catch (IOException e) { throw new RuntimeException(e); }
+    }
+
     static class SocketFD extends FD {
         public static final int TYPE_STREAM = 0;
         public static final int TYPE_DGRAM = 1;
@@ -1160,6 +1317,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         final UnixRuntime[] tasks;
         int nextPID = 1;
         
+        /** Table of all current file locks held by this process. */
+        Seekable.Lock[] locks = new Seekable.Lock[16];
+
         private MP[] mps = new MP[0];
         private FS root;
         

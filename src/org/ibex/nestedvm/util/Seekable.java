@@ -149,12 +149,29 @@ public abstract class Seekable {
         public void close() throws IOException { is.close(); }
     }
     
-    public interface Lock {
-        public Seekable seekable();
-        public boolean isShared();
-        public boolean isValid();
-        public void release() throws IOException;
-        public long position();
-        public long size();
+    public abstract static class Lock {
+        private Object owner = null;
+
+        public abstract Seekable seekable();
+        public abstract boolean isShared();
+        public abstract boolean isValid();
+        public abstract void release() throws IOException;
+        public abstract long position();
+        public abstract long size();
+
+        public void setOwner(Object o) { owner = o; }
+        public Object getOwner() { return owner; }
+
+        public final boolean contains(int start, int len) {
+            return start >= position() &&  position() + size() >= start + len;
+        }
+
+        public final boolean contained(int start, int len) {
+            return start < position() && position() + size() < start + len;
+        }
+
+        public final boolean overlaps(int start, int len) {
+            return contains(start, len) || contained(start, len);
+        }
     }
 }

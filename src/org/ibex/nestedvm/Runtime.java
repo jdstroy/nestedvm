@@ -76,10 +76,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** Table containing all open file descriptors. (Entries are null if the fd is not in use */
     FD[] fds; // package-private for UnixRuntime
     boolean closeOnExec[];
-
-    /** Table of all current file locks held by this process. */
-    Seekable.Lock[] locks;
-    public static final int LOCK_MAX = 8;
     
     /** Pointer to a SecurityManager for this process */
     SecurityManager sm;
@@ -126,7 +122,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         r.startTime = 0;
         r.fds = new FD[OPEN_MAX];
         for(int i=0;i<OPEN_MAX;i++) if(fds[i] != null) r.fds[i] = fds[i].dup();
-        r.locks = new Seekable.Lock[LOCK_MAX];
         int totalPages = writePages.length;
         r.readPages = new int[totalPages][];
         r.writePages = new int[totalPages][];
@@ -181,7 +176,6 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         if(!exec) {
             fds = new FD[OPEN_MAX];
             closeOnExec = new boolean[OPEN_MAX];
-            locks = new Seekable.Lock[LOCK_MAX];
         
             InputStream stdin = win32Hacks ? new Win32ConsoleIS(System.in) : System.in;
             addFD(new TerminalFD(stdin));
@@ -704,24 +698,16 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return i;
     }
 
+    /** Hook for subclasses to do something when the process closes an FD */
+    void _closedFD(FD fd) {  }
+
     /** Closes file descriptor <i>fdn</i> and removes it from the file descriptor table */
     public final boolean closeFD(int fdn) {
         if(state == EXITED || state == EXECED) throw new IllegalStateException("closeFD called in inappropriate state");
         if(fdn < 0 || fdn >= OPEN_MAX) return false;
         if(fds[fdn] == null) return false;
 
-        // release all fcntl locks on this file
-        Seekable s = fds[fdn].seekable();
-        if (s != null) {
-            try {
-                for (int i=0; i < LOCK_MAX; i++) {
-                    if (locks[i] != null && s.equals(locks[i].seekable())) {
-                        locks[i].release();
-                        locks[i] = null;
-                    }
-                }
-            } catch (IOException e) { throw new RuntimeException(e); }
-        }
+        _closedFD(fds[fdn]);
 
         fds[fdn].close();
         fds[fdn] = null;        
@@ -1031,7 +1017,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return 0;
     }
        
-    private int sys_fcntl(int fdn, int cmd, int arg) throws FaultException {
+    final int sys_fcntl(int fdn, int cmd, int arg) throws FaultException {
         int i;
             
         if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
@@ -1054,123 +1040,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
                 return closeOnExec[fdn] ? 1 : 0;
             case F_GETLK:
             case F_SETLK:
-                try {
-                    return sys_fcntl_lock(fd, cmd, arg);
-                } catch (IOException e) { throw new RuntimeException(e);}
+                if(STDERR_DIAG) System.err.println("WARNING: file locking requires UnixRuntime");
+                return -ENOSYS;
             default:
                 if(STDERR_DIAG) System.err.println("WARNING: Unknown fcntl command: " + cmd);
                 return -ENOSYS;
         }
     }
 
-    /** Implements the F_GETLK and F_SETLK cases of fcntl syscall.
-     *  If l_start = 0 and l_len = 0 the lock refers to the entire file.
-     struct flock {
-       short   l_type;         // lock type: F_UNLCK, F_RDLCK, F_WRLCK
-       short   l_whence;       // type of l_start: SEEK_SET, SEEK_CUR, SEEK_END
-       long    l_start;        // starting offset, bytes
-       long    l_len;          // len = 0 means until EOF
-       short   l_pid;          // lock owner
-       short   l_xxx;          // padding
-     };
-     */
-    private int sys_fcntl_lock(FD fd, int cmd, int arg)
-            throws FaultException, IOException {
-        if (arg == 0) { System.out.println("BAD ARG"); return -EINVAL; }
-        int word     = memRead(arg);
-        int l_start  = memRead(arg+4);
-        int l_len    = memRead(arg+8);
-        int l_type   = word>>16;
-        int l_whence = word&0x00ff;
-
-        Seekable s = fd.seekable();
-        if (s == null) return -EINVAL;
-
-        switch (l_whence) {
-            case SEEK_SET: break;
-            case SEEK_CUR: l_start += s.pos(); break;
-            case SEEK_END: l_start += s.length(); break;
-            default: return -1;
-        }
-
-        if (cmd != F_GETLK && cmd != F_SETLK) return -EINVAL;
-
-        if (cmd == F_GETLK) {
-            // Check if an l_type lock can be aquired. The only way to
-            // do this within the Java API is to try and create a lock.
-            Seekable.Lock lock = s.lock(l_start, l_len, l_type == F_RDLCK);
-
-            if (lock != null) {
-                // no lock exists
-                memWrite(arg, SEEK_SET|(F_UNLCK<<16));
-                lock.release();
-            }
-
-            return 0;
-        }
-
-        // now processing F_SETLK
-        if (cmd != F_SETLK) return -EINVAL;
-
-        if (l_type == F_UNLCK) {
-            // release all locks that fall within the boundaries given
-            for (int i=0; i < LOCK_MAX; i++) {
-                if (locks[i] == null || !s.equals(locks[i].seekable()))
-                    continue;
-
-                int pos = (int)locks[i].position();
-                if (pos < l_start) continue;
-                if (l_start != 0 && l_len != 0) // start/len 0 means unlock all
-                    if (pos + locks[i].size() > l_start + l_len)
-                        continue;
-
-                locks[i].release();
-                locks[i] = null;
-            }
-            return 0;
-
-        } else if (l_type == F_RDLCK || l_type == F_WRLCK) {
-            // first see if a lock already exists
-            for (int i=0; i < LOCK_MAX; i++) {
-                if (locks[i] == null || !s.equals(locks[i].seekable()))
-                    continue;
-                int pos = (int)locks[i].position();
-                int size = (int)locks[i].size();
-                if (l_start < pos && pos + size < l_start + l_len) {
-                    // found a lock contained in the new requested lock
-                    locks[i].release();
-                    locks[i] = null;
-
-                } else if (l_start >= pos && pos + size >= l_start + l_len) {
-                    // found a lock that contains the requested lock
-                    if (locks[i].isShared() == (l_type == F_RDLCK)) {
-                        memWrite(arg+4, pos);
-                        memWrite(arg+8, size);
-                        return 0;
-                    } else {
-                        locks[i].release();
-                        locks[i] = null;
-                    }
-                }
-            }
-
-            // create the lock
-            Seekable.Lock lock = s.lock(l_start, l_len, l_type == F_RDLCK);
-            if (lock == null) return -EAGAIN;
-
-            int i;
-            for (i=0; i < LOCK_MAX; i++)
-                if (locks[i] == null) break;
-            if (i == LOCK_MAX) return -ENOLCK;
-            locks[i] = lock;
-            return 0;
-
-        } else {
-            return -EINVAL;
-        }
-    }
-
-          
     /** The syscall dispatcher.
         The should be called by subclasses when the syscall instruction is invoked.
         <i>syscall</i> should be the contents of V0 and <i>a</i>, <i>b</i>, <i>c</i>, and <i>d</i> should be 
