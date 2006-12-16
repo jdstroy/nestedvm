@@ -2,9 +2,9 @@
 
 version_gcc = 3.3.3
 
-url_gcc-core = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
-url_gcc-c++ = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
-url_gcc-g77 = http://mirrors.rcn.net/pub/sourceware/gcc/releases/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
+url_gcc-core = http://mirrors.kernel.org/gnu/gcc/releases/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
+url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/releases/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
+url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/releases/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
 
 patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch
 
@@ -22,7 +22,7 @@ patches_binutils = binutils-no64.patch binutils-nocompilein.patch
 configure_binutils = --target=mips-unknown-elf
 
 version_newlib = 1.11.0
-url_newlib = http://mirrors.rcn.net/pub/sourceware/newlib/newlib-$(version_newlib).tar.gz
+url_newlib = ftp://sources.redhat.com/pub/newlib/newlib-$(version_newlib).tar.gz
 patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
