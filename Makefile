@@ -517,3 +517,9 @@ doc/ivme04.pdf: doc/ivme04.tex doc/acmconf.cls $(charts:%.dat=%.pdf) build/tests
 
 pdf: doc/ivme04.pdf
 	open doc/ivme04.pdf
+
+push:
+	if [ "$${HOSTNAME#*.}" = "brianweb.net" ]; then \
+		darcs push charger.brianweb.net:/home/darcs/nestedvm; \
+	fi
+	darcs push /afs/ibex.org/project/nestedvm
