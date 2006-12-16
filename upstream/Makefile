@@ -1,10 +1,10 @@
 # Inspired by XWT's Makefile.upstream
 
-version_gcc = 3.3.3
+version_gcc = 3.3.6
 
-url_gcc-core = http://mirrors.kernel.org/gnu/gcc/releases/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
-url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/releases/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
-url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/releases/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
+url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
+url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
+url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
 
 patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch
 
