@@ -6,7 +6,7 @@ url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(v
 url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
 url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
 
-patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch
+patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-3.3.6-fortran.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
 configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
