@@ -84,7 +84,8 @@ public abstract class Seekable {
         public File(java.io.File file, boolean writable, boolean truncate) throws IOException {
             this.file = file;
             String mode = writable ? "rw" : "r";
-            raf = truncate ? Platform.truncatedRandomAccessFile(file,mode) : new RandomAccessFile(file,mode);
+            raf = new RandomAccessFile(file,mode);
+            if (truncate) Platform.setFileLength(raf, 0);
         }
         
         public int read(byte[] buf, int offset, int length) throws IOException { return raf.read(buf,offset,length); }
@@ -93,7 +94,7 @@ public abstract class Seekable {
         public int pos()  throws IOException { return (int) raf.getFilePointer(); }
         public int length() throws IOException { return (int)raf.length(); }
         public void close() throws IOException { raf.close(); }
-        public void resize(long length) throws IOException { raf.setLength(length); }
+        public void resize(long length) throws IOException { Platform.setFileLength(raf, (int)length); }
         public boolean equals(Object o) {
             return o != null && o instanceof File
                    && file.equals(((File)o).file);

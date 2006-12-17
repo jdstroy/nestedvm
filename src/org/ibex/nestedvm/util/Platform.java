@@ -76,9 +76,11 @@ public abstract class Platform {
     abstract String _timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l);
     public static String timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) { return p._timeZoneGetDisplayName(tz,dst,showlong,l); }
     public static String timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong) { return timeZoneGetDisplayName(tz,dst,showlong,Locale.getDefault()); }
-    
-    abstract RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException;
-    public static RandomAccessFile truncatedRandomAccessFile(File f, String mode) throws IOException { return p._truncatedRandomAccessFile(f,mode); }
+
+    abstract void _setFileLength(RandomAccessFile f, int length)
+        throws IOException;
+    public static void setFileLength(RandomAccessFile f, int length)
+        throws IOException { p._setFileLength(f, length); }
     
     abstract File[] _listRoots();
     public static File[] listRoots() { return p._listRoots(); }
@@ -121,7 +123,27 @@ public abstract class Platform {
             if(off > 0) sb.append(":").append(off);
             return sb.toString();
         }
-        
+
+        void _setFileLength(RandomAccessFile f, int length) throws IOException{
+            InputStream in = new FileInputStream(f.getFD());
+            OutputStream out = new FileOutputStream(f.getFD());
+
+            byte[] buf = new byte[1024];
+            for (int len; length > 0; length -= len) {
+                len = in.read(buf, 0, Math.min(length, buf.length));
+                if (len == -1) break;
+                out.write(buf, 0, len);
+            }
+            if (length == 0) return;
+
+            // fill the rest of the space with zeros
+            for (int i=0; i < buf.length; i++) buf[i] = 0;
+            while (length > 0) {
+                out.write(buf, 0, Math.min(length, buf.length));
+                length -= buf.length;
+            }
+        }
+
         RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException {
             new FileOutputStream(f).close();
             return new RandomAccessFile(f,mode);
@@ -170,13 +192,11 @@ public abstract class Platform {
         String _timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) {
             return tz.getDisplayName(dst,showlong ? TimeZone.LONG : TimeZone.SHORT, l);
         }
-        
-        RandomAccessFile _truncatedRandomAccessFile(File f, String mode) throws IOException {
-            RandomAccessFile raf = new RandomAccessFile(f,mode);
-            raf.setLength(0);
-            return raf;
+
+        void _setFileLength(RandomAccessFile f, int length) throws IOException {
+            f.setLength(length);
         }
-        
+
         File[] _listRoots() { return File.listRoots(); }
     }
     
