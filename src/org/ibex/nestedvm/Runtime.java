@@ -1048,6 +1048,22 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     }
 
+    final int fsync(int fdn) {
+        if(fdn < 0 || fdn >= OPEN_MAX) return -EBADFD;
+        if(fds[fdn] == null) return -EBADFD;
+        FD fd = fds[fdn];
+
+        Seekable s = fd.seekable();
+        if (s == null) return -EINVAL;
+
+        try {
+            s.sync();
+            return 0;
+        } catch (IOException e) {
+            return -EIO;
+        }
+    }
+
     /** The syscall dispatcher.
         The should be called by subclasses when the syscall instruction is invoked.
         <i>syscall</i> should be the contents of V0 and <i>a</i>, <i>b</i>, <i>c</i>, and <i>d</i> should be 
@@ -1097,6 +1113,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             case SYS_getgid: return sys_getgid();
             case SYS_getegid: return sys_getegid();
             
+            case SYS_fsync: return fsync(a);
             case SYS_memcpy: memcpy(a,b,c); return a;
             case SYS_memset: memset(a,b,c); return a;
 

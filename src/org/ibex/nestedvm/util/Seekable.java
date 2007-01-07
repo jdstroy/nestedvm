@@ -14,6 +14,9 @@ public abstract class Seekable {
     public abstract void close() throws IOException;
     public abstract int pos() throws IOException;
 
+    public void sync() throws IOException {
+        throw new IOException("sync not implemented for " + getClass());
+    }
     public void resize(long length) throws IOException {
         throw new IOException("resize not implemented for " + getClass());
     }
@@ -90,6 +93,7 @@ public abstract class Seekable {
         
         public int read(byte[] buf, int offset, int length) throws IOException { return raf.read(buf,offset,length); }
         public int write(byte[] buf, int offset, int length) throws IOException { raf.write(buf,offset,length); return length; }
+        public void sync() throws IOException { raf.getFD().sync(); }
         public void seek(int pos) throws IOException{ raf.seek(pos); }
         public int pos()  throws IOException { return (int) raf.getFilePointer(); }
         public int length() throws IOException { return (int)raf.length(); }

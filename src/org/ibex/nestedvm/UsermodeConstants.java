@@ -90,6 +90,7 @@ public interface UsermodeConstants {
     public static final int SYS_setgroups = 88;
     public static final int SYS_resolve_ip = 89;
     public static final int SYS_setsid = 90;
+    public static final int SYS_fsync = 91;
     public static final int AF_UNIX = 1;
     public static final int AF_INET = 2;
     public static final int SOCK_STREAM = 1;

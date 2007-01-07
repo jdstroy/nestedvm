@@ -117,6 +117,7 @@ REENT_WRAPPER1(setgid,gid_t)
 REENT_WRAPPER1(setegid,gid_t)
 REENT_WRAPPER2(setgroups,int,const gid_t *)
 REENT_WRAPPER0R(setsid,pid_t)
+REENT_WRAPPER1(fsync,int)
 
 extern int __execve_r(struct _reent *ptr, const char *path, char *const argv[], char *const envp[]);
 int _execve(const char *path, char *const argv[], char *const envp[]) {
@@ -168,11 +169,6 @@ int _sysctl_r(struct _reent *ptr, int *name, int namelen, void *oldp, size_t *ol
 
 void sync() {
     /* do nothing*/
-}
-
-int fsync(int fd) {
-    /* do nothing */
-    return 0;
 }
 
 char *ttyname(int fd) {

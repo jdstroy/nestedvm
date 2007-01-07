@@ -85,3 +85,4 @@
 #define SYS_setgroups 88
 #define SYS_resolve_ip 89
 #define SYS_setsid 90
+#define SYS_fsync 91
