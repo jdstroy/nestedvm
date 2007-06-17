@@ -290,7 +290,7 @@ public class JavaSourceCompiler extends Compiler {
             insn = nextInsn;
             nextInsn = (i == count-1) ? -1 : dis.readInt();
             if(addr >= endOfMethod) { endMethod(); startMethod(addr); }
-            if(jumpableAddresses==null || addr == startOfMethod || jumpableAddresses.contains(new Integer(addr))) {
+            if(jumpableAddresses==null || addr == startOfMethod || jumpableAddresses.get(new Integer(addr)) != null) {
                 p("case " + toHex(addr) + ":");
                 unreachable = false;
             } else if(unreachable) {
@@ -427,6 +427,7 @@ public class JavaSourceCompiler extends Compiler {
                         break;
                     case 13: // BREAK
                         p( "throw new ExecutionException(\"Break\");");
+                        unreachable = true;
                         break;
                     case 16: // MFHI
                         p( "r"+rd+" = hi;");
