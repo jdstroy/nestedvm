@@ -85,7 +85,7 @@ REENT_WRAPPER0(vfork)
 REENT_WRAPPER1(chroot,const char *)
 REENT_WRAPPER3(mknod,const char *,mode_t,dev_t)
 REENT_WRAPPER2(ftruncate,int,off_t)
-REENT_WRAPPER1(usleep,unsigned int)
+REENT_WRAPPER1R(usleep,unsigned int,unsigned int)
 REENT_WRAPPER2(mkfifo,const char *, mode_t)
 REENT_WRAPPER3(klogctl,int,char*,int)
 REENT_WRAPPER2R(realpath,char *,const char *,char *)
@@ -167,8 +167,9 @@ int _sysctl_r(struct _reent *ptr, int *name, int namelen, void *oldp, size_t *ol
     }
 }
 
-void sync() {
+int sync() {
     /* do nothing*/
+    return 0;
 }
 
 char *ttyname(int fd) {

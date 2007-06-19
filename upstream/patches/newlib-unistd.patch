@@ -1,0 +1,28 @@
+--- newlib/libc/include/sys/unistd.h~	2007-06-19 15:04:20.000000000 -0400
++++ newlib/libc/include/sys/unistd.h	2007-06-19 15:04:20.000000000 -0400
+@@ -149,19 +149,20 @@
+ int	_EXFUN(getdtablesize, (void));
+ int	_EXFUN(setdtablesize, (int));
+ useconds_t _EXFUN(ualarm, (useconds_t __useconds, useconds_t __interval));
+-unsigned _EXFUN(usleep, (unsigned int __useconds));
+-int     _EXFUN(ftruncate, (int __fd, off_t __length));
+-int     _EXFUN(truncate, (const char *, off_t __length));
+ #if !(defined  (_WINSOCK_H) || defined (__USE_W32_SOCKETS))
+ /* winsock[2].h defines as __stdcall, and with int as 2nd arg */
+  int	_EXFUN(gethostname, (char *__name, size_t __len));
+ #endif
+-char *	_EXFUN(mktemp, (char *));
+-int     _EXFUN(sync, (void));
+ #endif
+ int     _EXFUN(readlink, (const char *__path, char *__buf, int __buflen));
+ int     _EXFUN(symlink, (const char *__name1, const char *__name2));
+ 
++unsigned _EXFUN(usleep, (unsigned int __useconds));
++int     _EXFUN(ftruncate, (int __fd, off_t __length));
++int     _EXFUN(truncate, (const char *, off_t __length));
++char *	_EXFUN(mktemp, (char *));
++int     _EXFUN(sync, (void));
++
+ #define	F_OK	0
+ #define	R_OK	4
+ #define	W_OK	2
