@@ -222,9 +222,8 @@ unix_runtime.jar: $(unix_runtime_classes:%=build/org/ibex/nestedvm/%.class)
 		org/ibex/nestedvm/Runtime\$$*.class \
 		org/ibex/nestedvm/util/Seekable\$$*.class \
 		org/ibex/nestedvm/UnixRuntime\$$*.class \
-		org/ibex/nestedvm/util/Platform\$$*.class
-	cd upstream/build/classgen/build && jar -uf ../../../../$@ \
-		org/ibex/classgen/util/Sort*.class
+		org/ibex/nestedvm/util/Platform\$$*.class \
+		org/ibex/nestedvm/util/Sort*.class
 
 .manifest:
 	printf "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
