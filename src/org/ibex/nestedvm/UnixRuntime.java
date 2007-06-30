@@ -164,7 +164,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     FD _open(String path, int flags, int mode) throws ErrnoException {
-        return gs.open(this,normalizePath(path),flags,mode);
+        path = normalizePath(path);
+        FD fd = gs.open(this,path,flags,mode);
+        if (fd != null && path != null) fd.setNormalizedPath(path);
+        return fd;
     }
     
     private int sys_getppid() {
@@ -703,7 +706,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return n;
     }
 
-    void _closedFD(FD fd) {
+    void _preCloseFD(FD fd) {
         // release all fcntl locks on this file
         Seekable s = fd.seekable();
         if (s == null) return;
@@ -718,6 +721,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 }
             }
         } catch (IOException e) { throw new RuntimeException(e); }
+    }
+
+    void _postCloseFD(FD fd) {
+        if (fd.isMarkedForDeleteOnClose()) {
+            try { gs.unlink(this, fd.getNormalizedPath()); }
+            catch (Throwable t) {}
+        }
     }
 
     /** Implements the F_GETLK and F_SETLK cases of fcntl syscall.
@@ -1617,7 +1627,21 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             File f = hostFile(path);
             if(r.sm != null && !r.sm.allowUnlink(f)) throw new ErrnoException(EPERM);
             if(!f.exists()) throw new ErrnoException(ENOENT);
-            if(!f.delete()) throw new ErrnoException(EPERM);
+            if(!f.delete()) {
+                // Can't delete file immediately, so mark for
+                // delete on close all matching FDs
+                boolean marked = false;
+                for(int i=0;i<OPEN_MAX;i++) {
+                    if(r.fds[i] != null) {
+                        String fdpath = r.fds[i].getNormalizedPath();
+                        if(fdpath != null && fdpath.equals(path)) {
+                            r.fds[i].markDeleteOnClose();
+                            marked = true;
+                        }
+                    }
+                }
+                if(!marked) throw new ErrnoException(EPERM);
+            }
         }
         
         public FStat stat(UnixRuntime r, String path) throws ErrnoException {

@@ -698,18 +698,18 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         return i;
     }
 
-    /** Hook for subclasses to do something when the process closes an FD */
-    void _closedFD(FD fd) {  }
+    /** Hooks for subclasses before and after the process closes an FD */
+    void _preCloseFD(FD fd) {  }
+    void _postCloseFD(FD fd) {  }
 
     /** Closes file descriptor <i>fdn</i> and removes it from the file descriptor table */
     public final boolean closeFD(int fdn) {
         if(state == EXITED || state == EXECED) throw new IllegalStateException("closeFD called in inappropriate state");
         if(fdn < 0 || fdn >= OPEN_MAX) return false;
         if(fds[fdn] == null) return false;
-
-        _closedFD(fds[fdn]);
-
+        _preCloseFD(fds[fdn]);
         fds[fdn].close();
+        _postCloseFD(fds[fdn]);
         fds[fdn] = null;        
         return true;
     }
@@ -1209,6 +1209,14 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     /** File Descriptor class */
     public static abstract class FD {
         private int refCount = 1;
+        private String normalizedPath = null;
+        private boolean deleteOnClose = false;
+
+        public void setNormalizedPath(String path) { normalizedPath = path; }
+        public String getNormalizedPath() { return normalizedPath; }
+
+        public void markDeleteOnClose() { deleteOnClose = true; }
+        public boolean isMarkedForDeleteOnClose() { return deleteOnClose; }
         
         /** Read some bytes. Should return the number of bytes read, 0 on EOF, or throw an IOException on error */
         public int read(byte[] a, int off, int length) throws ErrnoException { throw new ErrnoException(EBADFD); }
