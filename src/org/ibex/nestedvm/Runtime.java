@@ -767,10 +767,10 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             return null;
         } catch(IOException e) { throw new ErrnoException(EIO); }
         
-        return new SeekableFD(sf,flags) { protected FStat _fstat() { return hostFStat(f,data); } };
+        return new SeekableFD(sf,flags) { protected FStat _fstat() { return hostFStat(f,sf,data); } };
     }
     
-    FStat hostFStat(File f, Object data) { return new HostFStat(f); }
+    FStat hostFStat(File f, Seekable.File sf, Object data) { return new HostFStat(f,sf); }
     
     FD hostFSDirFD(File f, Object data) { return null; }
     
@@ -1413,10 +1413,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
     
     static class HostFStat extends FStat {
         private final File f;
+        private final Seekable.File sf;
         private final boolean executable; 
-        public HostFStat(File f) { this(f,false); }
-        public HostFStat(File f, boolean executable) {
+        public HostFStat(File f, Seekable.File sf) { this(f,sf,false); }
+        public HostFStat(File f, boolean executable) {this(f,null,executable);}
+        public HostFStat(File f, Seekable.File sf, boolean executable) {
             this.f = f;
+            this.sf = sf;
             this.executable = executable;
         }
         public int dev() { return 1; }
@@ -1431,7 +1434,13 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             if(f.canWrite()) mode |= 0222;
             return mode;
         }
-        public int size() { return (int) f.length(); }
+        public int size() {
+          try {
+            return sf != null ? (int)sf.length() : (int)f.length();
+          } catch (Exception x) {
+            return (int)f.length();
+          }
+        }
         public int mtime() { return (int)(f.lastModified()/1000); }        
     }
     
