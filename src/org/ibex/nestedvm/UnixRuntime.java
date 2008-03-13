@@ -1362,6 +1362,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 
                 addMount("/dev",new DevFS());
                 addMount("/resource",new ResourceFS());
+                addMount("/cygdrive",new CygdriveFS());
             }
         }
         
@@ -1601,7 +1602,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected File root;
         public File getRoot() { return root; }
         
-        private File hostFile(String path) {
+        protected File hostFile(String path) {
             char sep = File.separatorChar;
             if(sep != '/') {
                 char buf[] = path.toCharArray();
@@ -1686,6 +1687,23 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             public int myInode() { return inodes.get(f.getAbsolutePath()); }
             public int myDev() { return devno; } 
         }
+    }
+
+    /* Implements the Cygwin notation for accessing MS Windows drive letters
+     * in a unix path. The path /cygdrive/c/myfile is converted to C:\file.
+     * As there is no POSIX standard for this, little checking is done. */
+    public static class CygdriveFS extends HostFS {
+        protected File hostFile(String path) {
+            final char drive = path.charAt(0);
+
+            if (drive < 'a' || drive > 'z' || path.charAt(1) != '/')
+                return null;
+
+            path = drive + ":" + path.substring(1).replace('/', '\\');
+            return new File(path);
+        }
+
+        public CygdriveFS() { super("/"); }
     }
     
     private static void putInt(byte[] buf, int off, int n) {
