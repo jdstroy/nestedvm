@@ -234,7 +234,7 @@ tasks/build_gmp: tasks/patch_gmp tasks/build_libc
 		make && \
 		make install exec_prefix=$(usr)/mips-unknown-elf includedir=$(usr)/mips-unknown-elf/include
 	touch $@
-	
+
 #
 # Tests
 # These are simply here for convenience. They aren't required 
