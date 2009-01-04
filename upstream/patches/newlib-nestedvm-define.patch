@@ -1,0 +1,13 @@
+--- newlib/libc/include/sys/config.h	2009-01-03 17:00:12.000000000 -0800
++++ newlib/libc/include/sys/config.h	2009-01-03 16:59:48.000000000 -0800
+@@ -3,6 +3,10 @@
+ 
+ #include <machine/ieeefp.h>  /* floating point macros */
+ 
++#ifndef __NESTEDVM__
++#define __NESTEDVM__
++#endif
++
+ /* exceptions first */
+ #if defined(__H8500__) || defined(__W65__)
+ #define __SMALL_BITFIELDS
