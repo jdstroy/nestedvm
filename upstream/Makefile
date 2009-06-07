@@ -401,7 +401,7 @@ tasks/build_boehmgc: tasks/patch_boehmgc tasks/build_libc
 
 ## busybox ##############################################################################
 
-version_busybox = 1.00-pre9
+version_busybox = 1.00
 url_busybox = http://busybox.net/downloads/busybox-$(version_busybox).tar.gz
 patches_busybox = busybox.patch
 
@@ -409,7 +409,7 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 	cd build && \
 		rm -f busybox && \
 		ln -s busybox-$(version_busybox) busybox
-	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
+	cd build/busybox && $(MAKE) CC=mips-unknown-elf-gcc LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
 	touch $@
 
 ## tex ##############################################################################

@@ -1,60 +1,38 @@
-Only in .: .config
-Only in .: .config.cmd
-Only in .: .depend
-diff -ur ../busybox-1.00-pre9.orig/Rules.mak ./Rules.mak
---- ../busybox-1.00-pre9.orig/Rules.mak	2004-04-06 13:58:37.000000000 -0400
-+++ ./Rules.mak	2004-05-08 03:22:49.000000000 -0400
-@@ -79,7 +79,8 @@
- #CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
- #GCCINCDIR:=$(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
- 
--WARNINGS=-Wall -Wstrict-prototypes -Wshadow
-+WARNINGS=-Wall -Wstrict-prototypes -Wshadow -Wno-unused
-+LIBRARIES=-lglob -lregex
- CFLAGS=-I$(TOPDIR)include
- ARFLAGS=-r
- 
-@@ -158,8 +159,8 @@
-     STRIPCMD:=/bin/true -Not_stripping_since_we_are_debugging
- else
-     CFLAGS+=$(WARNINGS) $(OPTIMIZATIONS) -D_GNU_SOURCE -DNDEBUG
--    LDFLAGS += -s -Wl,-warn-common
--    STRIPCMD:=$(STRIP) --remove-section=.note --remove-section=.comment
-+    LDFLAGS += -Wl,-warn-common
-+    STRIPCMD:= true
- endif
- ifeq ($(strip $(CONFIG_STATIC)),y)
-     LDFLAGS += --static
-diff -ur ../busybox-1.00-pre9.orig/archival/libunarchive/decompress_bunzip2.c ./archival/libunarchive/decompress_bunzip2.c
---- ../busybox-1.00-pre9.orig/archival/libunarchive/decompress_bunzip2.c	2004-03-15 03:28:17.000000000 -0500
-+++ ./archival/libunarchive/decompress_bunzip2.c	2004-05-20 00:27:06.000000000 -0400
-@@ -134,8 +134,8 @@
- 
- static int get_next_block(bunzip_data *bd)
+diff -Bubr ../busybox-1.00+/archival/libunarchive/decompress_bunzip2.c ./archival/libunarchive/decompress_bunzip2.c
+--- ../busybox-1.00+/archival/libunarchive/decompress_bunzip2.c	2004-08-27 17:43:05.000000000 -0700
++++ ./archival/libunarchive/decompress_bunzip2.c	2009-06-07 15:10:37.000000000 -0700
+@@ -136,7 +136,7 @@
  {
+ 	/* Note: Ignore the warning about hufGroup, base and limit being used uninitialized.
+ 	 * They will be initialized on the fist pass of the loop. */
 -	struct group_data *hufGroup;
--	int dbufCount,nextSym,dbufSize,groupCount,*base,*limit,selector,
 +	struct group_data *hufGroup=NULL;
-+	int dbufCount,nextSym,dbufSize,groupCount,*base=NULL,*limit=NULL,selector,
+ 	int dbufCount,nextSym,dbufSize,groupCount,*base,*limit,selector,
  		i,j,k,t,runPos,symCount,symTotal,nSelectors,byteCount[256];
  	unsigned char uc, symToByte[256], mtfSymbol[256], *selectors;
- 	unsigned int *dbuf,origPtr;
-diff -ur ../busybox-1.00-pre9.orig/archival/tar.c ./archival/tar.c
---- ../busybox-1.00-pre9.orig/archival/tar.c	2004-03-27 05:02:41.000000000 -0500
-+++ ./archival/tar.c	2004-05-08 03:22:49.000000000 -0400
-@@ -48,7 +48,9 @@
+Only in ./archival/libunarchive: decompress_bunzip2.c.orig
+diff -Bubr ../busybox-1.00+/archival/tar.c ./archival/tar.c
+--- ../busybox-1.00+/archival/tar.c	2004-08-26 15:18:56.000000000 -0700
++++ ./archival/tar.c	2009-06-07 15:19:14.000000000 -0700
+@@ -48,8 +48,10 @@
  #include <errno.h>
  #include <signal.h>
  #include <sys/wait.h>
 +#ifndef NESTEDVM
  #include <sys/socket.h>
+ #include <sys/sysmacros.h>     /* major() and minor() */
 +#endif
  #include "unarchive.h"
  #include "busybox.h"
  
-diff -ur ../busybox-1.00-pre9.orig/coreutils/cal.c ./coreutils/cal.c
---- ../busybox-1.00-pre9.orig/coreutils/cal.c	2004-03-15 03:28:19.000000000 -0500
-+++ ./coreutils/cal.c	2004-05-08 03:22:49.000000000 -0400
+Only in ./archival: tar.c.orig
+Only in .: busybox-1.00-pre9
+Only in .: .config
+Only in .: .config.cmd
+Only in .: .config.old
+diff -Bubr ../busybox-1.00+/coreutils/cal.c ./coreutils/cal.c
+--- ../busybox-1.00+/coreutils/cal.c	2004-04-14 10:51:09.000000000 -0700
++++ ./coreutils/cal.c	2009-06-07 15:08:50.000000000 -0700
 @@ -31,7 +31,9 @@
  
  #include <sys/types.h>
@@ -65,10 +43,10 @@ diff -ur ../busybox-1.00-pre9.orig/coreutils/cal.c ./coreutils/cal.c
  #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
-diff -ur ../busybox-1.00-pre9.orig/coreutils/date.c ./coreutils/date.c
---- ../busybox-1.00-pre9.orig/coreutils/date.c	2004-04-06 05:38:18.000000000 -0400
-+++ ./coreutils/date.c	2004-05-08 03:22:49.000000000 -0400
-@@ -227,7 +227,11 @@
+diff -Bubr ../busybox-1.00+/coreutils/date.c ./coreutils/date.c
+--- ../busybox-1.00+/coreutils/date.c	2004-10-11 13:52:16.000000000 -0700
++++ ./coreutils/date.c	2009-06-07 15:08:50.000000000 -0700
+@@ -236,7 +236,11 @@
  		}
  
  		/* if setting time, set it */
@@ -80,9 +58,40 @@ diff -ur ../busybox-1.00-pre9.orig/coreutils/date.c ./coreutils/date.c
  			bb_perror_msg("cannot set date");
  		}
  	}
-diff -ur ../busybox-1.00-pre9.orig/coreutils/dos2unix.c ./coreutils/dos2unix.c
---- ../busybox-1.00-pre9.orig/coreutils/dos2unix.c	2004-03-15 03:28:20.000000000 -0500
-+++ ./coreutils/dos2unix.c	2004-05-08 03:22:49.000000000 -0400
+Only in ./coreutils: date.c.orig
+diff -Bubr ../busybox-1.00+/coreutils/df.c ./coreutils/df.c
+--- ../busybox-1.00+/coreutils/df.c	2004-08-02 17:14:01.000000000 -0700
++++ ./coreutils/df.c	2009-06-07 15:20:57.000000000 -0700
+@@ -35,8 +35,10 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
++#ifndef NESTEDVM
+ #include <mntent.h>
+ #include <sys/vfs.h>
++#endif
+ #include "busybox.h"
+ 
+ #ifndef CONFIG_FEATURE_HUMAN_READABLE
+@@ -46,6 +48,7 @@
+ }
+ #endif
+ 
++#ifndef NESTEDVM
+ extern int df_main(int argc, char **argv)
+ {
+ 	long blocks_used;
+@@ -160,6 +163,7 @@
+ 
+ 	bb_fflush_stdout_and_exit(status);
+ }
++#endif
+ 
+ /*
+ Local Variables:
+diff -Bubr ../busybox-1.00+/coreutils/dos2unix.c ./coreutils/dos2unix.c
+--- ../busybox-1.00+/coreutils/dos2unix.c	2004-05-05 12:39:21.000000000 -0700
++++ ./coreutils/dos2unix.c	2009-06-07 15:08:50.000000000 -0700
 @@ -30,7 +30,9 @@
  #include <string.h>
  #include <getopt.h>
@@ -93,9 +102,9 @@ diff -ur ../busybox-1.00-pre9.orig/coreutils/dos2unix.c ./coreutils/dos2unix.c
  #include <fcntl.h>
  #include <sys/time.h>
  #include "busybox.h"
-diff -ur ../busybox-1.00-pre9.orig/coreutils/env.c ./coreutils/env.c
---- ../busybox-1.00-pre9.orig/coreutils/env.c	2003-11-07 06:20:21.000000000 -0500
-+++ ./coreutils/env.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/coreutils/env.c ./coreutils/env.c
+--- ../busybox-1.00+/coreutils/env.c	2004-04-16 08:02:10.000000000 -0700
++++ ./coreutils/env.c	2009-06-07 15:08:50.000000000 -0700
 @@ -50,12 +50,13 @@
  #include <getopt.h>
  #include "busybox.h"
@@ -111,37 +120,59 @@ diff -ur ../busybox-1.00-pre9.orig/coreutils/env.c ./coreutils/env.c
  
  extern int env_main(int argc, char** argv)
  {
-diff -ur ../busybox-1.00-pre9.orig/coreutils/ls.c ./coreutils/ls.c
---- ../busybox-1.00-pre9.orig/coreutils/ls.c	2004-03-27 05:02:42.000000000 -0500
-+++ ./coreutils/ls.c	2004-05-08 03:22:49.000000000 -0400
-@@ -59,8 +59,10 @@
+diff -Bubr ../busybox-1.00+/coreutils/expr.c ./coreutils/expr.c
+--- ../busybox-1.00+/coreutils/expr.c	2004-04-14 10:51:09.000000000 -0700
++++ ./coreutils/expr.c	2009-06-07 15:22:16.000000000 -0700
+@@ -244,6 +244,7 @@
+ 
+ static VALUE *docolon (VALUE *sv, VALUE *pv)
+ {
++#ifndef NESTEDVM
+ 	VALUE *v;
+ 	const char *errmsg;
+ 	struct re_pattern_buffer re_buffer;
+@@ -291,6 +292,9 @@
+ 	}
+ 	free (re_buffer.buffer);
+ 	return v;
++#else
++        return NULL;
++#endif
+ }
+ 
+ /* Handle bare operands and ( expr ) syntax.  */
+diff -Bubr ../busybox-1.00+/coreutils/ls.c ./coreutils/ls.c
+--- ../busybox-1.00+/coreutils/ls.c	2004-09-23 19:04:13.000000000 -0700
++++ ./coreutils/ls.c	2009-06-07 15:22:37.000000000 -0700
+@@ -59,9 +59,11 @@
  #include <stdlib.h>
  #include <fcntl.h>
  #include <signal.h>
 +#ifndef NESTEDVM
  #include <termios.h>
  #include <sys/ioctl.h>
+ #include <sys/sysmacros.h>     /* major() and minor() */
 +#endif
  #include "busybox.h"
  #ifdef CONFIG_SELINUX
  #include <fs_secure.h>
-@@ -988,8 +990,11 @@
+@@ -984,8 +986,11 @@
  #endif
  
  #ifdef CONFIG_FEATURE_LS_COLOR
 -	if (isatty(STDOUT_FILENO))
--		show_color = 1;
 +    {
 +        char *term = getenv("TERM");
 +        if (isatty(STDOUT_FILENO) && term && *term)
-+            show_color = 1;
+ 		show_color = 1;
 +    }
  #endif
  
  	/* process options */
-diff -ur ../busybox-1.00-pre9.orig/coreutils/md5_sha1_sum.c ./coreutils/md5_sha1_sum.c
---- ../busybox-1.00-pre9.orig/coreutils/md5_sha1_sum.c	2004-03-27 05:02:42.000000000 -0500
-+++ ./coreutils/md5_sha1_sum.c	2004-05-08 03:22:49.000000000 -0400
+Only in ./coreutils: ls.c.orig
+diff -Bubr ../busybox-1.00+/coreutils/md5_sha1_sum.c ./coreutils/md5_sha1_sum.c
+--- ../busybox-1.00+/coreutils/md5_sha1_sum.c	2004-04-14 10:51:09.000000000 -0700
++++ ./coreutils/md5_sha1_sum.c	2009-06-07 15:08:50.000000000 -0700
 @@ -20,7 +20,9 @@
  #include <fcntl.h>
  #include <limits.h>
@@ -152,9 +183,9 @@ diff -ur ../busybox-1.00-pre9.orig/coreutils/md5_sha1_sum.c ./coreutils/md5_sha1
  #include <stdlib.h>
  #include <string.h>
  #include <unistd.h>
-diff -ur ../busybox-1.00-pre9.orig/coreutils/rmdir.c ./coreutils/rmdir.c
---- ../busybox-1.00-pre9.orig/coreutils/rmdir.c	2004-03-15 03:28:21.000000000 -0500
-+++ ./coreutils/rmdir.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/coreutils/rmdir.c ./coreutils/rmdir.c
+--- ../busybox-1.00+/coreutils/rmdir.c	2004-03-15 00:28:21.000000000 -0800
++++ ./coreutils/rmdir.c	2009-06-07 15:08:50.000000000 -0700
 @@ -25,7 +25,9 @@
  
  #include <stdlib.h>
@@ -165,9 +196,56 @@ diff -ur ../busybox-1.00-pre9.orig/coreutils/rmdir.c ./coreutils/rmdir.c
  #include "busybox.h"
  
  extern int rmdir_main(int argc, char **argv)
-diff -ur ../busybox-1.00-pre9.orig/include/busybox.h ./include/busybox.h
---- ../busybox-1.00-pre9.orig/include/busybox.h	2004-03-15 03:28:38.000000000 -0500
-+++ ./include/busybox.h	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/editors/vi.c ./editors/vi.c
+--- ../busybox-1.00+/editors/vi.c	2004-08-19 12:15:06.000000000 -0700
++++ ./editors/vi.c	2009-06-07 15:24:23.000000000 -0700
+@@ -68,7 +68,9 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef NESTEDVM
+ #include <termios.h>
++#endif
+ #include <unistd.h>
+ #include <sys/ioctl.h>
+ #include <sys/time.h>
+@@ -183,7 +185,9 @@
+ static Byte *screenbegin;	// index into text[], of top line on the screen
+ static Byte *dot;		// where all the action takes place
+ static int tabstop;
++#ifndef NESTEDVM
+ static struct termios term_orig, term_vi;	// remember what the cooked mode was
++#endif
+ static Byte erase_char;         // the users erase character
+ static Byte last_input_char;    // last char read from user
+ static Byte last_forward_char;  // last char searched for with 'f'
+@@ -2113,6 +2117,7 @@
+ //----- Set terminal attributes --------------------------------
+ static void rawmode(void)
+ {
++#ifndef NESTEDVM
+ 	tcgetattr(0, &term_orig);
+ 	term_vi = term_orig;
+ 	term_vi.c_lflag &= (~ICANON & ~ECHO);	// leave ISIG ON- allow intr's
+@@ -2122,12 +2127,15 @@
+ 	term_vi.c_cc[VTIME] = 0;
+ 	erase_char = term_vi.c_cc[VERASE];
+ 	tcsetattr(0, TCSANOW, &term_vi);
++#endif
+ }
+ 
+ static void cookmode(void)
+ {
+ 	fflush(stdout);
++#ifndef NESTEDVM
+ 	tcsetattr(0, TCSANOW, &term_orig);
++#endif
+ }
+ 
+ //----- Come here when we get a window resize signal ---------
+diff -Bubr ../busybox-1.00+/include/busybox.h ./include/busybox.h
+--- ../busybox-1.00+/include/busybox.h	2004-03-15 00:28:38.000000000 -0800
++++ ./include/busybox.h	2009-06-07 15:08:50.000000000 -0700
 @@ -33,7 +33,7 @@
  #include <sys/types.h>
  
@@ -187,13 +265,11 @@ diff -ur ../busybox-1.00-pre9.orig/include/busybox.h ./include/busybox.h
  
  /* Pull in the utility routines from libbb */
  #include "libbb.h"
-Only in ./include: config
-Only in ./include: config.h
-diff -ur ../busybox-1.00-pre9.orig/include/grp_.h ./include/grp_.h
---- ../busybox-1.00-pre9.orig/include/grp_.h	2003-12-18 17:40:58.000000000 -0500
-+++ ./include/grp_.h	2004-05-08 03:22:49.000000000 -0400
-@@ -7,7 +7,9 @@
- #else
+diff -Bubr ../busybox-1.00+/include/grp_.h ./include/grp_.h
+--- ../busybox-1.00+/include/grp_.h	2004-07-15 05:53:49.000000000 -0700
++++ ./include/grp_.h	2009-06-07 15:08:50.000000000 -0700
+@@ -31,7 +31,9 @@
+ 
  
  #include <sys/types.h>
 +#ifndef NESTEDVM
@@ -202,9 +278,10 @@ diff -ur ../busybox-1.00-pre9.orig/include/grp_.h ./include/grp_.h
  #include <stdio.h>
  
  
-diff -ur ../busybox-1.00-pre9.orig/include/libbb.h ./include/libbb.h
---- ../busybox-1.00-pre9.orig/include/libbb.h	2004-03-15 03:28:38.000000000 -0500
-+++ ./include/libbb.h	2004-05-20 00:26:12.000000000 -0400
+Only in ./include: grp_.h.orig
+diff -Bubr ../busybox-1.00+/include/libbb.h ./include/libbb.h
+--- ../busybox-1.00+/include/libbb.h	2004-09-14 20:04:07.000000000 -0700
++++ ./include/libbb.h	2009-06-07 15:08:50.000000000 -0700
 @@ -24,22 +24,68 @@
  #ifndef	__LIBCONFIG_H__
  #define	__LIBCONFIG_H__    1
@@ -285,11 +362,11 @@ diff -ur ../busybox-1.00-pre9.orig/include/libbb.h ./include/libbb.h
  
  extern int get_kernel_revision(void);
  
-diff -ur ../busybox-1.00-pre9.orig/include/pwd_.h ./include/pwd_.h
---- ../busybox-1.00-pre9.orig/include/pwd_.h	2002-07-03 19:19:10.000000000 -0400
-+++ ./include/pwd_.h	2004-05-08 03:22:49.000000000 -0400
-@@ -7,7 +7,9 @@
- #else
+diff -Bubr ../busybox-1.00+/include/pwd_.h ./include/pwd_.h
+--- ../busybox-1.00+/include/pwd_.h	2004-07-15 05:53:49.000000000 -0700
++++ ./include/pwd_.h	2009-06-07 15:08:50.000000000 -0700
+@@ -29,7 +29,9 @@
+ #define	_PWD_H	1
  
  #include <sys/types.h>
 +#ifndef NESTEDVM
@@ -298,54 +375,89 @@ diff -ur ../busybox-1.00-pre9.orig/include/pwd_.h ./include/pwd_.h
  #include <stdio.h>
  
  /* The passwd structure.  */
-diff -ur ../busybox-1.00-pre9.orig/libbb/Makefile.in ./libbb/Makefile.in
---- ../busybox-1.00-pre9.orig/libbb/Makefile.in	2004-03-06 17:11:45.000000000 -0500
-+++ ./libbb/Makefile.in	2004-05-20 01:05:15.000000000 -0400
-@@ -24,28 +24,27 @@
- endif
+Only in ./include: pwd_.h.orig
+diff -Bubr ../busybox-1.00+/init/halt.c ./init/halt.c
+--- ../busybox-1.00+/init/halt.c	2004-03-15 00:28:40.000000000 -0800
++++ ./init/halt.c	2009-06-07 15:24:41.000000000 -0700
+@@ -24,7 +24,9 @@
+ #include <stdlib.h>
+ #include <unistd.h>
+ #include <getopt.h>
++#ifndef NESTEDVM
+ #include <sys/reboot.h>
++#endif
+ #include "busybox.h"
+ #include "init_shared.h"
  
- LIBBB_SRC:= \
--	bb_asprintf.c ask_confirmation.c change_identity.c chomp.c \
-+	bb_asprintf.c ask_confirmation.c chomp.c \
- 	compare_string_array.c concat_path_file.c copy_file.c copyfd.c \
--	correct_password.c create_icmp_socket.c create_icmp6_socket.c \
--	device_open.c dump.c error_msg.c error_msg_and_die.c find_mount_point.c \
-+	device_open.c dump.c error_msg.c error_msg_and_die.c \
- 	find_pid_by_name.c find_root_device.c fgets_str.c full_read.c \
- 	full_write.c get_last_path_component.c get_line_from_file.c get_ug_id.c \
- 	get_terminal_width_height.c hash_fd.c herror_msg.c herror_msg_and_die.c \
--	human_readable.c inet_common.c inode_hash.c interface.c isdirectory.c \
--	kernel_version.c last_char_is.c llist_add_to.c login.c loop.c \
--	make_directory.c mode_string.c module_syscalls.c mtab.c mtab_file.c \
-+	human_readable.c inode_hash.c isdirectory.c \
-+	last_char_is.c llist_add_to.c \
-+	make_directory.c mode_string.c \
- 	my_getgrgid.c my_getgrnam.c my_getpwnam.c my_getpwnamegid.c \
- 	my_getpwuid.c obscure.c parse_mode.c parse_number.c perror_msg.c \
--	perror_msg_and_die.c print_file.c get_console.c \
--	process_escape_sequence.c procps.c pwd2spwd.c pw_encrypt.c qmodule.c \
-+	perror_msg_and_die.c print_file.c \
-+	process_escape_sequence.c procps.c pwd2spwd.c qmodule.c \
- 	read_package_field.c recursive_action.c remove_file.c \
--	restricted_shell.c run_parts.c run_shell.c safe_read.c safe_write.c \
--	safe_strncpy.c setup_environment.c simplify_path.c syscalls.c \
--	syslog_msg_with_name.c trim.c u_signal_names.c vdprintf.c verror_msg.c \
-+	run_shell.c safe_read.c safe_write.c \
-+	safe_strncpy.c simplify_path.c \
-+	trim.c u_signal_names.c vdprintf.c verror_msg.c \
- 	vherror_msg.c vperror_msg.c wfopen.c xconnect.c xgetcwd.c \
--	xgethostbyname.c xgethostbyname2.c xreadlink.c xregcomp.c xgetlarg.c \
-+	xgethostbyname.c xreadlink.c xregcomp.c xgetlarg.c \
- 	get_terminal_width_height.c fclose_nonstdin.c fflush_stdout_and_exit.c \
--	getopt_ulflags.c default_error_retval.c wfopen_input.c speed_table.c \
-+	getopt_ulflags.c default_error_retval.c wfopen_input.c \
- 	perror_nomsg_and_die.c perror_nomsg.c skip_whitespace.c \
- 	warn_ignoring_args.c concat_subpath_file.c vfork_daemon_rexec.c
+Only in ./init: .#init.c
+diff -Bubr ../busybox-1.00+/init/init.c ./init/init.c
+--- ../busybox-1.00+/init/init.c	2004-10-08 01:21:54.000000000 -0700
++++ ./init/init.c	2009-06-07 15:26:03.000000000 -0700
+@@ -34,23 +34,31 @@
+ #include <signal.h>
+ #include <stdarg.h>
+ #include <string.h>
++#ifndef NESTEDVM
+ #include <termios.h>
++#endif
+ #include <unistd.h>
+ #include <limits.h>
+ #include <sys/fcntl.h>
+ #include <sys/ioctl.h>
++#ifndef NESTEDVM
+ #include <sys/mount.h>
++#endif
+ #include <sys/types.h>
+ #include <sys/wait.h>
++#ifndef NESTEDVM
+ #include <sys/reboot.h>
++#endif
+ #include "busybox.h"
  
-Only in ./libbb: Makefile.in~
-diff -ur ../busybox-1.00-pre9.orig/libbb/get_terminal_width_height.c ./libbb/get_terminal_width_height.c
---- ../busybox-1.00-pre9.orig/libbb/get_terminal_width_height.c	2004-03-23 18:15:35.000000000 -0500
-+++ ./libbb/get_terminal_width_height.c	2004-05-08 03:22:49.000000000 -0400
+ #include "init_shared.h"
+ 
+ 
++#ifndef NESTEDVM
+ #ifdef CONFIG_SYSLOGD
+ # include <sys/syslog.h>
+ #endif
++#endif
+ 
+ 
+ #define INIT_BUFFS_SIZE 256
+@@ -675,7 +683,9 @@
+ 	 * linux/kernel/sys.c, which can cause the machine to panic when
+ 	 * the init process is killed.... */
+ 	if ((pid = fork()) == 0) {
++#ifndef NESTEDVM
+ 		reboot(magic);
++#endif
+ 		_exit(0);
+ 	}
+ 	waitpid (pid, NULL, 0);
+diff -Bubr ../busybox-1.00+/libbb/getopt_ulflags.c ./libbb/getopt_ulflags.c
+--- ../busybox-1.00+/libbb/getopt_ulflags.c	2004-02-05 05:49:29.000000000 -0800
++++ ./libbb/getopt_ulflags.c	2009-06-07 15:08:50.000000000 -0700
+@@ -150,8 +150,14 @@
+     s--;
+   }
+ 
+-  while ((c = getopt_long (argc, argv, applet_opts,
+-			    bb_applet_long_options, NULL)) > 0) {
++    
++  while ((c = 
++#ifdef NESTEDVM
++          getopt(argc,argv,applet_opts)
++#else
++          getopt_long (argc, argv, applet_opts,bb_applet_long_options, NULL) 
++#endif
++  ) > 0) {
+ 	for (on_off = complementaly; on_off->opt != c; on_off++) {
+ 	    if(!on_off->opt)
+ 			bb_show_usage ();
+diff -Bubr ../busybox-1.00+/libbb/get_terminal_width_height.c ./libbb/get_terminal_width_height.c
+--- ../busybox-1.00+/libbb/get_terminal_width_height.c	2004-03-23 15:15:35.000000000 -0800
++++ ./libbb/get_terminal_width_height.c	2009-06-07 15:08:50.000000000 -0700
 @@ -24,8 +24,10 @@
  #include <fcntl.h>
  #include <unistd.h>
@@ -369,29 +481,9 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/get_terminal_width_height.c ./libbb/get
  #ifdef CONFIG_FEATURE_AUTOWIDTH
  	if (ioctl(fd, TIOCGWINSZ, &win) != 0) {
  		win.ws_row = 24;
-diff -ur ../busybox-1.00-pre9.orig/libbb/getopt_ulflags.c ./libbb/getopt_ulflags.c
---- ../busybox-1.00-pre9.orig/libbb/getopt_ulflags.c	2004-02-05 08:49:29.000000000 -0500
-+++ ./libbb/getopt_ulflags.c	2004-05-08 03:22:49.000000000 -0400
-@@ -150,8 +150,14 @@
-     s--;
-   }
- 
--  while ((c = getopt_long (argc, argv, applet_opts,
--			    bb_applet_long_options, NULL)) > 0) {
-+    
-+  while ((c = 
-+#ifdef NESTEDVM
-+          getopt(argc,argv,applet_opts)
-+#else
-+          getopt_long (argc, argv, applet_opts,bb_applet_long_options, NULL) 
-+#endif
-+  ) > 0) {
- 	for (on_off = complementaly; on_off->opt != c; on_off++) {
- 	    if(!on_off->opt)
- 			bb_show_usage ();
-diff -ur ../busybox-1.00-pre9.orig/libbb/hash_fd.c ./libbb/hash_fd.c
---- ../busybox-1.00-pre9.orig/libbb/hash_fd.c	2004-03-15 03:28:42.000000000 -0500
-+++ ./libbb/hash_fd.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/libbb/hash_fd.c ./libbb/hash_fd.c
+--- ../busybox-1.00+/libbb/hash_fd.c	2004-03-15 00:28:42.000000000 -0800
++++ ./libbb/hash_fd.c	2009-06-07 15:08:50.000000000 -0700
 @@ -20,18 +20,27 @@
   *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
   */
@@ -420,9 +512,10 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/hash_fd.c ./libbb/hash_fd.c
  
  #ifdef CONFIG_SHA1SUM
  /*
-diff -ur ../busybox-1.00-pre9.orig/libbb/procps.c ./libbb/procps.c
---- ../busybox-1.00-pre9.orig/libbb/procps.c	2004-01-27 15:17:39.000000000 -0500
-+++ ./libbb/procps.c	2004-05-08 03:22:49.000000000 -0400
+Only in ./libbb: Makefile.in.orig
+diff -Bubr ../busybox-1.00+/libbb/procps.c ./libbb/procps.c
+--- ../busybox-1.00+/libbb/procps.c	2004-08-26 15:18:58.000000000 -0700
++++ ./libbb/procps.c	2009-06-07 15:08:50.000000000 -0700
 @@ -12,7 +12,9 @@
  #include <string.h>
  #include <stdlib.h>
@@ -433,9 +526,9 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/procps.c ./libbb/procps.c
  
  #include "libbb.h"
  
-diff -ur ../busybox-1.00-pre9.orig/libbb/run_shell.c ./libbb/run_shell.c
---- ../busybox-1.00-pre9.orig/libbb/run_shell.c	2004-03-15 03:28:43.000000000 -0500
-+++ ./libbb/run_shell.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/libbb/run_shell.c ./libbb/run_shell.c
+--- ../busybox-1.00+/libbb/run_shell.c	2004-03-15 00:28:43.000000000 -0800
++++ ./libbb/run_shell.c	2009-06-07 15:08:50.000000000 -0700
 @@ -33,7 +33,9 @@
  #include <unistd.h>
  #include <string.h>
@@ -446,9 +539,9 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/run_shell.c ./libbb/run_shell.c
  #include <ctype.h>
  #include "libbb.h"
  #ifdef CONFIG_SELINUX
-diff -ur ../busybox-1.00-pre9.orig/libbb/u_signal_names.c ./libbb/u_signal_names.c
---- ../busybox-1.00-pre9.orig/libbb/u_signal_names.c	2004-03-15 03:28:43.000000000 -0500
-+++ ./libbb/u_signal_names.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/libbb/u_signal_names.c ./libbb/u_signal_names.c
+--- ../busybox-1.00+/libbb/u_signal_names.c	2004-03-15 00:28:43.000000000 -0800
++++ ./libbb/u_signal_names.c	2009-06-07 15:08:50.000000000 -0700
 @@ -21,6 +21,7 @@
   * USA
   */
@@ -457,9 +550,9 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/u_signal_names.c ./libbb/u_signal_names
  #include <signal.h>
  #include <ctype.h>
  #include <string.h>
-diff -ur ../busybox-1.00-pre9.orig/libbb/vdprintf.c ./libbb/vdprintf.c
---- ../busybox-1.00-pre9.orig/libbb/vdprintf.c	2004-03-15 03:28:43.000000000 -0500
-+++ ./libbb/vdprintf.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/libbb/vdprintf.c ./libbb/vdprintf.c
+--- ../busybox-1.00+/libbb/vdprintf.c	2004-03-15 00:28:43.000000000 -0800
++++ ./libbb/vdprintf.c	2009-06-07 15:08:50.000000000 -0700
 @@ -26,7 +26,17 @@
  
  
@@ -479,9 +572,9 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/vdprintf.c ./libbb/vdprintf.c
  {
  	char buf[BUF_SIZE];
  	int len;
-diff -ur ../busybox-1.00-pre9.orig/libbb/xconnect.c ./libbb/xconnect.c
---- ../busybox-1.00-pre9.orig/libbb/xconnect.c	2004-03-15 03:28:44.000000000 -0500
-+++ ./libbb/xconnect.c	2004-05-20 00:45:33.000000000 -0400
+diff -Bubr ../busybox-1.00+/libbb/xconnect.c ./libbb/xconnect.c
+--- ../busybox-1.00+/libbb/xconnect.c	2004-04-14 10:51:16.000000000 -0700
++++ ./libbb/xconnect.c	2009-06-07 15:08:50.000000000 -0700
 @@ -62,7 +62,7 @@
  int xconnect(struct sockaddr_in *s_addr)
  {
@@ -491,9 +584,9 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/xconnect.c ./libbb/xconnect.c
  	{
  		bb_perror_msg_and_die("Unable to connect to remote host (%s)",
  				inet_ntoa(s_addr->sin_addr));
-diff -ur ../busybox-1.00-pre9.orig/libbb/xgetcwd.c ./libbb/xgetcwd.c
---- ../busybox-1.00-pre9.orig/libbb/xgetcwd.c	2003-05-26 10:06:00.000000000 -0400
-+++ ./libbb/xgetcwd.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/libbb/xgetcwd.c ./libbb/xgetcwd.c
+--- ../busybox-1.00+/libbb/xgetcwd.c	2003-05-26 07:06:00.000000000 -0700
++++ ./libbb/xgetcwd.c	2009-06-07 15:08:50.000000000 -0700
 @@ -11,6 +11,7 @@
  #include <unistd.h>
  #include <limits.h>
@@ -502,39 +595,10 @@ diff -ur ../busybox-1.00-pre9.orig/libbb/xgetcwd.c ./libbb/xgetcwd.c
  #include "libbb.h"
  
  /* Amount to increase buffer size by in each try. */
-diff -ur ../busybox-1.00-pre9.orig/libpwdgrp/setgroups.c ./libpwdgrp/setgroups.c
---- ../busybox-1.00-pre9.orig/libpwdgrp/setgroups.c	2004-03-15 03:28:45.000000000 -0500
-+++ ./libpwdgrp/setgroups.c	2004-05-08 03:22:49.000000000 -0400
-@@ -24,17 +24,25 @@
- 
- #include <errno.h>
- #include <unistd.h>
-+#ifndef NESTEDVM
- #include <features.h>
-+#endif
- #include <sys/types.h>
- /* Kernel headers before 2.1.mumble need this on the Alpha to get
-    _syscall* defined.  */
- #define __LIBRARY__
-+#ifndef NESTEDVM
- #include <sys/syscall.h>
-+#endif
- #include "grp_.h"
- 
- int setgroups(size_t size, const gid_t * list)
- {
-+#ifndef NESTEDVM
- 	return(syscall(__NR_setgroups, size, list));
-+#else
-+    return 0;
-+#endif
- }
- 
- 
-diff -ur ../busybox-1.00-pre9.orig/networking/httpd.c ./networking/httpd.c
---- ../busybox-1.00-pre9.orig/networking/httpd.c	2004-03-15 03:28:48.000000000 -0500
-+++ ./networking/httpd.c	2004-05-20 07:30:45.000000000 -0400
-@@ -1727,11 +1727,15 @@
+diff -Bubr ../busybox-1.00+/networking/httpd.c ./networking/httpd.c
+--- ../busybox-1.00+/networking/httpd.c	2004-10-08 01:03:29.000000000 -0700
++++ ./networking/httpd.c	2009-06-07 15:11:28.000000000 -0700
+@@ -1789,11 +1789,15 @@
    FD_ZERO (&s_fd) ;
    FD_SET (a_c_w, &s_fd) ;
  
@@ -550,7 +614,7 @@ diff -ur ../busybox-1.00-pre9.orig/networking/httpd.c ./networking/httpd.c
  
    shutdown(a_c_r, SHUT_RD);
    close(config->accepted_socket);
-@@ -1756,18 +1760,22 @@
+@@ -1818,18 +1822,22 @@
  #ifndef CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY
  static int miniHttpd(int server)
  {
@@ -559,22 +623,21 @@ diff -ur ../busybox-1.00-pre9.orig/networking/httpd.c ./networking/httpd.c
  
    FD_ZERO(&portfd);
    FD_SET(server, &portfd);
--
 +#endif
-+  
+ 
    /* copy the ports we are watching to the readfd set */
    while (1) {
 +#ifndef NESTEDVM
      readfd = portfd;
  
-     /* Now wait INDEFINATELY on the set of sockets! */
+     /* Now wait INDEFINITELY on the set of sockets! */
      if (select(server + 1, &readfd, 0, 0, 0) > 0) {
        if (FD_ISSET(server, &readfd)) {
 +#endif
  	int on;
  	struct sockaddr_in fromAddr;
  
-@@ -1776,7 +1784,7 @@
+@@ -1838,7 +1846,7 @@
  		       (struct sockaddr *)&fromAddr, &fromAddrLen);
  
  	if (s < 0) {
@@ -583,7 +646,7 @@ diff -ur ../busybox-1.00-pre9.orig/networking/httpd.c ./networking/httpd.c
  	}
  	config->accepted_socket = s;
  	config->rmt_ip = ntohl(fromAddr.sin_addr.s_addr);
-@@ -1810,8 +1818,10 @@
+@@ -1872,8 +1880,10 @@
  		exit(0);
  	}
  	close(s);
@@ -594,9 +657,25 @@ diff -ur ../busybox-1.00-pre9.orig/networking/httpd.c ./networking/httpd.c
    } // while (1)
    return 0;
  }
-diff -ur ../busybox-1.00-pre9.orig/procps/ps.c ./procps/ps.c
---- ../busybox-1.00-pre9.orig/procps/ps.c	2004-03-15 03:29:03.000000000 -0500
-+++ ./procps/ps.c	2004-05-08 03:22:49.000000000 -0400
+Only in ./networking: httpd.c.orig
+diff -Bubr ../busybox-1.00+/networking/tftp.c ./networking/tftp.c
+--- ../busybox-1.00+/networking/tftp.c	2004-09-14 10:24:58.000000000 -0700
++++ ./networking/tftp.c	2009-06-07 15:09:40.000000000 -0700
+@@ -320,7 +320,11 @@
+ 			FD_ZERO(&rfds);
+ 			FD_SET(socketfd, &rfds);
+ 
++#ifdef NESTEDVM
++			switch(1) {
++#else
+ 			switch (select(FD_SETSIZE, &rfds, NULL, NULL, &tv)) {
++#endif
+ 			case 1:
+ 				len = recvfrom(socketfd, buf, tftp_bufsize, 0,
+ 						(struct sockaddr *) &from, &fromlen);
+diff -Bubr ../busybox-1.00+/procps/ps.c ./procps/ps.c
+--- ../busybox-1.00+/procps/ps.c	2004-03-15 00:29:03.000000000 -0800
++++ ./procps/ps.c	2009-06-07 15:08:54.000000000 -0700
 @@ -27,8 +27,10 @@
  #include <fcntl.h>
  #include <ctype.h>
@@ -608,16 +687,24 @@ diff -ur ../busybox-1.00-pre9.orig/procps/ps.c ./procps/ps.c
  #include "busybox.h"
  #ifdef CONFIG_SELINUX
  #include <fs_secure.h>
-Only in ./scripts/config: conf
-Only in ./scripts/config: lex.zconf.c
-Only in ./scripts/config: lkc_defs.h
-Only in ./scripts/config: mconf
-Only in ./scripts/config: zconf.tab.c
-Only in ./scripts/config: zconf.tab.h
-Only in ./scripts: mkdep
-diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
---- ../busybox-1.00-pre9.orig/shell/ash.c	2004-04-07 05:34:26.000000000 -0400
-+++ ./shell/ash.c	2004-05-08 03:22:49.000000000 -0400
+diff -Bubr ../busybox-1.00+/Rules.mak ./Rules.mak
+--- ../busybox-1.00+/Rules.mak	2004-10-08 03:52:33.000000000 -0700
++++ ./Rules.mak	2009-06-07 15:08:50.000000000 -0700
+@@ -158,8 +158,8 @@
+     STRIPCMD:=/bin/true -Not_stripping_since_we_are_debugging
+ else
+     CFLAGS+=$(WARNINGS) $(OPTIMIZATIONS) -D_GNU_SOURCE -DNDEBUG
+-    LDFLAGS += -s -Wl,-warn-common
+-    STRIPCMD:=$(STRIP) --remove-section=.note --remove-section=.comment
++    LDFLAGS += -Wl,-warn-common
++    STRIPCMD:= true
+ endif
+ ifeq ($(strip $(CONFIG_STATIC)),y)
+     LDFLAGS += --static
+Only in .: Rules.mak.orig
+diff -Bubr ../busybox-1.00+/shell/ash.c ./shell/ash.c
+--- ../busybox-1.00+/shell/ash.c	2004-10-08 02:43:34.000000000 -0700
++++ ./shell/ash.c	2009-06-07 15:08:54.000000000 -0700
 @@ -67,7 +67,9 @@
  
  #include <sys/types.h>
@@ -649,7 +736,7 @@ diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
  	{ BUILTIN_REGULAR       "umask", umaskcmd },
  #ifdef CONFIG_ASH_ALIAS
  	{ BUILTIN_REGULAR       "unalias", unaliascmd },
-@@ -2555,7 +2561,9 @@
+@@ -2563,7 +2569,9 @@
  	int i;
  
  	intpending = 0;
@@ -659,7 +746,7 @@ diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
  	i = EXSIG;
  	if (gotsig[SIGINT - 1] && !trap[SIGINT]) {
  		if (!(rootshell && iflag)) {
-@@ -6702,7 +6710,11 @@
+@@ -6716,7 +6724,11 @@
  #endif
  		}
  		st &= 0x7f;
@@ -671,7 +758,7 @@ diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
  		if (WCOREDUMP(status)) {
  			col += fmtstr(s + col, 16, " (core dumped)");
  		}
-@@ -7309,7 +7321,7 @@
+@@ -7323,7 +7335,7 @@
  #endif
  	if (block == 0)
  		flags |= WNOHANG;
@@ -680,7 +767,7 @@ diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
  }
  
  /*
-@@ -12683,6 +12695,8 @@
+@@ -12717,6 +12729,8 @@
  	return 0;
  }
  
@@ -689,7 +776,7 @@ diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
  /*
   * ulimit builtin
   *
-@@ -12864,7 +12878,7 @@
+@@ -12898,7 +12912,7 @@
  	}
  	return 0;
  }
@@ -698,9 +785,10 @@ diff -ur ../busybox-1.00-pre9.orig/shell/ash.c ./shell/ash.c
  
  #ifdef CONFIG_ASH_MATH_SUPPORT
  
-diff -ur ../busybox-1.00-pre9.orig/util-linux/more.c ./util-linux/more.c
---- ../busybox-1.00-pre9.orig/util-linux/more.c	2004-03-27 05:02:48.000000000 -0500
-+++ ./util-linux/more.c	2004-05-08 03:22:49.000000000 -0400
+Only in ./shell: ash.c.orig
+diff -Bubr ../busybox-1.00+/util-linux/more.c ./util-linux/more.c
+--- ../busybox-1.00+/util-linux/more.c	2004-03-27 02:02:48.000000000 -0800
++++ ./util-linux/more.c	2009-06-07 15:08:54.000000000 -0700
 @@ -32,7 +32,9 @@
  #include <signal.h>
  #include <stdlib.h>
@@ -711,439 +799,3 @@ diff -ur ../busybox-1.00-pre9.orig/util-linux/more.c ./util-linux/more.c
  #include "busybox.h"
  
  
---- ../busybox-1.00-pre9/.config	1969-12-31 19:00:00.000000000 -0500
-+++ .config	2004-05-20 05:34:44.000000000 -0400
-@@ -0,0 +1,404 @@
-+#
-+# Automatically generated make config: don't edit
-+#
-+HAVE_DOT_CONFIG=y
-+
-+#
-+# General Configuration
-+#
-+# CONFIG_FEATURE_BUFFERS_USE_MALLOC is not set
-+CONFIG_FEATURE_BUFFERS_GO_ON_STACK=y
-+# CONFIG_FEATURE_BUFFERS_GO_IN_BSS is not set
-+CONFIG_FEATURE_VERBOSE_USAGE=y
-+# CONFIG_FEATURE_INSTALLER is not set
-+# CONFIG_LOCALE_SUPPORT is not set
-+# CONFIG_FEATURE_DEVFS is not set
-+# CONFIG_FEATURE_DEVPTS is not set
-+# CONFIG_FEATURE_CLEAN_UP is not set
-+# CONFIG_FEATURE_SUID is not set
-+# CONFIG_SELINUX is not set
-+
-+#
-+# Build Options
-+#
-+CONFIG_STATIC=y
-+# CONFIG_LFS is not set
-+USING_CROSS_COMPILER=y
-+CROSS_COMPILER_PREFIX="mips-unknown-elf-"
-+EXTRA_CFLAGS_OPTIONS="-DNESTEDVM"
-+
-+#
-+# Installation Options
-+#
-+# CONFIG_INSTALL_NO_USR is not set
-+PREFIX="./_install"
-+
-+#
-+# Archival Utilities
-+#
-+# CONFIG_AR is not set
-+CONFIG_BUNZIP2=y
-+CONFIG_CPIO=y
-+# CONFIG_DPKG is not set
-+# CONFIG_DPKG_DEB is not set
-+CONFIG_GUNZIP=y
-+CONFIG_FEATURE_GUNZIP_UNCOMPRESS=y
-+CONFIG_GZIP=y
-+# CONFIG_RPM2CPIO is not set
-+# CONFIG_RPM is not set
-+CONFIG_TAR=y
-+CONFIG_FEATURE_TAR_CREATE=y
-+CONFIG_FEATURE_TAR_BZIP2=y
-+CONFIG_FEATURE_TAR_FROM=y
-+CONFIG_FEATURE_TAR_GZIP=y
-+CONFIG_FEATURE_TAR_COMPRESS=y
-+CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY=y
-+CONFIG_FEATURE_TAR_GNU_EXTENSIONS=y
-+# CONFIG_FEATURE_TAR_LONG_OPTIONS is not set
-+CONFIG_UNCOMPRESS=y
-+CONFIG_UNZIP=y
-+
-+#
-+# Common options for cpio and tar
-+#
-+# CONFIG_FEATURE_UNARCHIVE_TAPE is not set
-+
-+#
-+# Coreutils
-+#
-+CONFIG_BASENAME=y
-+CONFIG_CAL=y
-+CONFIG_CAT=y
-+CONFIG_CHGRP=y
-+CONFIG_CHMOD=y
-+CONFIG_CHOWN=y
-+CONFIG_CHROOT=y
-+CONFIG_CMP=y
-+CONFIG_CP=y
-+CONFIG_CUT=y
-+CONFIG_DATE=y
-+
-+#
-+# date (forced enabled for use with watch)
-+#
-+CONFIG_FEATURE_DATE_ISOFMT=y
-+CONFIG_DD=y
-+# CONFIG_DF is not set
-+CONFIG_DIRNAME=y
-+CONFIG_DOS2UNIX=y
-+CONFIG_UNIX2DOS=y
-+CONFIG_DU=y
-+CONFIG_FEATURE_DU_DEFALT_BLOCKSIZE_1K=y
-+CONFIG_ECHO=y
-+CONFIG_FEATURE_FANCY_ECHO=y
-+CONFIG_ENV=y
-+# CONFIG_EXPR is not set
-+CONFIG_FALSE=y
-+CONFIG_FOLD=y
-+CONFIG_HEAD=y
-+# CONFIG_FEATURE_FANCY_HEAD is not set
-+# CONFIG_HOSTID is not set
-+CONFIG_ID=y
-+CONFIG_INSTALL=y
-+CONFIG_LENGTH=y
-+CONFIG_LN=y
-+# CONFIG_LOGNAME is not set
-+CONFIG_LS=y
-+CONFIG_FEATURE_LS_FILETYPES=y
-+CONFIG_FEATURE_LS_FOLLOWLINKS=y
-+CONFIG_FEATURE_LS_RECURSIVE=y
-+CONFIG_FEATURE_LS_SORTFILES=y
-+CONFIG_FEATURE_LS_TIMESTAMPS=y
-+CONFIG_FEATURE_LS_USERNAME=y
-+CONFIG_FEATURE_LS_COLOR=y
-+CONFIG_MD5SUM=y
-+CONFIG_MKDIR=y
-+CONFIG_MKFIFO=y
-+CONFIG_MKNOD=y
-+CONFIG_MV=y
-+CONFIG_OD=y
-+CONFIG_PRINTF=y
-+CONFIG_PWD=y
-+CONFIG_REALPATH=y
-+CONFIG_RM=y
-+CONFIG_RMDIR=y
-+# CONFIG_SEQ is not set
-+CONFIG_SHA1SUM=y
-+CONFIG_SLEEP=y
-+CONFIG_FEATURE_FANCY_SLEEP=y
-+CONFIG_SORT=y
-+# CONFIG_STTY is not set
-+CONFIG_SYNC=y
-+CONFIG_TAIL=y
-+CONFIG_FEATURE_FANCY_TAIL=y
-+CONFIG_TEE=y
-+CONFIG_FEATURE_TEE_USE_BLOCK_IO=y
-+CONFIG_TEST=y
-+
-+#
-+# test (forced enabled for use with shell)
-+#
-+CONFIG_TOUCH=y
-+CONFIG_TR=y
-+CONFIG_TRUE=y
-+CONFIG_TTY=y
-+CONFIG_UNAME=y
-+CONFIG_UNIQ=y
-+CONFIG_USLEEP=y
-+CONFIG_UUDECODE=y
-+CONFIG_UUENCODE=y
-+CONFIG_WATCH=y
-+CONFIG_WC=y
-+# CONFIG_WHO is not set
-+CONFIG_WHOAMI=y
-+CONFIG_YES=y
-+
-+#
-+# Common options for cp and mv
-+#
-+CONFIG_FEATURE_PRESERVE_HARDLINKS=y
-+
-+#
-+# Common options for ls and more
-+#
-+# CONFIG_FEATURE_AUTOWIDTH is not set
-+
-+#
-+# Common options for df, du, ls
-+#
-+CONFIG_FEATURE_HUMAN_READABLE=y
-+
-+#
-+# Common options for md5sum, sha1sum
-+#
-+CONFIG_FEATURE_MD5_SHA1_SUM_CHECK=y
-+
-+#
-+# Console Utilities
-+#
-+# CONFIG_CHVT is not set
-+CONFIG_CLEAR=y
-+# CONFIG_DEALLOCVT is not set
-+# CONFIG_DUMPKMAP is not set
-+# CONFIG_LOADFONT is not set
-+# CONFIG_LOADKMAP is not set
-+# CONFIG_OPENVT is not set
-+CONFIG_RESET=y
-+# CONFIG_SETKEYCODES is not set
-+
-+#
-+# Debian Utilities
-+#
-+# CONFIG_MKTEMP is not set
-+CONFIG_PIPE_PROGRESS=y
-+CONFIG_READLINK=y
-+# CONFIG_RUN_PARTS is not set
-+# CONFIG_START_STOP_DAEMON is not set
-+CONFIG_WHICH=y
-+
-+#
-+# Editors
-+#
-+CONFIG_AWK=y
-+CONFIG_FEATURE_AWK_MATH=y
-+CONFIG_PATCH=y
-+CONFIG_SED=y
-+# CONFIG_VI is not set
-+
-+#
-+# Finding Utilities
-+#
-+CONFIG_FIND=y
-+CONFIG_FEATURE_FIND_MTIME=y
-+CONFIG_FEATURE_FIND_PERM=y
-+CONFIG_FEATURE_FIND_TYPE=y
-+CONFIG_FEATURE_FIND_XDEV=y
-+CONFIG_FEATURE_FIND_NEWER=y
-+CONFIG_FEATURE_FIND_INUM=y
-+CONFIG_GREP=y
-+CONFIG_FEATURE_GREP_EGREP_ALIAS=y
-+CONFIG_FEATURE_GREP_FGREP_ALIAS=y
-+CONFIG_FEATURE_GREP_CONTEXT=y
-+CONFIG_XARGS=y
-+CONFIG_FEATURE_XARGS_SUPPORT_CONFIRMATION=y
-+CONFIG_FEATURE_XARGS_SUPPORT_QUOTES=y
-+CONFIG_FEATURE_XARGS_SUPPORT_TERMOPT=y
-+CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM=y
-+
-+#
-+# Init Utilities
-+#
-+# CONFIG_INIT is not set
-+# CONFIG_HALT is not set
-+# CONFIG_POWEROFF is not set
-+# CONFIG_REBOOT is not set
-+# CONFIG_MINIT is not set
-+# CONFIG_MESG is not set
-+
-+#
-+# Login/Password Management Utilities
-+#
-+# CONFIG_USE_BB_PWD_GRP=y
-+# CONFIG_ADDGROUP is not set
-+# CONFIG_DELGROUP is not set
-+# CONFIG_ADDUSER is not set
-+# CONFIG_DELUSER is not set
-+# CONFIG_GETTY is not set
-+# CONFIG_LOGIN is not set
-+# CONFIG_PASSWD is not set
-+# CONFIG_SU is not set
-+# CONFIG_SULOGIN is not set
-+# CONFIG_VLOCK is not set
-+
-+#
-+# Miscellaneous Utilities
-+#
-+# CONFIG_ADJTIMEX is not set
-+# CONFIG_CROND is not set
-+# CONFIG_CRONTAB is not set
-+CONFIG_DC=y
-+# CONFIG_DEVFSD is not set
-+# CONFIG_LAST is not set
-+# CONFIG_HDPARM is not set
-+# CONFIG_MAKEDEVS is not set
-+# CONFIG_MT is not set
-+# CONFIG_RX is not set
-+CONFIG_STRINGS=y
-+# CONFIG_TIME is not set
-+# CONFIG_WATCHDOG is not set
-+
-+#
-+# Linux Module Utilities
-+#
-+# CONFIG_INSMOD is not set
-+# CONFIG_LSMOD is not set
-+# CONFIG_MODPROBE is not set
-+# CONFIG_RMMOD is not set
-+
-+#
-+# Networking Utilities
-+#
-+# CONFIG_FEATURE_IPV6 is not set
-+# CONFIG_ARPING is not set
-+CONFIG_FTPGET=y
-+CONFIG_FTPPUT=y
-+# CONFIG_HOSTNAME is not set
-+CONFIG_HTTPD=y
-+# CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY is not set
-+CONFIG_FEATURE_HTTPD_BASIC_AUTH=y
-+# CONFIG_FEATURE_HTTPD_AUTH_MD5 is not set
-+# CONFIG_FEATURE_HTTPD_RELOAD_CONFIG_SIGHUP is not set
-+# CONFIG_FEATURE_HTTPD_SETUID is not set
-+# CONFIG_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES is not set
-+# CONFIG_FEATURE_HTTPD_CGI is not set
-+CONFIG_FEATURE_HTTPD_ENCODE_URL_STR=y
-+# CONFIG_IFCONFIG is not set
-+# CONFIG_IFUPDOWN is not set
-+# CONFIG_INETD is not set
-+# CONFIG_IP is not set
-+# CONFIG_IPCALC is not set
-+# CONFIG_IPADDR is not set
-+# CONFIG_IPLINK is not set
-+# CONFIG_IPROUTE is not set
-+# CONFIG_IPTUNNEL is not set
-+# CONFIG_NAMEIF is not set
-+# CONFIG_NC is not set
-+# CONFIG_NETSTAT is not set
-+# CONFIG_NSLOOKUP is not set
-+# CONFIG_PING is not set
-+# CONFIG_ROUTE is not set
-+# CONFIG_TELNET is not set
-+# CONFIG_TELNETD is not set
-+# CONFIG_TFTP is not set
-+# CONFIG_TRACEROUTE is not set
-+# CONFIG_VCONFIG is not set
-+CONFIG_WGET=y
-+# CONFIG_FEATURE_WGET_STATUSBAR is not set
-+CONFIG_FEATURE_WGET_AUTHENTICATION=y
-+# CONFIG_FEATURE_WGET_IP6_LITERAL is not set
-+
-+#
-+# udhcp Server/Client
-+#
-+# CONFIG_UDHCPD is not set
-+# CONFIG_UDHCPC is not set
-+
-+#
-+# Process Utilities
-+#
-+# CONFIG_FREE is not set
-+CONFIG_KILL=y
-+CONFIG_KILLALL=y
-+CONFIG_PIDOF=y
-+CONFIG_PS=y
-+CONFIG_RENICE=y
-+# CONFIG_TOP is not set
-+# CONFIG_UPTIME is not set
-+CONFIG_SYSCTL=y
-+
-+#
-+# Another Bourne-like Shell
-+#
-+CONFIG_FEATURE_SH_IS_ASH=y
-+# CONFIG_FEATURE_SH_IS_HUSH is not set
-+# CONFIG_FEATURE_SH_IS_LASH is not set
-+# CONFIG_FEATURE_SH_IS_MSH is not set
-+# CONFIG_FEATURE_SH_IS_NONE is not set
-+CONFIG_ASH=y
-+
-+#
-+# Ash Shell Options
-+#
-+# CONFIG_ASH_JOB_CONTROL is not set
-+CONFIG_ASH_ALIAS=y
-+CONFIG_ASH_MATH_SUPPORT=y
-+# CONFIG_ASH_GETOPTS is not set
-+# CONFIG_ASH_CMDCMD is not set
-+# CONFIG_ASH_MAIL is not set
-+CONFIG_ASH_OPTIMIZE_FOR_SIZE=y
-+CONFIG_ASH_RANDOM_SUPPORT=y
-+# CONFIG_HUSH is not set
-+# CONFIG_LASH is not set
-+# CONFIG_MSH is not set
-+
-+#
-+# Bourne Shell Options
-+#
-+# CONFIG_FEATURE_SH_EXTRA_QUIET is not set
-+CONFIG_FEATURE_SH_STANDALONE_SHELL=y
-+# CONFIG_FEATURE_COMMAND_EDITING is not set
-+
-+#
-+# System Logging Utilities
-+#
-+# CONFIG_SYSLOGD is not set
-+# CONFIG_LOGGER is not set
-+
-+#
-+# Linux System Utilities
-+#
-+CONFIG_DMESG=y
-+# CONFIG_FBSET is not set
-+# CONFIG_FDFLUSH is not set
-+# CONFIG_FDFORMAT is not set
-+# CONFIG_FDISK is not set
-+# CONFIG_FREERAMDISK is not set
-+# CONFIG_FSCK_MINIX is not set
-+# CONFIG_MKFS_MINIX is not set
-+# CONFIG_GETOPT is not set
-+CONFIG_HEXDUMP=y
-+# CONFIG_HWCLOCK is not set
-+# CONFIG_LOSETUP is not set
-+# CONFIG_MKSWAP is not set
-+CONFIG_MORE=y
-+# CONFIG_FEATURE_USE_TERMIOS is not set
-+# CONFIG_PIVOT_ROOT is not set
-+# CONFIG_RDATE is not set
-+# CONFIG_SWAPONOFF is not set
-+# CONFIG_MOUNT is not set
-+# CONFIG_UMOUNT is not set
-+
-+#
-+# Debugging Options
-+#
-+# CONFIG_DEBUG is not set
---- .config.old	2004-06-08 16:02:45.000000000 -0400
-+++ .config	2004-06-08 16:05:23.000000000 -0400
-@@ -309,7 +309,11 @@
- # CONFIG_ROUTE is not set
- # CONFIG_TELNET is not set
- # CONFIG_TELNETD is not set
--# CONFIG_TFTP is not set
-+CONFIG_TFTP=y
-+CONFIG_FEATURE_TFTP_GET=y
-+CONFIG_FEATURE_TFTP_PUT=y
-+# CONFIG_FEATURE_TFTP_BLOCKSIZE is not set
-+# CONFIG_FEATURE_TFTP_DEBUG is not set
- # CONFIG_TRACEROUTE is not set
- # CONFIG_VCONFIG is not set
- CONFIG_WGET=y
---- networking/tftp.c~	2004-06-08 16:50:30.000000000 -0400
-+++ networking/tftp.c	2004-06-08 16:50:30.000000000 -0400
-@@ -320,7 +320,11 @@
- 			FD_ZERO(&rfds);
- 			FD_SET(socketfd, &rfds);
- 
-+#ifdef NESTEDVM
-+			switch(1) {
-+#else
- 			switch (select(FD_SETSIZE, &rfds, NULL, NULL, &tv)) {
-+#endif
- 			case 1:
- 				len = recvfrom(socketfd, buf, tftp_bufsize, 0,
- 						(struct sockaddr *) &from, &fromlen);
