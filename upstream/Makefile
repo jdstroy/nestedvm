@@ -280,7 +280,7 @@ version_libjpeg = 6b
 url_libjpeg = http://www.ijg.org/files/jpegsrc.v$(version_libjpeg).tar.gz
 
 version_libmspack = 20030726
-url_libmspack = http://www.kyz.uklinux.net/downloads/libmspack-$(version_libmspack).tar.gz
+url_libmspack = http://www.cabextract.org.uk/libmspack/libmspack-$(version_libmspack).tar.gz
 patches_libmspack = libmspack.patch
 
 version_freetype = 2.1.4
