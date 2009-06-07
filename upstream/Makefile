@@ -19,66 +19,20 @@ tasks/everything: \
 	tasks/build_libmspack \
 	tasks/build_freetype \
 	tasks/build_boehmgc \
-	tasks/build_busybox \
-	tasks/build_texinputs \
 	tasks/build_samba \
 	tasks/build_nasm \
+	tasks/build_gpc \
 	tasks/build_tex \
 	tasks/build_tex_tangle \
 	tasks/build_tex_weave \
+	tasks/build_texinputs \
+	tasks/build_busybox \
 	tasks/build_linpack \
-	tasks/build_gpc \
 
-
-version_gcc = 3.3.6
-
-url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
-url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
-url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
-
-patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-3.3.6-fortran.patch
-
-configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
-configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
-version_gpc = 20030830
-#url_gpc = http://www.gnu-pascal.de/alpha/gpc-$(version_gpc).tar.gz
-url_gpc = http://www.megacz.com/upstream/gpc-$(version_gpc).tar.gz
-patches_gpc = $(patches_gcc) gpc-with-3.3.3.patch gpc-noutils.patch
-configure_gpc = $(configure_gcc) --enable-languages="pascal"
-
-version_binutils = 2.14
-url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
-patches_binutils = binutils-no64.patch binutils-nocompilein.patch
-configure_binutils = --target=mips-unknown-elf
-
-version_newlib = 1.11.0
-url_newlib = ftp://sources.redhat.com/pub/newlib/newlib-$(version_newlib).tar.gz
-patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch newlib-unistd.patch newlib-nestedvm-define.patch
-configure_newlib = --enable-multilib --target=mips-unknown-elf
-
-url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
-url_regex = http://arglist.com/regex/regex3.8a.tar.gz
-
-url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
-
-version_zlib = 1.2.3
-url_zlib = http://www.zlib.net/zlib-$(version_zlib).tar.gz
-
-version_expat = 2.0.0
-url_expat = $(sourceforge)expat/expat-$(version_expat).tar.gz
-configure_expat = --host= --target=mips-unknown-elf
-
-version_gmp = 4.1.4
-url_gmp = ftp://ftp.gnu.org/gnu/gmp/gmp-$(version_gmp).tar.gz
-configure_gmp = --host=mips-unknown-elf
-
-version_nasm = 0.98.39
-url_nasm = $(sourceforge)nasm/nasm-$(version_nasm).tar.gz
-configure_nasm = --host=mips-unknown-elf
 
 darcs_gcclass = http://darcs.brianweb.net/gcclass
 darcs_classgen = http://darcs.brianweb.net/classgen
-
+cross_root := $(usr)/mips-unknown-elf
 .SECONDARY: # This is broken in gmake < 3.79.1
 
 upstream = $(shell pwd)
@@ -92,10 +46,20 @@ export PATH
 PATCH = $(shell test `uname` = SunOS && echo gpatch || echo patch)
 TAR = $(shell test `uname` = SunOS && echo gtar || echo tar)
 
-tasks/build_gcc: tasks/build_linker
-tasks/build_newlib: tasks/build_gcc
+# Add extra nestedvm specific headers to include
+tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
 
-cross_root := $(usr)/mips-unknown-elf
+	cd $(cross_root)/include && sh $<
+	touch $@
+
+top_lev_stuff := $(patsubst %,../build/org/ibex/nestedvm/%.o, crt0 support support_aux)
+
+# HACK: Get the top level makefile to build the support stuff
+$(top_lev_stuff):
+	$(MAKE) -C .. $(top_lev_stuff:../%=%)
+
+##############################################################################
+# generic build targets ######################################################
 
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
@@ -136,50 +100,9 @@ tasks/build_darcs_%: tasks/extract_darcs_%
 	cd "build/$*" && $(MAKE)
 	touch $@
 
-# Add extra nestedvm specific headers to include
-tasks/build_extraheaders: $(upstream)/misc/extraheaders.sh tasks/build_newlib
-
-	cd $(cross_root)/include && sh $<
-	touch $@
-
-top_lev_stuff := $(patsubst %,../build/org/ibex/nestedvm/%.o, crt0 support support_aux)
-
-# HACK: Get the top level makefile to build the support stuff
-$(top_lev_stuff):
-	$(MAKE) -C .. $(top_lev_stuff:../%=%)
-
-# Add our support stuff to libc
-tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob misc/extraheaders.sh $(top_lev_stuff)
-	mips-unknown-elf-ar sr $(cross_root)/lib/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
-	mips-unknown-elf-ar sr $(cross_root)/lib/single-float/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
-	rm -f $(cross_root)/lib/crt0.o
-	cp $(root)/build/org/ibex/nestedvm/crt0.o $(cross_root)/lib/crt0.o
-
-	touch $@
-
-tasks/build_linker: tasks/build_binutils $(root)/src/org/ibex/nestedvm/linker.ld
-	cp $(root)/src/org/ibex/nestedvm/linker.ld $(cross_root)/lib/ldscripts/nestedvm.ld
-	for f in $(cross_root)/lib/ldscripts/elf32ebmip.*; do \
-		rm -f "$$f"; \
-		ln -s nestedvm.ld "$$f"; \
-	done
-	touch $@
-
 clean_%:
 	rm -rf "build/$(*)"*
 	rm -f "tasks/build_$*" "tasks/patch_$*" "tasks/extract_$*"
-
-
-tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/download_gcc-g77
-	touch $@
-
-tasks/extract_gcc: tasks/download_gcc
-	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
-	mkdir -p build
-	cd build && gzip -dc ../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf -
-	cd build && gzip -dc ../download/gcc-g++-$(version_gcc).tar.gz | $(TAR) -xf -
-	cd build && gzip -dc ../download/gcc-g77-$(version_gcc).tar.gz | $(TAR) -xf -
-	touch $@
 
 tasks/patch_%: tasks/extract_%
 	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
@@ -197,12 +120,34 @@ tasks/build_%: tasks/patch_%
 		$(MAKE) install
 	touch $@
 
-tasks/build_zlib: tasks/patch_zlib
-	mkdir -p $(usr)
-	cd build/zlib-$(version_zlib) && \
-		AR="mips-unknown-elf-ar rc" CC=mips-unknown-elf-gcc ./configure --prefix=$(usr) $(configure_$*) && \
-		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
-		$(MAKE) install
+##############################################################################
+##############################################################################
+
+
+## gcc ##############################################################################
+
+version_gcc = 3.3.6
+
+url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
+url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
+url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
+
+patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch
+
+configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
+configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
+
+tasks/build_gcc: tasks/build_linker
+
+tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/download_gcc-g77
+	touch $@
+
+tasks/extract_gcc: tasks/download_gcc
+	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
+	mkdir -p build
+	cd build && gzip -dc ../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf -
+	cd build && gzip -dc ../download/gcc-g++-$(version_gcc).tar.gz | $(TAR) -xf -
+	cd build && gzip -dc ../download/gcc-g77-$(version_gcc).tar.gz | $(TAR) -xf -
 	touch $@
 
 tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
@@ -212,6 +157,15 @@ tasks/build_gcc_step2: tasks/patch_gcc tasks/build_libc
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		$(MAKE) install
 	touch $@
+
+
+## gpc ##############################################################################
+
+version_gpc = 20030830
+#url_gpc = http://www.gnu-pascal.de/alpha/gpc-$(version_gpc).tar.gz
+url_gpc = http://nestedvm.ibex.org/upstream/gpc-$(version_gpc).tar.gz
+patches_gpc = $(patches_gcc) gpc-with-3.3.3.patch gpc-noutils.patch
+configure_gpc = $(configure_gcc) --enable-languages="pascal"
 
 tasks/extract_gpc: tasks/download_gcc tasks/download_gpc
 	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
@@ -238,6 +192,27 @@ tasks/build_gpc: tasks/patch_gpc tasks/build_libc
 
 	touch $@
 
+
+## binutils ##############################################################################
+
+version_binutils = 2.14
+url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
+patches_binutils = binutils-no64.patch binutils-nocompilein.patch
+configure_binutils = --target=mips-unknown-elf
+
+## newlib ##############################################################################
+
+version_newlib = 1.11.0
+url_newlib = ftp://sources.redhat.com/pub/newlib/newlib-$(version_newlib).tar.gz
+patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch newlib-unistd.patch newlib-nestedvm-define.patch
+configure_newlib = --enable-multilib --target=mips-unknown-elf
+
+tasks/build_newlib: tasks/build_gcc
+
+## openbsdglob ##############################################################################
+
+url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
+
 tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
 	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
 	cd build && gzip -dc ../download/openbsdglob.tar.gz | $(TAR) -xf -
@@ -249,6 +224,11 @@ tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
 		cp *.h $(usr)/mips-unknown-elf/include && \
 		cp *.a $(usr)/mips-unknown-elf/lib
 	touch $@
+
+
+## regex ##############################################################################
+
+url_regex = http://arglist.com/regex/regex3.8a.tar.gz
 
 tasks/build_regex: tasks/download_regex tasks/build_newlib
 	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
@@ -262,6 +242,37 @@ tasks/build_regex: tasks/download_regex tasks/build_newlib
 		cp libregex.a $(usr)/mips-unknown-elf/lib 
 	touch $@
 
+
+## linpack ##############################################################################
+
+url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
+
+## zlib ##############################################################################
+
+version_zlib = 1.2.3
+url_zlib = http://www.zlib.net/zlib-$(version_zlib).tar.gz
+
+tasks/build_zlib: tasks/patch_zlib
+	mkdir -p $(usr)
+	cd build/zlib-$(version_zlib) && \
+		AR="mips-unknown-elf-ar rc" CC=mips-unknown-elf-gcc ./configure --prefix=$(usr) $(configure_$*) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		$(MAKE) install
+	touch $@
+
+
+## expat ##############################################################################
+
+version_expat = 2.0.0
+url_expat = $(sourceforge)expat/expat-$(version_expat).tar.gz
+configure_expat = --host= --target=mips-unknown-elf
+
+## gmp ##############################################################################
+
+version_gmp = 4.1.4
+url_gmp = ftp://ftp.gnu.org/gnu/gmp/gmp-$(version_gmp).tar.gz
+configure_gmp = --host=mips-unknown-elf
+
 tasks/build_gmp: tasks/patch_gmp tasks/build_libc
 	cd build/gmp && \
 		CFLAGS="$(MIPS_CFLAGS)" LDFLAGS="$(MIPS_LDFLAGS)" \
@@ -270,38 +281,39 @@ tasks/build_gmp: tasks/patch_gmp tasks/build_libc
 		make install exec_prefix=$(usr)/mips-unknown-elf includedir=$(usr)/mips-unknown-elf/include
 	touch $@
 
-#
-# Tests
-# These are simply here for convenience. They aren't required 
-# to build or run mips2java
-#
+
+## nasm ##############################################################################
+
+version_nasm = 0.98.39
+url_nasm = $(sourceforge)nasm/nasm-$(version_nasm).tar.gz
+configure_nasm = --host=mips-unknown-elf
+
+
+# Add our support stuff to libc
+tasks/build_libc: tasks/build_newlib tasks/build_extraheaders tasks/build_regex tasks/build_openbsdglob misc/extraheaders.sh $(top_lev_stuff)
+	mips-unknown-elf-ar sr $(cross_root)/lib/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
+	mips-unknown-elf-ar sr $(cross_root)/lib/single-float/libc.a $(patsubst %,../build/org/ibex/nestedvm/%.o, support support_aux)
+	rm -f $(cross_root)/lib/crt0.o
+	cp $(root)/build/org/ibex/nestedvm/crt0.o $(cross_root)/lib/crt0.o
+
+	touch $@
+
+tasks/build_linker: tasks/build_binutils $(root)/src/org/ibex/nestedvm/linker.ld
+	cp $(root)/src/org/ibex/nestedvm/linker.ld $(cross_root)/lib/ldscripts/nestedvm.ld
+	for f in $(cross_root)/lib/ldscripts/elf32ebmip.*; do \
+		rm -f "$$f"; \
+		ln -s nestedvm.ld "$$f"; \
+	done
+	touch $@
+
+
+
+
+
+## libjpeg ##############################################################################
 
 version_libjpeg = 6b
 url_libjpeg = http://www.ijg.org/files/jpegsrc.v$(version_libjpeg).tar.gz
-
-version_libmspack = 20030726
-url_libmspack = http://www.cabextract.org.uk/libmspack/libmspack-$(version_libmspack).tar.gz
-patches_libmspack = libmspack.patch
-
-version_freetype = 2.1.4
-url_freetype = $(sourceforge)freetype/freetype-$(version_freetype).tar.gz
-patches_freetype = freetype.patch ft-nostdio.patch
-
-version_boehmgc = 6.3alpha2
-#url_boehmgc = http://www.hpl.hp.com/personal/Hans_Boehm/gc/gc_source/gc$(version_boehmgc).tar.gz
-url_boehmgc = http://www.brianweb.net/misc/gc$(version_boehmgc).tar.gz
-patches_boehmgc = boehm-gc.patch
-
-version_busybox = 1.00-pre9
-url_busybox = http://busybox.net/downloads/busybox-$(version_busybox).tar.gz
-patches_busybox = busybox.patch
-
-version_texinputs = 1.0
-url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
-
-version_samba = 3.0.4
-url_samba = http://us4.samba.org/samba/ftp/samba-$(version_samba).tar.gz
-patches_samba = samba.patch
 
 tasks/extract_libjpeg: tasks/download_libjpeg
 	mkdir -p build
@@ -322,6 +334,12 @@ tasks/build_libjpeg: tasks/patch_libjpeg tasks/build_libc
 			LDFLAGS="$(MIPS_LDFLAGS)"
 	touch $@    
 
+## libmspack ##############################################################################
+
+version_libmspack = 20030726
+url_libmspack = http://www.cabextract.org.uk/libmspack/libmspack-$(version_libmspack).tar.gz
+patches_libmspack = libmspack.patch
+
 tasks/extract_libmspack: tasks/download_libmspack tasks/build_libc
 	mkdir -p build
 	cd build && \
@@ -339,6 +357,12 @@ tasks/build_libmspack: tasks/patch_libmspack tasks/build_libc
 			OPTIM="$(MIPS_CFLAGS)"
 	touch $@    
 
+## freetype ##############################################################################
+
+version_freetype = 2.1.4
+url_freetype = $(sourceforge)freetype/freetype-$(version_freetype).tar.gz
+patches_freetype = freetype.patch ft-nostdio.patch
+
 tasks/build_freetype: tasks/patch_freetype tasks/build_libc
 	cd build/freetype-$(version_freetype) && \
 		$(MAKE) setup ansi && \
@@ -348,6 +372,13 @@ tasks/build_freetype: tasks/patch_freetype tasks/build_libc
 			RANLIB="mips-unknown-elf-ranlib" && \
 		mips-unknown-elf-ranlib objs/libfreetype.a
 	touch $@    
+
+## boehm-gc ##############################################################################
+
+version_boehmgc = 6.3alpha2
+#url_boehmgc = http://www.hpl.hp.com/personal/Hans_Boehm/gc/gc_source/gc$(version_boehmgc).tar.gz
+url_boehmgc = http://www.brianweb.net/misc/gc$(version_boehmgc).tar.gz
+patches_boehmgc = boehm-gc.patch
 
 tasks/extract_boehmgc: tasks/download_boehmgc
 	mkdir -p build
@@ -367,6 +398,13 @@ tasks/build_boehmgc: tasks/patch_boehmgc tasks/build_libc
 		make gctest 
 	touch $@
 
+
+## busybox ##############################################################################
+
+version_busybox = 1.00-pre9
+url_busybox = http://busybox.net/downloads/busybox-$(version_busybox).tar.gz
+patches_busybox = busybox.patch
+
 tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 	cd build && \
 		rm -f busybox && \
@@ -374,7 +412,10 @@ tasks/build_busybox: tasks/patch_busybox tasks/build_libc
 	cd build/busybox && $(MAKE) LDFLAGS="$(MIPS_LDFLAGS)" CFLAGS_EXTRA="$(MIPS_CFLAGS) -DNESTEDVM -g"
 	touch $@
 
-# TeX Stuff
+## tex ##############################################################################
+
+version_texinputs = 1.0
+url_texinputs = http://www.megacz.com/tmp/texinputs-$(version_texinputs).tgz
 
 tasks/extract_tex_tangle:
 	@mkdir -p build/tex
@@ -404,6 +445,12 @@ tasks/build_tex: tasks/build_tex_tangle tasks/build_gpc tasks/download_texinputs
 			&& \
 		mips-unknown-elf-gpc $(MIPS_PCFLAGS) tex.p $(MIPS_LDFLAGS) -o tex.mips
 	touch $@
+
+## samba ##############################################################################
+
+version_samba = 3.0.4
+url_samba = http://us1.samba.org/samba/ftp/old-versions/samba-$(version_samba).tar.gz
+patches_samba = samba.patch
 
 tasks/build_samba: tasks/patch_samba
 	cd build/samba-$(version_samba)/source && \
