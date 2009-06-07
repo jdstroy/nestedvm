@@ -1,5 +1,7 @@
 # Inspired by XWT's Makefile.upstream
 
+sourceforge = http://softlayer.dl.sourceforge.net/sourceforge/
+
 version_gcc = 3.3.6
 
 url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
@@ -30,11 +32,12 @@ url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
 url_regex = http://arglist.com/regex/regex3.8a.tar.gz
 
 url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_bench.f
+
 version_zlib = 1.2.3
 url_zlib = http://www.zlib.net/zlib-$(version_zlib).tar.gz
 
 version_expat = 2.0.0
-url_expat = http://umn.dl.sourceforge.net/sourceforge/expat/expat-$(version_expat).tar.gz
+url_expat = $(sourceforge)expat/expat-$(version_expat).tar.gz
 configure_expat = --host= --target=mips-unknown-elf
 
 version_gmp = 4.1.4
@@ -249,7 +252,7 @@ url_libmspack = http://www.kyz.uklinux.net/downloads/libmspack-$(version_libmspa
 patches_libmspack = libmspack.patch
 
 version_freetype = 2.1.4
-url_freetype = http://easynews.dl.sourceforge.net/sourceforge/freetype/freetype-$(version_freetype).tar.gz
+url_freetype = $(sourceforge)freetype/freetype-$(version_freetype).tar.gz
 patches_freetype = freetype.patch ft-nostdio.patch
 
 version_boehmgc = 6.3alpha2
