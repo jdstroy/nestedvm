@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#
+# contributed by reddtape@gmail.com
+#
+
+pushd upstream
+make -j4 tasks/download_binutils tasks/download_busybox
+tasks/download_gcc tasks/download_gcc-c++ tasks/download_gcc-core
+tasks/download_gcc-g77 tasks/download_newlib tasks/download_zlib
+make -j4 tasks/extract_binutils tasks/extract_gcc tasks/extract_newlib
+make -j4 tasks/patch_binutils tasks/patch_gcc tasks/patch_newlib
+make -j2 tasks/extract_darcs_classgen tasks/extract_darcs_gcclass
+make -j2 tasks/build_darcs_classgen tasks/build_darcs_gcclass
+make -j8 tasks/build_gcc
+popd
+make
