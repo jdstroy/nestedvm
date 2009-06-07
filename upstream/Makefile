@@ -72,6 +72,10 @@ version_gmp = 4.1.4
 url_gmp = ftp://ftp.gnu.org/gnu/gmp/gmp-$(version_gmp).tar.gz
 configure_gmp = --host=mips-unknown-elf
 
+version_nasm = 0.98.39
+url_nasm = $(sourceforge)nasm/nasm-$(version_nasm).tar.gz
+configure_nasm = --host=mips-unknown-elf
+
 darcs_gcclass = http://darcs.brianweb.net/gcclass
 darcs_classgen = http://darcs.brianweb.net/classgen
 
