@@ -2,6 +2,34 @@
 
 sourceforge = http://softlayer.dl.sourceforge.net/sourceforge/
 
+tasks/everything: \
+	tasks/build_newlib \
+	tasks/build_gcc \
+	tasks/build_binutils \
+	tasks/build_newlib \
+	tasks/build_regex \
+	tasks/build_openbsdglob \
+	tasks/build_zlib \
+	tasks/build_expat \
+	tasks/build_gmp \
+	tasks/build_expat \
+	tasks/build_linker \
+	tasks/build_libc \
+	tasks/build_libjpeg \
+	tasks/build_libmspack \
+	tasks/build_freetype \
+	tasks/build_boehmgc \
+	tasks/build_busybox \
+	tasks/build_texinputs \
+	tasks/build_samba \
+	tasks/build_nasm \
+	tasks/build_tex \
+	tasks/build_tex_tangle \
+	tasks/build_tex_weave \
+	tasks/build_linpack \
+	tasks/build_gpc \
+
+
 version_gcc = 3.3.6
 
 url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
