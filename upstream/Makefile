@@ -84,7 +84,7 @@ tasks/extract_darcs_%:
 		cd build && darcs get --repo-name="$*" --verbose "$(darcs_$*)"; \
 	else \
 		mkdir -p "build/$*" && cd "build/$*"; \
-		wget -nH -rl 16 -N -X _darcs $(darcs_$*); \
+		darcs get $(darcs_$*); \
 	fi
 	touch $@
 
@@ -92,7 +92,7 @@ update_darcs_%: tasks/extract_darcs_%
 	if [ -d "build/$*/_darcs" ]; then \
 		cd "build/$*" && darcs pull; \
 	else \
-		cd "build/$*" && wget -np -nH --cut-dirs=1 -rl 16 -N -X _darcs $(darcs_$*); \
+		cd "build/$*" && darcs get $(darcs_$*); \
 	fi
 	rm -f "tasks/build_darcs_$*" # to force a rebuild
 
