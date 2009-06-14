@@ -83,8 +83,8 @@ tasks/extract_darcs_%:
 	if [ -d "$(root)/_darcs" ]; then \
 		cd build && darcs get --repo-name="$*" --verbose "$(darcs_$*)"; \
 	else \
-		mkdir -p "build/$*" && cd "build/$*"; \
-		darcs get $(darcs_$*); \
+		mkdir -p "build/" && cd "build/"; \
+		darcs get --repo-name=$* $(darcs_$*); \
 	fi
 	touch $@
 
