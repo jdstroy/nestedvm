@@ -522,3 +522,9 @@ push:
 		darcs push charger.brianweb.net:/home/darcs/nestedvm; \
 	fi
 	darcs push /afs/ibex.org/project/nestedvm
+
+snapshot:
+	git archive --prefix=nestedvm-`date +%Y-%m-%d`/ HEAD | \
+	  gzip -c > \
+	  /afs/megacz.com/web/org/ibex/nestedvm/dist/nestedvm-`date +%Y-%m-%d`.tgz
+	@echo url is http://nestedvm.ibex.org/dist/dist/nestedvm-`date +%Y-%m-%d`.tgz
