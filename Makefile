@@ -490,7 +490,7 @@ commit:
 
 update:
 	@if [ -d _darcs ]; then darcs pull; \
-	else wget -nH -rl 16 -N -X _darcs http://nestedvm.darcs.brianweb.net; \
+	else echo "you must have darcs installed in order to acquire the rest of the software" \
 	fi
 
 #
