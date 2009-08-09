@@ -521,7 +521,7 @@ push:
 	if [ "$${HOSTNAME#*.}" = "brianweb.net" ]; then \
 		darcs push charger.brianweb.net:/home/darcs/nestedvm; \
 	fi
-	darcs push /afs/ibex.org/project/nestedvm
+	git push /afs/megacz.com/web/org/ibex/nestedvm/ master
 
 snapshot:
 	git archive --prefix=nestedvm-`date +%Y-%m-%d`/ HEAD | \
