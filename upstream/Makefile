@@ -312,7 +312,7 @@ tasks/build_linker: tasks/build_binutils $(root)/src/org/ibex/nestedvm/linker.ld
 
 ## libjpeg ##############################################################################
 
-version_libjpeg = 6b
+version_libjpeg = 7
 url_libjpeg = http://www.ijg.org/files/jpegsrc.v$(version_libjpeg).tar.gz
 
 tasks/extract_libjpeg: tasks/download_libjpeg
@@ -326,7 +326,7 @@ tasks/extract_libjpeg: tasks/download_libjpeg
 
 tasks/build_libjpeg: tasks/patch_libjpeg tasks/build_libc
 	cd build/libjpeg-$(version_libjpeg) && \
-		./configure && \
+		./configure --host=mips && \
 		make CC="mips-unknown-elf-gcc" \
 			AR="mips-unknown-elf-ar rc" \
 			AR2="mips-unknown-elf-ranlib" \
