@@ -64,7 +64,7 @@ $(top_lev_stuff):
 tasks/download_%:
 	if [ -z "$(url_$*)" ]; then echo "No url for $*" >&2; false; fi
 	mkdir -p download
-	cd download && curl -O $(url_$*)
+	cd download && curl -LO $(url_$*)
 	touch $@
 
 tasks/extract_%: tasks/download_%
@@ -228,7 +228,7 @@ tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
 
 ## regex ##############################################################################
 
-url_regex = http://arglist.com/regex/regex3.8a.tar.gz
+url_regex = http://www.arglist.com/regex/files/regex3.8a.tar.gz
 
 tasks/build_regex: tasks/download_regex tasks/build_newlib
 	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
