@@ -1,3 +1,5 @@
 upstream/tasks/*
 upstream/build/*
 upstream/download
+upstream/install
+

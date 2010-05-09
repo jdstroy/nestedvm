@@ -30,8 +30,8 @@ tasks/everything: \
 	tasks/build_linpack \
 
 
-darcs_gcclass = http://darcs.brianweb.net/gcclass
-darcs_classgen = http://darcs.brianweb.net/classgen
+darcs_gcclass = http://gcclass.ibex.org/
+darcs_classgen = http://classgen.ibex.org/
 cross_root := $(usr)/mips-unknown-elf
 .SECONDARY: # This is broken in gmake < 3.79.1
 
@@ -211,7 +211,7 @@ tasks/build_newlib: tasks/build_gcc
 
 ## openbsdglob ##############################################################################
 
-url_openbsdglob = http://www.brianweb.net/xwt/openbsdglob.tar.gz
+url_openbsdglob = http://nestedvm.ibex.org/upstream/openbsdglob.tar.gz
 
 tasks/build_openbsdglob: tasks/download_openbsdglob tasks/build_newlib
 	@mkdir -p $(usr)/mips-unknown-elf/{include,lib}
@@ -377,7 +377,7 @@ tasks/build_freetype: tasks/patch_freetype tasks/build_libc
 
 version_boehmgc = 6.3alpha2
 #url_boehmgc = http://www.hpl.hp.com/personal/Hans_Boehm/gc/gc_source/gc$(version_boehmgc).tar.gz
-url_boehmgc = http://www.brianweb.net/misc/gc$(version_boehmgc).tar.gz
+url_boehmgc = http://nestedvm.ibex.org/upstream/gc$(version_boehmgc).tar.gz
 patches_boehmgc = boehm-gc.patch
 
 tasks/extract_boehmgc: tasks/download_boehmgc

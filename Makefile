@@ -518,9 +518,6 @@ pdf: doc/ivme04.pdf
 	open doc/ivme04.pdf
 
 push:
-	if [ "$${HOSTNAME#*.}" = "brianweb.net" ]; then \
-		darcs push charger.brianweb.net:/home/darcs/nestedvm; \
-	fi
 	git push /afs/megacz.com/web/org/ibex/nestedvm/ master
 
 snapshot:
