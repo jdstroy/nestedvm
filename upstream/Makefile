@@ -32,6 +32,8 @@ tasks/everything: \
 
 darcs_gcclass = http://gcclass.ibex.org/
 darcs_classgen = http://classgen.ibex.org/
+git_gcclass = http://gcclass.ibex.org/.git/
+git_classgen = http://classgen.ibex.org/.git/
 cross_root := $(usr)/mips-unknown-elf
 .SECONDARY: # This is broken in gmake < 3.79.1
 
@@ -97,6 +99,30 @@ update_darcs_%: tasks/extract_darcs_%
 	rm -f "tasks/build_darcs_$*" # to force a rebuild
 
 tasks/build_darcs_%: tasks/extract_darcs_%
+	cd "build/$*" && $(MAKE)
+	touch $@
+
+tasks/extract_git_%:
+	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
+	mkdir -p build
+	if [ -z "$(git_$*)" ]; then echo "No git url for $*" >&2; false; fi
+	if [ -d "$(root)/.git" ]; then \
+		cd build && git clone "$(git_$*)" "$*"; \
+	else \
+		mkdir -p "build/" && cd "build/"; \
+		git clone $(darcs_$*) $*; \
+	fi
+	touch $@
+
+update_git_%: tasks/extract_git_%
+	if [ -d "build/$*/.git" ]; then \
+		cd "build/$*" && git fetch; \
+	else \
+		cd "build/$*" && git clone $(git_$*); \
+	fi
+	rm -f "tasks/build_git_$*" # to force a rebuild
+
+tasks/build_git_%: tasks/extract_git_%
 	cd "build/$*" && $(MAKE)
 	touch $@
 

@@ -106,7 +106,7 @@ build/org/ibex/nestedvm/util/.Dummy.class:
 $(java_classes): build/org/ibex/nestedvm/util/.Dummy.class
 endif
 
-$(java_classes): $(java_sources) $(tasks)/build_darcs_classgen
+$(java_classes): $(java_sources) $(tasks)/build_git_classgen
 	$(JAVAC) -classpath "$(classpath)" -d build $(java_sources)
 
 # GCJ Stuff
@@ -235,7 +235,7 @@ nestedvm.jar: $(java_classes) .manifest
 .gcclass_hints: $(java_sources)
 	sed -n 's/.*GCCLASS_HINT: \([^ ]*\) \([^ ]*\).*/hint:\1:\2/p' $(java_sources) > $@
 
-compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_darcs_gcclass .gcclass_hints
+compact_runtime_compiler.jar: $(java_classes) .manifest $(tasks)/build_git_gcclass .gcclass_hints
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
 	$(JAVA) -cp \
@@ -408,7 +408,7 @@ ntlmtest: build/tests/NtlmAuth.class
 	@test -e smb.conf || cp upstream/build/samba/examples/smb.conf.default smb.conf
 	$(JAVA) -cp "$(classpath)" tests.NtlmAuth --username=brian --password=test --diagnostics -d 5
 
-ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_darcs_gcclass .gcclass_hints
+ntlmauth.jar: build/tests/NtlmAuth.class $(tasks)/build_git_gcclass .gcclass_hints
 	mkdir -p tmp/pruned
 	rm -rf tmp/pruned/*
 	java -cp \
