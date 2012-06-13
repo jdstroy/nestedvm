@@ -195,7 +195,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private int sys_access(int cstring, int mode) throws ErrnoException, ReadFaultException {
         // FEATURE: sys_access
-        return gs.stat(this,cstring(cstring)) == null ? -ENOENT : 0;
+        return gs.stat(this,normalizePath(cstring(cstring))) == null ? -ENOENT : 0;
     }
     
     private int sys_realpath(int inAddr, int outAddr) throws FaultException {
@@ -563,7 +563,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;   
     }
     
-    static class Pipe {
+    public static class Pipe {
         private final byte[] pipebuf = new byte[PIPE_BUF*4];
         private int readPos;
         private int writePos;
@@ -1811,7 +1811,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             if(path.startsWith("fd/")) {
                 int n;
                 try {
-                    n = Integer.parseInt(path.substring(4));
+                    n = Integer.parseInt(path.substring(3));
                 } catch(NumberFormatException e) {
                     return null;
                 }
