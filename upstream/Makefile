@@ -1,6 +1,6 @@
 # Inspired by XWT's Makefile.upstream
 
-sourceforge = http://softlayer.dl.sourceforge.net/sourceforge/
+sourceforge = http://download.sourceforge.net/
 
 tasks/everything: \
 	tasks/build_newlib \
@@ -10,6 +10,9 @@ tasks/everything: \
 	tasks/build_regex \
 	tasks/build_openbsdglob \
 	tasks/build_zlib \
+	tasks/build_libpng \
+	tasks/build_libiconv \
+	tasks/build_gd \
 	tasks/build_expat \
 	tasks/build_gmp \
 	tasks/build_expat \
@@ -275,13 +278,56 @@ url_linpack = http://www.math.iastate.edu/burkardt/f_src/linpack_bench/linpack_b
 
 ## zlib ##############################################################################
 
-version_zlib = 1.2.3
+version_zlib = 1.2.7
 url_zlib = http://www.zlib.net/zlib-$(version_zlib).tar.gz
+configure_zlib = --static
 
 tasks/build_zlib: tasks/patch_zlib
 	mkdir -p $(usr)
 	cd build/zlib-$(version_zlib) && \
-		AR="mips-unknown-elf-ar rc" CC=mips-unknown-elf-gcc ./configure --prefix=$(usr) $(configure_$*) && \
+		AR=mips-unknown-elf-ar CC=mips-unknown-elf-gcc ./configure --prefix=$(usr) $(configure_zlib) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		$(MAKE) install
+	touch $@
+
+## libpng ##############################################################################
+
+version_libpng = 1.5.10
+url_libpng = $(sourceforge)libpng/libpng-$(version_libpng).tar.gz
+configure_libpng = --disable-shared --host=mips-unknown-elf
+
+tasks/build_libpng: tasks/patch_libpng tasks/build_libc
+	mkdir -p $(usr)
+	cd build/libpng-$(version_libpng) && \
+		CPPFLAGS=-I$(usr)/include LDFLAGS=-L$(usr)/lib ./configure --prefix=$(usr) $(configure_libpng) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		$(MAKE) install
+	touch $@
+
+## libiconv ##############################################################################
+
+version_libiconv = 1.14
+url_libiconv = http://ftp.gnu.org/gnu/libiconv/libiconv-$(version_libiconv).tar.gz
+configure_libiconv = --disable-shared --host=mips-unknown-elf
+
+tasks/build_libiconv: tasks/patch_libiconv tasks/build_libc
+	mkdir -p $(usr)
+	cd build/libiconv-$(version_libiconv) && \
+		./configure --prefix=$(usr) $(configure_libiconv) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		$(MAKE) install
+	touch $@
+
+## gd ##############################################################################
+
+version_gd = 2.0.35
+url_gd = http://www.chipsnbytes.net/downloads/gd-$(version_gd).tar.gz
+configure_gd = --disable-shared --host=mips-unknown-elf
+
+tasks/build_gd: tasks/patch_gd tasks/build_libc
+	mkdir -p $(usr)
+	cd build/gd-$(version_gd) && \
+		CPPFLAGS=-I$(usr)/include/freetype2 LDFLAGS=-L$(usr)/lib ./configure --prefix=$(usr) $(configure_gd) && \
 		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
 		$(MAKE) install
 	touch $@
@@ -385,9 +431,9 @@ tasks/build_libmspack: tasks/patch_libmspack tasks/build_libc
 
 ## freetype ##############################################################################
 
-version_freetype = 2.1.4
+version_freetype = 2.4.9
 url_freetype = $(sourceforge)freetype/freetype-$(version_freetype).tar.gz
-patches_freetype = freetype.patch ft-nostdio.patch
+#patches_freetype = freetype.patch ft-nostdio.patch
 
 tasks/build_freetype: tasks/patch_freetype tasks/build_libc
 	cd build/freetype-$(version_freetype) && \
