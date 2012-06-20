@@ -296,7 +296,7 @@ version_libpng = 1.5.10
 url_libpng = $(sourceforge)libpng/libpng-$(version_libpng).tar.gz
 configure_libpng = --disable-shared --host=mips-unknown-elf
 
-tasks/build_libpng: tasks/patch_libpng tasks/build_libc
+tasks/build_libpng: tasks/build_zlib tasks/patch_libpng tasks/build_libc
 	mkdir -p $(usr)
 	cd build/libpng-$(version_libpng) && \
 		CPPFLAGS=-I$(usr)/include LDFLAGS=-L$(usr)/lib ./configure --prefix=$(usr) $(configure_libpng) && \
