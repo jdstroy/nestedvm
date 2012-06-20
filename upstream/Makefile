@@ -324,7 +324,7 @@ version_gd = 2.0.35
 url_gd = http://www.chipsnbytes.net/downloads/gd-$(version_gd).tar.gz
 configure_gd = --disable-shared --host=mips-unknown-elf
 
-tasks/build_gd: tasks/patch_gd tasks/build_libc
+tasks/build_gd: tasks/build_freetype tasks/patch_gd tasks/build_libc
 	mkdir -p $(usr)
 	cd build/gd-$(version_gd) && \
 		CPPFLAGS=-I$(usr)/include/freetype2 LDFLAGS=-L$(usr)/lib ./configure --prefix=$(usr) $(configure_gd) && \
