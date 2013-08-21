@@ -232,7 +232,7 @@ configure_binutils = --target=mips-unknown-elf
 ## newlib ##############################################################################
 
 version_newlib = 1.11.0
-url_newlib = ftp://sources.redhat.com/pub/newlib/newlib-$(version_newlib).tar.gz
+url_newlib = ftp://sourceware.org/pub/newlib/newlib-$(version_newlib).tar.gz
 patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch newlib-unistd.patch newlib-nestedvm-define.patch
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
