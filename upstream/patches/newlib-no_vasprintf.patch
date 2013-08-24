@@ -1,0 +1,11 @@
+--- newlib/libc/stdio/Makefile.in.orig	2013-08-24 18:15:20.368000000 -0400
++++ newlib/libc/stdio/Makefile.in	2013-08-24 18:15:32.496000000 -0400
+@@ -113,7 +113,7 @@
+ GENERAL_SOURCES =  	clearerr.c 				fclose.c 				fdopen.c 				feof.c 					ferror.c 				fflush.c 				fgetc.c 				fgetpos.c 				fgets.c 				fileno.c				findfp.c 				fiprintf.c 				flags.c 				fopen.c 				fprintf.c 				fputc.c 				fputs.c 				fread.c 				freopen.c 				fscanf.c 				fseek.c 				fsetpos.c 				ftell.c 				fvwrite.c 				fwalk.c 				fwrite.c 				getc.c 					getchar.c 				getc_u.c				getchar_u.c				getdelim.c				getline.c				gets.c 					iprintf.c 				makebuf.c				perror.c 				printf.c 				putc.c 					putchar.c 				putc_u.c				putchar_u.c				puts.c 					refill.c 				remove.c 				rename.c 				rewind.c 				rget.c 					scanf.c 				setbuf.c 				setbuffer.c 				setlinebuf.c 				setvbuf.c 				siprintf.c 				snprintf.c				sprintf.c 				sscanf.c 				stdio.c 				tmpfile.c 				tmpnam.c 				ungetc.c 				vfscanf.c 				vprintf.c 				vscanf.c				vsnprintf.c				vsprintf.c 				vsscanf.c				wbuf.c 					wsetup.c 
+ 
+ @ELIX_LEVEL_1_TRUE@LIB_OBJS = 
+-@ELIX_LEVEL_1_FALSE@LIB_OBJS = 	asprintf.$(oext)			fcloseall.$(oext)			fseeko.$(oext) 				ftello.$(oext) 				getw.$(oext)				mktemp.$(oext) 				putw.$(oext) 				vasprintf.$(oext)
++@ELIX_LEVEL_1_FALSE@LIB_OBJS = 	asprintf.$(oext)			fcloseall.$(oext)			fseeko.$(oext) 				ftello.$(oext) 				getw.$(oext)				mktemp.$(oext) 				putw.$(oext) 
+ 
+ LIBADD_OBJS = vfiprintf.$(oext) vfprintf.$(oext)
+ 

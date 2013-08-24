@@ -231,9 +231,11 @@ configure_binutils = --target=mips-unknown-elf
 
 ## newlib ##############################################################################
 
-version_newlib = 1.11.0
+version_newlib = 1.12.0
 url_newlib = ftp://sourceware.org/pub/newlib/newlib-$(version_newlib).tar.gz
-patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch newlib-unistd.patch newlib-nestedvm-define.patch
+#patches_newlib = newlib-mips.patch newlib-tzset.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch newlib-unistd.patch newlib-nestedvm-define.patch
+patches_newlib = newlib-mips.patch newlib-malloc.patch newlib-nomemcpy.patch newlib-unix.patch newlib-unistd.patch newlib-nestedvm-define.patch newlib-no_vasprintf.patch
+
 configure_newlib = --enable-multilib --target=mips-unknown-elf
 
 tasks/build_newlib: tasks/build_gcc

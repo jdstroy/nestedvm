@@ -1,27 +1,26 @@
 --- newlib/libc/unix/Makefile.in~	2004-06-29 00:33:42.000000000 -0400
 +++ newlib/libc/unix/Makefile.in	2004-06-29 00:33:42.000000000 -0400
-@@ -111,7 +111,6 @@
+@@ -110,7 +110,7 @@
+
  INCLUDES = $(NEWLIB_CFLAGS) $(CROSS_CFLAGS) $(TARGET_CFLAGS)
- 
- GENERAL_SOURCES = \
--	getcwd.c 	\
- 	pread.c 	\
- 	pwrite.c 	\
- 	sigset.c
---- newlib/libc/unix/Makefile.in.orig	2004-06-29 01:21:23.000000000 -0400
-+++ newlib/libc/unix/Makefile.in	2004-06-29 02:28:37.000000000 -0400
-@@ -126,10 +126,7 @@
- 	getpwent.$(oext) 	\
- 	getut.$(oext)
- 
--@ELIX_LEVEL_1_TRUE@LIB_OBJS = 
--@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_TRUE@LIB_OBJS = @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_TRUE@$(ELIX_2_OBJS)
--@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_TRUE@LIB_OBJS = @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_TRUE@$(ELIX_2_OBJS)
--@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@@ELIX_LEVEL_4_TRUE@LIB_OBJS = @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@@ELIX_LEVEL_4_TRUE@$(ELIX_2_OBJS) $(ELIX_4_OBJS)
-+LIB_OBJS = 
- 
+
+-GENERAL_SOURCES =      getcwd.c                pread.c                 pwrite.c                sigset.c
++GENERAL_SOURCES =      pread.c                 pwrite.c                sigset.c
+
+
+ ELIX_2_OBJS =          ttyname.$(oext)
+@@ -118,10 +118,7 @@
+
+ ELIX_4_OBJS =          getlogin.$(oext)                getpass.$(oext)                 getpwent.$(oext)                getut.$(oext)
+
+-@ELIX_LEVEL_1_TRUE@LIB_OBJS =
+-@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_TRUE@LIB_OBJS = $(ELIX_2_OBJS)
+-@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_TRUE@LIB_OBJS = $(ELIX_2_OBJS)
+-@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@@ELIX_LEVEL_4_TRUE@LIB_OBJS = $(ELIX_2_OBJS) $(ELIX_4_OBJS)
++LIB_OBJS =
+
  libunix_la_LDFLAGS = -Xcompiler -nostdlib
- 
+
 @@ -161,11 +158,11 @@
  DEFS = @DEFS@ -I. -I$(srcdir) 
  CPPFLAGS = @CPPFLAGS@
