@@ -4,12 +4,15 @@
 # contributed by reddtape@gmail.com
 #
 
+export CC=clang
+export CXX=clang++
+export MAKE_OPTS=-j2
 pushd upstream
-make -j4 tasks/download_binutils tasks/download_busybox tasks/download_gcc tasks/download_gcc-c++ tasks/download_gcc-core tasks/download_gcc-g77 tasks/download_newlib tasks/download_zlib
-make -j4 tasks/extract_binutils tasks/extract_gcc tasks/extract_newlib
-make -j4 tasks/patch_binutils tasks/patch_gcc tasks/patch_newlib
-make -j2 tasks/extract_git_classgen tasks/extract_git_gcclass
-make -j2 tasks/build_git_classgen tasks/build_git_gcclass
-make -j8 tasks/build_gcc
+make ${MAKE_OPTS} tasks/download_binutils tasks/download_busybox tasks/download_gcc tasks/download_gcc-c++ tasks/download_gcc-core tasks/download_gcc-g77 tasks/download_newlib tasks/download_zlib
+make ${MAKE_OPTS} tasks/extract_binutils tasks/extract_gcc tasks/extract_newlib
+make ${MAKE_OPTS} tasks/patch_binutils tasks/patch_gcc tasks/patch_newlib
+#make ${MAKE_OPTS} tasks/extract_git_classgen tasks/extract_git_gcclass
+make ${MAKE_OPTS} tasks/build_git_classgen tasks/build_git_gcclass
+make ${MAKE_OPTS} tasks/build_gcc
 popd
 make
