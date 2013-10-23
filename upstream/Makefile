@@ -35,8 +35,8 @@ tasks/everything: \
 
 darcs_gcclass = http://gcclass.ibex.org/
 darcs_classgen = http://classgen.ibex.org/
-git_gcclass = http://gcclass.ibex.org/.git/
-git_classgen = http://classgen.ibex.org/.git/
+git_gcclass = https://github.com/jdstroy/gcclass.ibex.org.git
+git_classgen = https://github.com/jdstroy/classgen.ibex.org.git
 cross_root := $(usr)/mips-unknown-elf
 .SECONDARY: # This is broken in gmake < 3.79.1
 
