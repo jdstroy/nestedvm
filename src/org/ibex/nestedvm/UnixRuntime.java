@@ -141,6 +141,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_resolve_hostname: return sys_resolve_hostname(a,b,c);
             case SYS_setsockopt: return sys_setsockopt(a,b,c,d,e);
             case SYS_getsockopt: return sys_getsockopt(a,b,c,d,e);
+            case SYS_getsockname: return sys_getsockname(a,b,c);
             case SYS_bind: return sys_bind(a,b,c);
             case SYS_listen: return sys_listen(a,b);
             case SYS_accept: return sys_accept(a,b,c);
@@ -898,6 +899,19 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         	if(type == TYPE_DGRAM)
         		dp = new DatagramPacket(EMPTY,0);
         }
+
+	public SocketAddress getLocalSocketAddress() {
+		int type = type();
+		if(type == SocketFD.TYPE_STREAM) {
+			if(listen()) {
+				return ss.getLocalSocketAddress();
+			} else {
+				return s.getLocalSocketAddress();
+			}
+		} else {
+			return ds.getLocalSocketAddress();
+		}
+	}
         
         public void setOptions() {
             try {
@@ -1090,6 +1104,52 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }                   
     }
     
+	private int sys_getsockname(int socketDescriptor, int ptrSockName, int ptrNameLength) throws FaultException, ErrnoException
+	{
+		int length = 8;
+		SocketFD fd = getSocketFD(socketDescriptor);
+		int bufferSize = memRead(ptrNameLength);
+
+		InetSocketAddress isa = (InetSocketAddress) fd.getLocalSocketAddress();
+		byte[] ia = isa.getAddress().getAddress();
+		int port = isa.getPort();
+
+		/*
+		byte sin_len
+		byte sin_family
+		short sin_port
+		int sin_addr
+		*/
+
+		int dword1 = ((length & 0xff) << 24) | ((AF_INET & 0xff) << 16) | ( (port & 0xffff) << 0);
+		int dword2 = (ia[0] << 24) | (ia[1] << 16) | (ia[2] << 8) | (ia[3] << 0);
+
+		memWrite(ptrNameLength, length);
+
+		if (bufferSize == 0) {
+			return 0;
+		}
+
+		if (bufferSize < 4) {
+			int oldDword1 = memRead(ptrSockName);
+			int lowermask = (1 << bufferSize * 8) - 1;
+			int highermask = -1 - lowermask;
+			dword1 = (oldDword1 & highermask) | (dword1 & lowermask);
+		}
+
+		memWrite(ptrSockName, dword1);
+
+		if (bufferSize < 8) {
+			int oldDword2 = memRead(ptrSockName+4);
+			int lowermask = (1 << (bufferSize - 4) * 8) - 1;
+			int highermask = -1 - lowermask;
+			dword2 = (oldDword2 & highermask) | (dword2 & lowermask);
+		}
+
+		memWrite(ptrSockName + 4, dword2);
+		return 0;
+	}
+
     private int sys_getsockopt(int fdn, int level, int name, int valaddr, int lenaddr) throws ErrnoException, FaultException {
         SocketFD fd = getSocketFD(fdn);
         switch(level) {
