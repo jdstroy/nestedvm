@@ -159,11 +159,37 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_fchmod: return sys_fchmod(a,b,c);
             case SYS_fcntl: return sys_fcntl_lock(a,b,c);
             case SYS_umask: return sys_umask(a);
+            case SYS_resolve_ip: return sys_resolve_ip(a,b,c);
             
             default: return super._syscall(syscall,a,b,c,d,e,f);
         }
     }
     
+	int sys_resolve_ip(int addr, int ptrCBuf, int size) throws
+		FaultException
+	{
+		byte[] buffer = new byte[4];
+		//java.util.logging.Logger.getLogger(getClass().getName()).info("Input address = " + Integer.toString(addr));
+		buffer[0] = Integer.valueOf((addr >>> 24) & 0xff).byteValue();
+		buffer[1] = Integer.valueOf((addr >>> 16) & 0xff).byteValue();
+		buffer[2] = Integer.valueOf((addr >>>  8) & 0xff).byteValue();
+		buffer[3] = Integer.valueOf((addr >>>  0) & 0xff).byteValue();
+
+		String hostName;
+		try {
+			hostName = InetAddress.getByAddress(buffer).getHostAddress();
+		} catch (UnknownHostException ex) {
+			hostName = java.text.MessageFormat.format("{0}.{1}.{2}.{3}", new Object[] { Integer.valueOf(buffer[0] & 0xff), Integer.valueOf(buffer[1] & 0xff), Integer.valueOf( buffer[2] & 0xff ), Integer.valueOf( buffer[3] & 0xff )} );
+		}
+		//java.util.logging.Logger.getLogger(getClass().getName()).info("Output address = " + hostName);
+		byte[] outBytes = getBytes(hostName);
+		if(size == 0) return -EINVAL;
+		if(size < outBytes.length+1) return -ERANGE;
+		copyout(outBytes,ptrCBuf,outBytes.length);
+		memset(ptrCBuf+outBytes.length+1,0,1);
+	
+		return 0;
+	}
     FD _open(String path, int flags, int mode) throws ErrnoException {
         path = normalizePath(path);
         FD fd = gs.open(this,path,flags,mode);
