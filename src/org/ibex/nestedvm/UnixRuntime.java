@@ -142,6 +142,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_setsockopt: return sys_setsockopt(a,b,c,d,e);
             case SYS_getsockopt: return sys_getsockopt(a,b,c,d,e);
             case SYS_getsockname: return sys_getsockname(a,b,c);
+            case SYS_getpeername: return sys_getpeername(a,b,c);
             case SYS_bind: return sys_bind(a,b,c);
             case SYS_listen: return sys_listen(a,b);
             case SYS_accept: return sys_accept(a,b,c);
@@ -1154,13 +1155,25 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }                   
     }
     
+	private int sys_getpeername(int socketDescriptor, int ptrSockName, int ptrNameLength) throws FaultException, ErrnoException
+	{
+		SocketFD fd = getSocketFD(socketDescriptor);
+		InetSocketAddress isa = (InetSocketAddress) fd.s.getRemoteSocketAddress();
+		return getfooonamehelper(isa, ptrSockName, ptrNameLength);
+	}
+
 	private int sys_getsockname(int socketDescriptor, int ptrSockName, int ptrNameLength) throws FaultException, ErrnoException
 	{
-		int length = 8;
 		SocketFD fd = getSocketFD(socketDescriptor);
+		InetSocketAddress isa = (InetSocketAddress) fd.getLocalSocketAddress();
+		return getfooonamehelper(isa, ptrSockName, ptrNameLength);
+	}
+
+	private int getfooonamehelper(InetSocketAddress isa, int ptrSockName, int ptrNameLength) throws FaultException, ErrnoException
+	{
+		int length = 8;
 		int bufferSize = memRead(ptrNameLength);
 
-		InetSocketAddress isa = (InetSocketAddress) fd.getLocalSocketAddress();
 		byte[] ia = isa.getAddress().getAddress();
 		int port = isa.getPort();
 
