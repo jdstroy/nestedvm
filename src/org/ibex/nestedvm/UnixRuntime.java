@@ -161,6 +161,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_fcntl: return sys_fcntl_lock(a,b,c);
             case SYS_umask: return sys_umask(a);
             case SYS_resolve_ip: return sys_resolve_ip(a,b,c);
+            case SYS_rmdir: return sys_rmdir(a);
             
             default: return super._syscall(syscall,a,b,c,d,e,f);
         }
@@ -714,6 +715,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private int sys_unlink(int cstring) throws FaultException, ErrnoException {
         gs.unlink(this,normalizePath(cstring(cstring)));
         return 0;
+    }
+    
+    private int sys_rmdir(int ptrPathName) throws ErrnoException, ReadFaultException {
+	gs.rmdir(this, normalizePath(cstring(ptrPathName)));
+	return 0;
     }
     
     private int sys_getcwd(int addr, int size) throws FaultException, ErrnoException {
@@ -1603,6 +1609,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final FStat stat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(FS.STAT,r,path,0,0); }
         public final FStat lstat(UnixRuntime r, String path) throws ErrnoException { return (FStat) fsop(FS.LSTAT,r,path,0,0); }
         public final void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { fsop(FS.MKDIR,r,path,mode,0); }
+        public final void rmdir(UnixRuntime r, String path) throws ErrnoException { fsop(FS.RMDIR,r,path,0,0); }
         public final void unlink(UnixRuntime r, String path) throws ErrnoException { fsop(FS.UNLINK,r,path,0,0); }
         
         private static class CacheEnt {
@@ -1619,6 +1626,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         static final int LSTAT = 3;
         static final int MKDIR = 4;
         static final int UNLINK = 5;
+        static final int RMDIR = 6;
         
         GlobalState owner;
         int devno;
@@ -1630,6 +1638,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 case LSTAT: return lstat(r,path);
                 case MKDIR: mkdir(r,path,arg1); return null;
                 case UNLINK: unlink(r,path); return null;
+                case RMDIR: rmdir(r,path); return null;
                 default: throw new Error("should never happen");
             }
         }
@@ -1642,6 +1651,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public abstract FStat stat(UnixRuntime r, String path) throws ErrnoException;
         public abstract void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException;
         public abstract void unlink(UnixRuntime r, String path) throws ErrnoException;
+        public abstract void rmdir(UnixRuntime r, String path) throws ErrnoException;
     }
         
     // chroot support should go in here if it is ever implemented
@@ -1753,6 +1763,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             final File f = hostFile(path);
             return r.hostFSOpen(f,flags,mode,this);
         }
+
+	public void rmdir(UnixRuntime r, String path) throws ErrnoException {
+		unlink(r, path);
+	}
         
         public void unlink(UnixRuntime r, String path) throws ErrnoException {
             File f = hostFile(path);
@@ -2011,6 +2025,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
         
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { throw new ErrnoException(EROFS); }
+        public void rmdir(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
         public void unlink(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
     }
     
@@ -2021,6 +2036,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public FStat lstat(UnixRuntime r, String path) throws ErrnoException { return stat(r,path); }
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException { throw new ErrnoException(EROFS); }
         public void unlink(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
+        public void rmdir(UnixRuntime r, String path) throws ErrnoException { throw new ErrnoException(EROFS); }
         
         FStat connFStat(final URLConnection conn) {
             return new FStat() {
