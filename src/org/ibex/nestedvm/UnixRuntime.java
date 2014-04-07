@@ -162,6 +162,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             case SYS_umask: return sys_umask(a);
             case SYS_resolve_ip: return sys_resolve_ip(a,b,c);
             case SYS_rmdir: return sys_rmdir(a);
+            case SYS_setsid: return sys_setsid();
             
             default: return super._syscall(syscall,a,b,c,d,e,f);
         }
@@ -203,6 +204,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return parent == null ? 1 : parent.pid;
     }
     
+    private int sys_setsid() {
+	return 0;
+    }
     private int sys_chown(int fileAddr, int uid, int gid) {
         return 0;
     }
