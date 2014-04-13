@@ -1842,12 +1842,17 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
      * As there is no POSIX standard for this, little checking is done. */
     public static class CygdriveFS extends HostFS {
         protected File hostFile(String path) {
+            java.util.logging.Logger.getLogger(CygdriveFS.class.getName()).fine("path = " + path);
             final char drive = path.charAt(0);
 
-            if (drive < 'a' || drive > 'z' || path.charAt(1) != '/')
+            if (drive < 'a' || drive > 'z' || (path.length() > 1 && path.charAt(1) != '/'))
                 return null;
+            if (path.length() == 1) {
+                path = path + "/";
+            }
 
             path = drive + ":" + path.substring(1).replace('/', '\\');
+            java.util.logging.Logger.getLogger(CygdriveFS.class.getName()).fine("path new = " + path);
             return new File(path);
         }
 
