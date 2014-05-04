@@ -140,6 +140,13 @@ tasks/patch_%: tasks/extract_%
 		[ "$$p" = "end" ] || $(PATCH) -p0 -l < ../../patches/$$p || exit 1; \
 	done
 	touch $@
+ks/build_binutils: tasks/patch_binutils
+	mkdir -p $(usr)
+	mkdir -p build/binutils-obj && cd build/binutils-obj && \
+		CFLAGS="-fno-stack-protector -U_FORTIFY_SOURCE -g -O2" ../binutils-$(version_binutils)/configure --prefix=$(usr) $(configure_binutils) && \
+		$(MAKE) TARGET_CFLAGS="$(MIPS_CFLAGS)" && \
+		$(MAKE) install
+	touch $@
 
 tasks/build_%: tasks/patch_%
 	mkdir -p $(usr)
@@ -161,7 +168,7 @@ url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(v
 url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
 url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
 
-patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-with-newer-version.patch
+patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-with-newer-version.patch gcc-ffeinfoKindtype.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
 configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
