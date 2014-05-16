@@ -233,6 +233,9 @@ unix_runtime.jar: $(unix_runtime_classes:%=build/org/ibex/nestedvm/%.class)
 		org/ibex/nestedvm/util/Platform\$$*.class \
 		org/ibex/nestedvm/util/Sort*.class
 
+compiler.jar: build/org/ibex/nestedvm/Compiler.class
+	jar cvfe compiler.jar org.ibex.nestedvm.Compiler -C build org ; jar uvf compiler.jar -C upstream/build/classgen/build org
+
 .manifest:
 	printf "Manifest-Version: 1.0\nMain-Class: org.ibex.nestedvm.RuntimeCompiler\n" > $@
 
