@@ -8,6 +8,7 @@ import org.ibex.nestedvm.util.*;
 import java.io.*;
 import java.util.*;
 import java.net.*;
+import java.nio.file.*;
 import java.lang.reflect.*; // For lazily linked RuntimeCompiler
 
 // FEATURE: vfork
@@ -161,6 +162,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return sys_getdents(a,b,c,d);
         case SYS_unlink:
             return sys_unlink(a);
+        case SYS_link:
+            return sys_link(a,b);
         case SYS_getppid:
             return sys_getppid();
         case SYS_socket:
@@ -824,6 +827,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
 
     private int sys_unlink(int cstring) throws FaultException, ErrnoException {
         gs.unlink(this,normalizePath(cstring(cstring)));
+        return 0;
+    }
+
+    private int sys_link(int cstring1, int cstring2) throws FaultException, ErrnoException {
+        gs.link(this,normalizePath(cstring(cstring1)), normalizePath(cstring(cstring2)));
         return 0;
     }
 
@@ -1756,6 +1764,58 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             mps = newMPS;
         }
 
+        private static class FSPathPair {
+            private final FS filesystem;
+            private final String path;
+            public FSPathPair(FS filesystem, String path) {
+                this.filesystem = filesystem;
+                this.path = path;
+            }
+
+            public String getPath() {
+                return path;
+            }
+
+            public FS getFS() {
+                return filesystem;
+            }
+        }
+
+        private FSPathPair findFS(String normalizedPath) {
+            int pathLength = normalizedPath.length();
+            if (pathLength != 0) {
+                MP[] list;
+                synchronized(this) {
+                    list = mps;
+                }
+                for(int i = 0; i < list.length; i++) {
+                    MP mp = list[i];
+                    int mpl = mp.path.length();
+                    if (normalizedPath.startsWith(mp.path) && (pathLength == mpl || normalizedPath.charAt(mpl) == '/')) {
+                        return new FSPathPair(mp.fs, pathLength == mpl ? "" : normalizedPath.substring(mpl+1));
+                    }
+                }
+            }
+            return new FSPathPair(root, normalizedPath);
+
+        }
+
+        private Object fsop(int op, UnixRuntime r, String normalizedPath1, String normalizedPath2, int arg1, int arg2) throws ErrnoException {
+            // We need to dispatch to the right filesystem.
+            switch(op) {
+            case FS.LINK:
+                // Both paths must be in the same filesystem
+                FSPathPair lookup1 = findFS(normalizedPath1), lookup2 = findFS(normalizedPath2);
+                FS fs1 = lookup1.getFS(), fs2 = lookup2.getFS();
+                if (fs1 != fs2) {
+                    throw new ErrnoException(EXDEV);
+                }
+                return fs1.dispatch(op,r,lookup1.getPath(), lookup2.getPath(), arg1, arg2);
+            default:
+                throw new IllegalArgumentException("Unsupported operation: " + Integer.toString(op));
+            }
+        }
+
         private Object fsop(int op, UnixRuntime r, String normalizedPath, int arg1, int arg2) throws ErrnoException {
             int pl = normalizedPath.length();
             if(pl != 0) {
@@ -1791,6 +1851,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final void unlink(UnixRuntime r, String path) throws ErrnoException {
             fsop(FS.UNLINK,r,path,0,0);
         }
+        public final void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
+            fsop(FS.LINK,r,oldpath,newpath, 0, 0);
+        }
 
         private static class CacheEnt {
             public final long time;
@@ -1811,6 +1874,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         static final int MKDIR = 4;
         static final int UNLINK = 5;
         static final int RMDIR = 6;
+        static final int LINK = 7;
 
         GlobalState owner;
         int devno;
@@ -1833,7 +1897,17 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 rmdir(r,path);
                 return null;
             default:
-                throw new Error("should never happen");
+                throw new IllegalArgumentException("Invalid FSOP: " + Integer.toString(op));
+            }
+        }
+
+        Object dispatch(int op, UnixRuntime r, String path1, String path2, int arg1, int arg2) throws ErrnoException {
+            switch(op) {
+            case LINK:
+                link(r, path1, path2);
+                return null;
+            default:
+                throw new IllegalArgumentException("Invalid FSOP: " + Integer.toString(op));
             }
         }
 
@@ -1848,6 +1922,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public abstract void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException;
         public abstract void unlink(UnixRuntime r, String path) throws ErrnoException;
         public abstract void rmdir(UnixRuntime r, String path) throws ErrnoException;
+        public abstract void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException;
     }
 
     // chroot support should go in here if it is ever implemented
@@ -2007,6 +2082,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     }
                 }
                 if(!marked) throw new ErrnoException(EPERM);
+            }
+        }
+
+        public void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
+            try {
+                Files.createLink(hostFile(newpath).toPath(), hostFile(oldpath).toPath());
+            } catch (IOException ex) {
+                throw new ErrnoException(EIO);
             }
         }
 
@@ -2367,6 +2450,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public void unlink(UnixRuntime r, String path) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        public void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
+            throw new ErrnoException(EROFS);
+        }
     }
 
 
@@ -2383,6 +2469,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             throw new ErrnoException(EROFS);
         }
         public void rmdir(UnixRuntime r, String path) throws ErrnoException {
+            throw new ErrnoException(EROFS);
+        }
+        public void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
 
