@@ -1087,7 +1087,7 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
         }
     }
     
-    int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
+    protected int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
         switch(syscall) {
             case SYS_null: return 0;
             case SYS_exit: return sys_exit(a);

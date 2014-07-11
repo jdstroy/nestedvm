@@ -119,7 +119,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
     }
     
-    int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
+    protected int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
         switch(syscall) {
             case SYS_kill: return sys_kill(a,b);
             case SYS_fork: return sys_fork();
