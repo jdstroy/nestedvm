@@ -1327,6 +1327,15 @@ public abstract class Runtime implements UsermodeConstants,Registers,Cloneable {
             if(is == null) return super.read(a,off,length);
             try {
                 int n = is.read(a,off,length);
+                if (n == 0 && length > 0) {
+                    int r = is.read();
+                    if (r >= 0) {
+                        a[off] = (byte)r;
+                        n = 1;
+                    } else {
+                        n = -1;
+                    }
+                }
                 return n < 0 ? 0 : n;
             } catch(IOException e) {
                 throw new ErrnoException(EIO);
