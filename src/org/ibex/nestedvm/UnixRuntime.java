@@ -636,7 +636,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return 0;
     }
     
-    private int sys_dup2(int oldd, int newd) {
+    public int sys_dup2(int oldd, int newd) {
         if(oldd == newd) return 0;
         if(oldd < 0 || oldd >= OPEN_MAX) return -EBADFD;
         if(newd < 0 || newd >= OPEN_MAX) return -EBADFD;
