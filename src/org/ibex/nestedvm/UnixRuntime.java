@@ -1546,6 +1546,13 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
         
     // chroot support should go in here if it is ever implemented
+
+    /**
+     * Normalizes a path, removing path traversals (../, /, /./), (possibly) prepending the current working directory,
+     * and returning the vaule.
+     * @param path the path to normalize
+     * @return a normalized path
+     */
     private String normalizePath(String path) {
         boolean absolute = path.startsWith("/");
         int cwdl = cwd.length();
