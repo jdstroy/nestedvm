@@ -198,12 +198,23 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return gs.stat(this,normalizePath(cstring(cstring))) == null ? -ENOENT : 0;
     }
     
-    private int sys_realpath(int inAddr, int outAddr) throws FaultException {
-        String s = normalizePath(cstring(inAddr));
-        byte[] b = getNullTerminatedBytes(s);
-        if(b.length > PATH_MAX) return -ERANGE;
-        copyout(b,outAddr,b.length);
-        return 0;
+    private int sys_realpath(int fileName, int resolvedName) throws FaultException, ErrnoException {
+        if(fileName == 0) throw new ErrnoException(EINVAL);
+        String path = cstring(fileName);
+        path = normalizePath(path);
+        if(!path.startsWith("/")) path = "/" + path;
+        // FIXME: resolve symlinks
+
+        byte[] b = getNullTerminatedBytes(path);
+        if(b.length > PATH_MAX) throw new ErrnoException(ERANGE);
+        if(resolvedName == 0) {
+            resolvedName = malloc(b.length);
+            if(resolvedName == 0) {
+                throw new ErrnoException(ENOMEM);
+            }
+        }
+        copyout(b,resolvedName,b.length);
+        return resolvedName;
     }
 
     // FEATURE: Signal handling
@@ -679,6 +690,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     
     private int sys_getcwd(int addr, int size) throws FaultException, ErrnoException {
         byte[] b = getBytes(cwd);
+
+        // malloc on addr == NULL is a Linux extension
+        if(addr == 0) {
+            size = size == 0 ? b.length + 2 : size;
+            addr = malloc(size);
+            if (addr == 0) return -ENOMEM;
+        }
+
         if(size == 0) return -EINVAL;
         if(size < b.length+2) return -ERANGE;
         memset(addr,'/',1);
@@ -688,6 +707,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
     
     private int sys_chdir(int addr) throws ErrnoException, FaultException {
+        if(addr == 0) {
+            // FIXME: set errno to EFAULT
+            return -1;
+        }
+
         String path = normalizePath(cstring(addr));
         FStat st = gs.stat(this,path);
         if(st == null) return -ENOENT;
