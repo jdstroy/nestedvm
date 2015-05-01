@@ -1,0 +1,67 @@
+*** newlib/libc/ctype/ctype_.c~	2001-06-11 14:25:59.000000000 -0500
+--- newlib/libc/ctype/ctype_.c	2014-09-22 22:57:17.370539945 -0500
+***************
+*** 84,95 ****
+  	_CTYPE_DATA_128_256
+  };
+  
+  #if defined(__CYGWIN__) || defined(__CYGWIN32__)
+! extern _CONST char __declspec(dllexport) _ctype_[1 + 256] __attribute__ ((alias ("_ctype_b+127")));
+  _CONST char __declspec(dllexport) *__ctype_ptr = _ctype_b + 128;
+  #else
+! extern _CONST char _ctype_[1 + 256] __attribute__ ((alias ("_ctype_b+127")));
+  _CONST char *__ctype_ptr = _ctype_b + 128;
+  #endif
+  
+  #else	/* !defined(ALLOW_NEGATIVE_CTYPE_INDEX) */
+--- 84,105 ----
+  	_CTYPE_DATA_128_256
+  };
+  
+  #if defined(__CYGWIN__) || defined(__CYGWIN32__)
+! _CONST char __declspec(dllexport) _ctype_[1 + 256] =
+! { 0,
+!   _CTYPE_DATA_0_127,
+!   _CTYPE_DATA_128_256
+! };
+! 
+  _CONST char __declspec(dllexport) *__ctype_ptr = _ctype_b + 128;
+  #else
+!   _CONST char _ctype_[1 + 256] =  
+! { 0,
+!   _CTYPE_DATA_0_127,
+!   _CTYPE_DATA_128_256
+! };
+!                 
+  _CONST char *__ctype_ptr = _ctype_b + 128;
+  #endif
+  
+  #else	/* !defined(ALLOW_NEGATIVE_CTYPE_INDEX) */
+*** newlib/libc/ctype/iswctype.c~	2002-09-20 15:13:10.000000000 -0500
+--- newlib/libc/ctype/iswctype.c	2014-09-22 23:01:18.775736950 -0500
+***************
+*** 61,68 ****
+--- 61,69 ----
+        return iswupper (c);
+      case WC_XDIGIT:
+        return iswxdigit (c);
+      default:
++     ;
+      }
+  
+    /* otherwise unknown */
+    return 0;
+*** newlib/libc/ctype/wctype.c~	2002-09-20 15:13:10.000000000 -0500
+--- newlib/libc/ctype/wctype.c	2014-09-22 23:02:47.412176483 -0500
+***************
+*** 120,127 ****
+--- 120,128 ----
+        if (!strcmp (c, "xdigit"))
+          return WC_XDIGIT;
+        break;
+      default:
++     ;
+      }
+  
+    /* otherwise invalid */
+    r->_errno = EINVAL;

@@ -220,8 +220,8 @@ public abstract class Compiler implements Registers {
         if(symtab == null) throw new Exn("Binary has no symtab (did you strip it?)");
         ELF.Symbol sym;
         
-        userInfo = symtab.getGlobalSymbol("user_info");
-        gp = symtab.getGlobalSymbol("_gp");
+        userInfo = symtab.getSymbol("user_info");
+        gp = symtab.getSymbol("_gp");
         if(gp == null) throw new Exn("no _gp symbol (did you strip the binary?)");   
         
         if(pruneCases) {
