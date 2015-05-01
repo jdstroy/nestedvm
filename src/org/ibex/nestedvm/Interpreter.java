@@ -650,7 +650,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
     }
     
     public int lookupSymbol(String name) {
-        ELF.Symbol sym = symtab.getGlobalSymbol(name);
+        ELF.Symbol sym = symtab.getSymbol(name);
         return sym == null ? -1 : sym.addr;
     }
     
@@ -680,8 +680,8 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         
         ELF.Symtab symtab = elf.getSymtab();
         if(symtab == null) throw new IOException("No symtab in binary (did you strip it?)");
-        userInfo = symtab.getGlobalSymbol("user_info");
-        ELF.Symbol gpsym = symtab.getGlobalSymbol("_gp");
+        userInfo = symtab.getSymbol("user_info");
+        ELF.Symbol gpsym = symtab.getSymbol("_gp");
         
         if(gpsym == null) throw new IOException("NO _gp symbol!");
         gp = gpsym.addr;

@@ -1,310 +1,250 @@
-diff -urN ../newlib-1.11.0.orig/libgloss/configure ./libgloss/configure
---- ../newlib-1.11.0.orig/libgloss/configure	Tue Nov 25 09:05:13 2003
-+++ ./libgloss/configure	Mon Nov 24 20:12:14 2003
-@@ -762,6 +762,9 @@
-   mips*-*-pe)
- 	configdirs="wince"
- 	;;
-+  mips*-unknown-elf*)
-+        configdirs="${configdirs}"
-+        ;;
-   mips*-*-*)
- 	configdirs="${configdirs} mips testsuite"
- 	;;
-@@ -818,7 +821,7 @@
- # Extract the first word of "gcc", so it can be a program name with args.
- set dummy gcc; ac_word=$2
- echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
--echo "configure:822: checking for $ac_word" >&5
-+echo "configure:825: checking for $ac_word" >&5
- if eval "test \"`echo '$''{'ac_cv_prog_CC'+set}'`\" = set"; then
-   echo $ac_n "(cached) $ac_c" 1>&6
- else
-@@ -848,7 +851,7 @@
-   # Extract the first word of "cc", so it can be a program name with args.
- set dummy cc; ac_word=$2
- echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
--echo "configure:852: checking for $ac_word" >&5
-+echo "configure:855: checking for $ac_word" >&5
- if eval "test \"`echo '$''{'ac_cv_prog_CC'+set}'`\" = set"; then
-   echo $ac_n "(cached) $ac_c" 1>&6
- else
-@@ -897,7 +900,7 @@
- fi
- 
- echo $ac_n "checking whether we are using GNU C""... $ac_c" 1>&6
--echo "configure:901: checking whether we are using GNU C" >&5
-+echo "configure:904: checking whether we are using GNU C" >&5
- if eval "test \"`echo '$''{'ac_cv_prog_gcc'+set}'`\" = set"; then
-   echo $ac_n "(cached) $ac_c" 1>&6
- else
-@@ -906,7 +909,7 @@
-   yes;
- #endif
- EOF
--if { ac_try='${CC-cc} -E conftest.c'; { (eval echo configure:910: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }; } | egrep yes >/dev/null 2>&1; then
-+if { ac_try='${CC-cc} -E conftest.c'; { (eval echo configure:913: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }; } | egrep yes >/dev/null 2>&1; then
-   ac_cv_prog_gcc=yes
- else
-   ac_cv_prog_gcc=no
-@@ -921,7 +924,7 @@
-   ac_save_CFLAGS="$CFLAGS"
-   CFLAGS=
-   echo $ac_n "checking whether ${CC-cc} accepts -g""... $ac_c" 1>&6
--echo "configure:925: checking whether ${CC-cc} accepts -g" >&5
-+echo "configure:928: checking whether ${CC-cc} accepts -g" >&5
- if eval "test \"`echo '$''{'ac_cv_prog_cc_g'+set}'`\" = set"; then
-   echo $ac_n "(cached) $ac_c" 1>&6
- else
-@@ -953,7 +956,7 @@
- # Extract the first word of "ar", so it can be a program name with args.
- set dummy ar; ac_word=$2
- echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
--echo "configure:957: checking for $ac_word" >&5
-+echo "configure:960: checking for $ac_word" >&5
- if eval "test \"`echo '$''{'ac_cv_prog_AR'+set}'`\" = set"; then
-   echo $ac_n "(cached) $ac_c" 1>&6
- else
-@@ -987,7 +990,7 @@
- # Extract the first word of "ranlib", so it can be a program name with args.
- set dummy ranlib; ac_word=$2
- echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
--echo "configure:991: checking for $ac_word" >&5
-+echo "configure:994: checking for $ac_word" >&5
- if eval "test \"`echo '$''{'ac_cv_prog_RANLIB'+set}'`\" = set"; then
-   echo $ac_n "(cached) $ac_c" 1>&6
- else
-diff -urN ../newlib-1.11.0.orig/libgloss/configure.in ./libgloss/configure.in
---- ../newlib-1.11.0.orig/libgloss/configure.in	Tue Nov 25 09:05:13 2003
-+++ ./libgloss/configure.in	Mon Nov 24 20:12:14 2003
-@@ -73,6 +73,9 @@
-   mips*-*-pe)
- 	configdirs="wince"
- 	;;
-+  mips*-unknown-elf*)
-+        configdirs="${configdirs}"
-+        ;;
-   mips*-*-*)
- 	configdirs="${configdirs} mips testsuite"
- 	;;
-diff -urN ../newlib-1.11.0.orig/newlib/configure.host ./newlib/configure.host
---- ../newlib-1.11.0.orig/newlib/configure.host	Tue Nov 25 09:05:13 2003
-+++ ./newlib/configure.host	Tue Nov 25 08:30:02 2003
-@@ -359,6 +359,9 @@
-   mips*-dec-*)
-	sys_dir=decstation
-	;;
-+  mips-unknown-elf*)
-+        posix_dir=posix; unix_dir=unix
-+        ;;
-   mmix-knuth-mmixware)
-	sys_dir=mmixware
-	;;
-@@ -508,6 +511,10 @@
-	newlib_cflags="${newlib_cflags}"
-	syscall_dir=syscalls
-	;;
-+  mips*-unknown-elf*)
-+       newlib_cflags="${newlib_cflags} -DREENTRANT_SYSCALLS_PROVIDED -DHAVE_GETTIMEOFDAY -DHAVE_FCNTL -DHAVE_OPENDIR -DWANT_PRINTF_LONG_LONG"
-+       syscall_dir=syscalls
-+        ;;
-   mmix-*)
-	syscall_dir=syscalls
-	# We need every symbol 32-bit aligned, so the invalid
-diff -urN ../newlib-1.11.0.orig/newlib/libc/include/paths.h ./newlib/libc/include/paths.h
---- ../newlib-1.11.0.orig/newlib/libc/include/paths.h	Thu Feb 17 14:39:46 2000
-+++ ./newlib/libc/include/paths.h	Tue Nov 25 09:48:09 2003
-@@ -3,5 +3,6 @@
- 
- #define _PATH_DEV	"/dev/"
- #define _PATH_BSHELL    "/bin/sh"
-+#define _PATH_DEVNULL "/dev/null"
- 
- #endif /* _PATHS_H_ */
-diff -urN ../newlib-1.11.0.orig/newlib/libc/include/stdlib.h ./newlib/libc/include/stdlib.h
---- ../newlib-1.11.0.orig/newlib/libc/include/stdlib.h	Fri Dec  6 13:58:50 2002
-+++ ./newlib/libc/include/stdlib.h	Tue Nov 25 09:50:46 2003
-@@ -158,10 +158,12 @@
- _VOID	_EXFUN(cfree,(_PTR));
- #else
- char *	_EXFUN(realpath,(const char *, char *));
-+#endif
- void	_EXFUN(unsetenv,(const char *__string));
- void	_EXFUN(_unsetenv_r,(struct _reent *, const char *__string));
- int	_EXFUN(random,(_VOID));
- long	_EXFUN(srandom,(unsigned __seed));
-+#ifdef __CYGWIN__
- char *  _EXFUN(ptsname, (int));
- int     _EXFUN(grantpt, (int));
- int     _EXFUN(unlockpt,(int));
-diff -urN ../newlib-1.11.0.orig/newlib/libc/include/sys/signal.h ./newlib/libc/include/sys/signal.h
---- ../newlib-1.11.0.orig/newlib/libc/include/sys/signal.h	Wed Jul 24 14:18:07 2002
-+++ ./newlib/libc/include/sys/signal.h	Tue Nov 25 09:56:00 2003
-@@ -142,6 +142,8 @@
- int _EXFUN(pthread_sigmask, (int how, const sigset_t *set, sigset_t *oset));
- #endif
- 
-+int _EXFUN(kill, (int, int));
-+
- /* protos for functions found in winsup sources for CYGWIN */
- #if defined(__CYGWIN__) || defined(__rtems__)
- #undef sigaddset
-@@ -150,7 +152,6 @@
-    <sys/types.h> always defines pid_t to be int.  If that ever
-    changes, then we will need to do something else, perhaps along the
-    lines of <machine/types.h>.  */
--int _EXFUN(kill, (int, int));
- int _EXFUN(killpg, (pid_t, int));
- int _EXFUN(sigaction, (int, const struct sigaction *, struct sigaction *));
- int _EXFUN(sigaddset, (sigset_t *, const int));
-diff -urN ../newlib-1.11.0.orig/newlib/libc/include/sys/stat.h ./newlib/libc/include/sys/stat.h
---- ../newlib-1.11.0.orig/newlib/libc/include/sys/stat.h	Sat Feb 23 15:46:28 2002
-+++ ./newlib/libc/include/sys/stat.h	Tue Nov 25 09:41:35 2003
-@@ -127,7 +127,7 @@
- int	_EXFUN(stat,( const char *__path, struct stat *__sbuf ));
- mode_t	_EXFUN(umask,( mode_t __mask ));
- 
--#if defined(__rtems__) || defined(__CYGWIN__)
-+#if defined(__rtems__) || defined(__CYGWIN__) || 1
- int	_EXFUN(lstat,( const char *__path, struct stat *__buf ));
- int	_EXFUN(mknod,( const char *__path, mode_t __mode, dev_t __dev ));
- #endif
-diff -urN ../newlib-1.11.0.orig/newlib/libc/include/sys/unistd.h ./newlib/libc/include/sys/unistd.h
---- ../newlib-1.11.0.orig/newlib/libc/include/sys/unistd.h	Sun Aug 18 02:08:39 2002
-+++ ./newlib/libc/include/sys/unistd.h	Tue Nov 25 09:46:58 2003
-@@ -158,9 +158,9 @@
- #endif
- char *	_EXFUN(mktemp, (char *));
- int     _EXFUN(sync, (void));
-+#endif
- int     _EXFUN(readlink, (const char *__path, char *__buf, int __buflen));
- int     _EXFUN(symlink, (const char *__name1, const char *__name2));
--#endif
- 
- #define	F_OK	0
- #define	R_OK	4
-diff -urN ../newlib-1.11.0.orig/newlib/libc/include/sys/utime.h ./newlib/libc/include/sys/utime.h
---- ../newlib-1.11.0.orig/newlib/libc/include/sys/utime.h       2000-02-17 14:39:46.000000000 -0500
-+++ ./newlib/libc/include/sys/utime.h   2004-05-02 19:57:46.000000000 -0400
-@@ -15,6 +15,8 @@
-   time_t modtime; 
- };
- 
-+extern int utime(const char *file, const struct utimbuf *buf);
-+
- #ifdef __cplusplus
- };
- #endif
-diff -rNu ../newlib-1.11.0.orig/newlib/libc/include/sys/dirent.h ./newlib/libc/include/sys/dirent.h
---- ../newlib-1.11.0.orig/newlib/libc/include/sys/dirent.h	2000-02-17 14:39:46.000000000 -0500
-+++ ./newlib/libc/include/sys/dirent.h	2004-05-03 01:17:15.000000000 -0400
-@@ -1,15 +1,29 @@
--/* <dirent.h> includes <sys/dirent.h>, which is this file.  On a
--   system which supports <dirent.h>, this file is overridden by
--   dirent.h in the libc/sys/.../sys directory.  On a system which does
--   not support <dirent.h>, we will get this file which tries to find
--   any other <dirent.h> which may be lurking around.  If there isn't
--   one, the user will get an error indicating that there is no
--   <dirent.h>.  */
--
- #ifdef __cplusplus
- extern "C" {
- #endif
--#include_next <dirent.h>
-+
-+#define MAXNAMLEN 4087
-+    
-+struct dirent {
-+    unsigned long d_reclen;
-+    unsigned long d_ino;
-+    char d_name[MAXNAMLEN+1];
-+};
-+
-+typedef struct {
-+    int dd_fd;
-+    char *dd_buf;
-+    long dd_loc;
-+    long dd_size;
-+    long dd_len;
-+} DIR;
-+
-+DIR *opendir (const char *);
-+struct dirent *readdir (DIR *);
-+int readdir_r(DIR *, struct dirent *, struct dirent **);
-+void rewinddir (DIR *);
-+int closedir (DIR *);
-+
- #ifdef __cplusplus
- }
- #endif
---- newlib/libc/include/sys/signal.h~	2004-05-07 02:06:28.000000000 -0400
-+++ newlib/libc/include/sys/signal.h	2004-05-07 02:06:28.000000000 -0400
-@@ -145,7 +145,7 @@
- int _EXFUN(kill, (int, int));
- 
- /* protos for functions found in winsup sources for CYGWIN */
--#if defined(__CYGWIN__) || defined(__rtems__)
-+#if defined(__CYGWIN__) || defined(__rtems__) || 1
- #undef sigaddset
- #undef sigemptyset
- /* The first argument to kill should be pid_t.  Right now
---- newlib/libc/include/sys/signal.h.bak	2004-05-09 23:15:15.000000000 -0400
-+++ newlib/libc/include/sys/signal.h	2004-05-09 23:16:33.000000000 -0400
-@@ -148,6 +148,9 @@
- #if defined(__CYGWIN__) || defined(__rtems__) || 1
- #undef sigaddset
- #undef sigemptyset
-+
-+#include <sys/types.h>
-+
- /* The first argument to kill should be pid_t.  Right now
-    <sys/types.h> always defines pid_t to be int.  If that ever
-    changes, then we will need to do something else, perhaps along the
---- newlib/libc/include/stdlib.h.orig	2004-05-20 04:50:42.000000000 -0400
-+++ newlib/libc/include/stdlib.h	2004-05-20 05:13:20.000000000 -0400
-@@ -156,9 +156,8 @@
- 
- #ifndef __CYGWIN__
- _VOID	_EXFUN(cfree,(_PTR));
--#else
--char *	_EXFUN(realpath,(const char *, char *));
- #endif
-+char *	_EXFUN(realpath,(const char *, char *));
- void	_EXFUN(unsetenv,(const char *__string));
- void	_EXFUN(_unsetenv_r,(struct _reent *, const char *__string));
- int	_EXFUN(random,(_VOID));
-@@ -183,6 +182,8 @@
- 
- _VOID	_EXFUN(__eprintf,(const char *, const char *, unsigned int, const char *));
- 
-+int _EXFUN(daemon,(int,int));
-+
- #ifdef __CYGWIN__
- #undef _malloc_r
- #define _malloc_r(r, s) malloc (s)
---- newlib/libc/include/sys/resource.h.orig	2004-05-19 21:37:03.000000000 -0400
-+++ newlib/libc/include/sys/resource.h	2004-05-20 00:14:32.000000000 -0400
-@@ -11,5 +11,12 @@
- 	struct timeval ru_stime;	/* system time used */
- };
- 
-+#define PRIO_PROCESS 0
-+#define PRIO_MIN -20
-+#define PRIO_MAX 20
-+
-+int getpriority(int which, int who);
-+int setpriority(int which, int who, int prio);
-+
- #endif
- 
---- newlib/libc/include/sys/signal.h.orig	2004-05-19 23:21:25.000000000 -0400
-+++ newlib/libc/include/sys/signal.h	2004-05-20 00:12:55.000000000 -0400
-@@ -117,7 +117,7 @@
- 
- #define SA_NOCLDSTOP 1  /* only value supported now for sa_flags */
- 
--#ifdef __CYGWIN__
-+#if 1
- # define SA_RESTART   0x10000000 /* Restart syscall on signal return.  */
- # define SA_NODEFER   0x40000000 /* Don't automatically block the signal when
-                                     its handler is being executed.  */
+*** libgloss/configure.in~	2011-12-15 16:58:40.000000000 -0600
+--- libgloss/configure.in	2014-10-14 15:10:54.639686243 -0500
+***************
+*** 60,67 ****
+--- 60,70 ----
+  	;;
+    sh*-*-pe | mips*-*-pe | *arm-wince-pe)
+  	AC_CONFIG_SUBDIRS([wince])
+  	;;
++   mips*-unknown-elf*)
++         AC_CONFIG_SUBDIRS()
++         ;;
+    mips*-*-*)
+  	AC_CONFIG_SUBDIRS([mips])
+  	;;
+    powerpc-*-*|powerpcle-*-*)
+*** libgloss/configure~	2011-12-15 16:58:40.000000000 -0600
+--- libgloss/configure	2014-10-14 15:10:56.139693681 -0500
+***************
+*** 2425,2432 ****
+--- 2425,2435 ----
+    sh*-*-pe | mips*-*-pe | *arm-wince-pe)
+  	subdirs="$subdirs wince"
+  
+  	;;
++   mips*-unknown-elf*)
++         subdirs="$subdirs"
++         ;;
+    mips*-*-*)
+  	subdirs="$subdirs mips"
+  
+  	;;
+*** newlib/libc/include/sys/stat.h~	2010-08-06 13:26:21.000000000 -0500
+--- newlib/libc/include/sys/stat.h	2014-10-14 15:24:57.579866157 -0500
+***************
+*** 149,157 ****
+  int	_EXFUN(mkfifo,( const char *__path, mode_t __mode ));
+  int	_EXFUN(stat,( const char *__path, struct stat *__sbuf ));
+  mode_t	_EXFUN(umask,( mode_t __mask ));
+  
+! #if defined (__SPU__) || defined(__rtems__) || defined(__CYGWIN__) && !defined(__INSIDE_CYGWIN__)
+  int	_EXFUN(lstat,( const char *__path, struct stat *__buf ));
+  int	_EXFUN(mknod,( const char *__path, mode_t __mode, dev_t __dev ));
+  #endif
+  
+--- 149,157 ----
+  int	_EXFUN(mkfifo,( const char *__path, mode_t __mode ));
+  int	_EXFUN(stat,( const char *__path, struct stat *__sbuf ));
+  mode_t	_EXFUN(umask,( mode_t __mask ));
+  
+! #if defined (__SPU__) || defined(__rtems__) || defined(__CYGWIN__) && !defined(__INSIDE_CYGWIN__) || 1
+  int	_EXFUN(lstat,( const char *__path, struct stat *__buf ));
+  int	_EXFUN(mknod,( const char *__path, mode_t __mode, dev_t __dev ));
+  #endif
+  
+*** newlib/libc/include/sys/utime.h~	2000-02-17 13:39:46.000000000 -0600
+--- newlib/libc/include/sys/utime.h	2014-10-14 15:26:42.652387184 -0500
+***************
+*** 14,21 ****
+--- 14,23 ----
+    time_t actime;
+    time_t modtime; 
+  };
+  
++ extern int utime(const char *file, const struct utimbuf *buf);
++ 
+  #ifdef __cplusplus
+  };
+  #endif
+  
+*** newlib/libc/include/sys/dirent.h~	2005-10-04 15:47:39.000000000 -0500
+--- newlib/libc/include/sys/dirent.h	2014-10-14 15:29:52.217327186 -0500
+***************
+*** 1,13 ****
+- /* <dirent.h> includes <sys/dirent.h>, which is this file.  On a
+-    system which supports <dirent.h>, this file is overridden by
+-    dirent.h in the libc/sys/.../sys directory.  On a system which does
+-    not support <dirent.h>, we will get this file which uses #error to force
+-    an error.  */
+- 
+  #ifdef __cplusplus
+  extern "C" {
+  #endif
+! #error "<dirent.h> not supported"
+  #ifdef __cplusplus
+  }
+  #endif
+--- 1,30 ----
+  #ifdef __cplusplus
+  extern "C" {
+  #endif
+! 
+! #define MAXNAMLEN 4087
+!     
+! struct dirent {
+!     unsigned long d_reclen;
+!     unsigned long d_ino;   
+!     char d_name[MAXNAMLEN+1];
+! };
+!   
+! typedef struct {
+!     int dd_fd;  
+!     char *dd_buf;
+!     long dd_loc; 
+!     long dd_size;
+!     long dd_len; 
+! } DIR;
+! 
+! DIR *opendir (const char *);
+! struct dirent *readdir (DIR *);
+! int readdir_r(DIR *, struct dirent *, struct dirent **);
+! void rewinddir (DIR *);
+! int closedir (DIR *);  
+! 
+! 
+  #ifdef __cplusplus
+  }
+  #endif
+*** newlib/libc/include/sys/signal.h~	2011-04-19 03:02:59.000000000 -0500
+--- newlib/libc/include/sys/signal.h	2014-10-14 15:31:00.289664738 -0500
+***************
+*** 134,150 ****
+  #if defined(_POSIX_THREADS)
+  int _EXFUN(pthread_sigmask, (int how, const sigset_t *set, sigset_t *oset));
+  #endif
+  
+  /* protos for functions found in winsup sources for CYGWIN */
+! #if defined(__CYGWIN__) || defined(__rtems__)
+  #undef sigaddset
+  #undef sigdelset
+  #undef sigemptyset
+  #undef sigfillset
+  #undef sigismember
+  
+! int _EXFUN(kill, (pid_t, int));
+  int _EXFUN(killpg, (pid_t, int));
+  int _EXFUN(sigaction, (int, const struct sigaction *, struct sigaction *));
+  int _EXFUN(sigaddset, (sigset_t *, const int));
+  int _EXFUN(sigdelset, (sigset_t *, const int));
+--- 134,154 ----
+  #if defined(_POSIX_THREADS)
+  int _EXFUN(pthread_sigmask, (int how, const sigset_t *set, sigset_t *oset));
+  #endif
+  
++ int _EXFUN(kill, (int, int));
++ 
++ 
+  /* protos for functions found in winsup sources for CYGWIN */
+! #if defined(__CYGWIN__) || defined(__rtems__) || 1
+  #undef sigaddset
+  #undef sigdelset
+  #undef sigemptyset
+  #undef sigfillset
+  #undef sigismember
+  
+! #include <sys/types.h>
+! 
+  int _EXFUN(killpg, (pid_t, int));
+  int _EXFUN(sigaction, (int, const struct sigaction *, struct sigaction *));
+  int _EXFUN(sigaddset, (sigset_t *, const int));
+  int _EXFUN(sigdelset, (sigset_t *, const int));
+*** newlib/libc/include/sys/resource.h~	2000-02-17 13:39:46.000000000 -0600
+--- newlib/libc/include/sys/resource.h	2014-10-14 15:34:18.334646790 -0500
+***************
+*** 10,15 ****
+--- 10,22 ----
+    	struct timeval ru_utime;	/* user time used */
+  	struct timeval ru_stime;	/* system time used */
+  };
+  
++ #define PRIO_PROCESS 0
++ #define PRIO_MIN -20
++ #define PRIO_MAX 20
++ 
++ int getpriority(int which, int who);
++ int setpriority(int which, int who, int prio);
++ 
+  #endif
+  
+*** newlib/libc/include/paths.h~	2000-02-17 13:39:46.000000000 -0600
+--- newlib/libc/include/paths.h	2014-10-03 23:32:34.814594320 -0500
+***************
+*** 2,7 ****
+--- 2,8 ----
+  #define _PATHS_H_
+  
+  #define _PATH_DEV	"/dev/"
+  #define _PATH_BSHELL    "/bin/sh"
++ #define _PATH_DEVNULL "/dev/null"
+  
+  #endif /* _PATHS_H_ */
+*** newlib/libc/include/stdlib.h~	2010-07-19 13:21:11.000000000 -0500
+--- newlib/libc/include/stdlib.h	2014-10-14 15:33:41.110462205 -0500
+***************
+*** 192,199 ****
+--- 192,200 ----
+  unsigned long long _EXFUN(_strtoull_r,(struct _reent *, const char *__n, char **__end_PTR, int __base));
+  
+  #ifndef __CYGWIN__
+  _VOID	_EXFUN(cfree,(_PTR));
++ char * _EXFUN(realpath,(const char *, char *));
+  int	_EXFUN(unsetenv,(const char *__string));
+  int	_EXFUN(_unsetenv_r,(struct _reent *, const char *__string));
+  #endif
+  
+***************
+*** 214,221 ****
+--- 215,225 ----
+  int	_EXFUN(_system_r,(struct _reent *, const char *));
+  
+  _VOID	_EXFUN(__eprintf,(const char *, const char *, unsigned int, const char *));
+  
++ int _EXFUN(daemon,(int,int));
++ 
++ 
+  /* On platforms where long double equals double.  */
+  #ifdef _LDBL_EQ_DBL
+  extern long double strtold (const char *, char **);
+  extern long double wcstold (const wchar_t *, wchar_t **);
+*** newlib/configure.host~	2011-11-29 00:33:48.000000000 -0600
+--- newlib/configure.host	2014-10-03 23:32:16.846505222 -0500
+***************
+*** 456,463 ****
+--- 456,466 ----
+  	;;
+    mips*-dec-*)
+  	sys_dir=decstation
+  	;;
++   mips-unknown-elf*)
++         posix_dir=posix; unix_dir=unix
++         ;;
+    mmix-knuth-mmixware)
+  	sys_dir=mmixware
+  	;;
+    moxie*)
+***************
+*** 664,671 ****
+--- 667,678 ----
+    mips64vr*-*-*)
+  	default_newlib_io_long_long="yes"
+  	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES"
+  	;;
++   mips*-unknown-elf*)
++        newlib_cflags="${newlib_cflags} -DHAVE_GETTIMEOFDAY -DHAVE_FCNTL -DHAVE_OPENDIR -DWANT_PRINTF_LONG_LONG -D_NO_GETUT -D_NO_FNMATCH -D_NO_GLOB -D_NO_POPEN -D_NO_PREAD -D_NO_PWRITE -D_NO_REGEX -D_NO_SIGSET -D_NO_WORDEXP -DREENTRANT_SYSCALLS_PROVIDED -D_NO_GETLOGIN -D_NO_GETPASS"
++        syscall_dir=syscalls
++         ;;
+    mips*-*-elf*)
+  	default_newlib_io_long_long="yes"
+  	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES"
+  	;;

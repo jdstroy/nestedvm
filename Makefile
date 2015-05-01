@@ -18,7 +18,7 @@ tasks = upstream/tasks
 #
 # MIPS Settings (don't change these)
 #
-flags = -march=mips1
+flags = -march=mips1 -specs=$(cross_root)/lib/crt0-override.spec
 MIPS_CC = mips-unknown-elf-gcc
 MIPS_CXX = mips-unknown-elf-g++
 MIPS_G77 = mips-unknown-elf-g77
@@ -33,9 +33,17 @@ mips_optflags = -O3 \
 	-fno-rename-registers \
 	-fno-schedule-insns \
 	-fno-delayed-branch \
-	-freduce-all-givs
+#	-fno-merge-constants
 
-MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
+upstream = $(shell pwd)/upstream
+root = $(shell dirname "`pwd`")
+usr = $(upstream)/install
+
+cross_root := $(usr)/mips-unknown-elf
+
+#MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
+MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused 
+#-mno-gpopt
 MIPS_CXXFLAGS = $(MIPS_CFLAGS)
 MIPS_PCFLAGS = $(MIPS_CFLAGS) --big-endian
 MIPS_LD = mips-unknown-elf-gcc
@@ -325,7 +333,7 @@ linpacktest: build/tests/Linpack.class
 #
 # Freetype Stuff
 #
-FreeType_CFLAGS = -Iupstream/build/freetype/include
+FreeType_CFLAGS = -Iupstream/build/freetype/include -specs=$(cross_root)/lib/crt0-override.spec
 FreeType_LDFLAGS =  -Lupstream/build/freetype/objs -lfreetype
 
 FreeTypeDemoHelper_CFLAGS = $(FreeType_CFLAGS)
@@ -359,6 +367,7 @@ build/tests/Echo.class: build/tests/EchoHelper.class
 # Libjpeg
 #
 DJpeg_COMPILERFLAGS = -o onepage,pagesize=8m
+
 build/tests/DJpeg.mips: $(tasks)/build_libjpeg
 	@mkdir -p `dirname $@`
 	cp upstream/build/libjpeg/djpeg $@
@@ -448,7 +457,8 @@ mspackspeedtest: build/tests/SpeedTest.class build/tests/MSPackBench.class
 		echo "Run \"make check\" to get the MS True Type fonts for the MSPackBench test"; \
 	fi
 
-speedtest: build/tests/SpeedTest.class build/tests/DJpeg.class build/tests/FTBench.class tmp/thebride_1280.jpg build/tests/MSPackBench.class
+speedtest: build/tests/SpeedTest.class build/tests/DJpeg.class build/tests/FTBench.class tmp/thebride_1280.jpg 
+##build/tests/MSPackBench.class
 	@echo "Running DJpeg test..."
 	@$(JAVA) -cp build tests.SpeedTest tests.DJpeg 10 -targa -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg
 	@if [ -e tmp/mspack/Comic.TTF ]; then \

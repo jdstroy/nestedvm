@@ -1,13 +1,18 @@
---- newlib/libc/include/sys/config.h	2009-01-03 17:00:12.000000000 -0800
-+++ newlib/libc/include/sys/config.h	2009-01-03 16:59:48.000000000 -0800
-@@ -3,6 +3,10 @@
- 
- #include <machine/ieeefp.h>  /* floating point macros */
- 
-+#ifndef __NESTEDVM__
-+#define __NESTEDVM__
-+#endif
-+
- /* exceptions first */
- #if defined(__H8500__) || defined(__W65__)
- #define __SMALL_BITFIELDS
+*** newlib/libc/include/sys/config.h~	2010-12-02 13:30:46.000000000 -0600
+--- newlib/libc/include/sys/config.h	2014-10-14 16:24:31.197586771 -0500
+***************
+*** 3,10 ****
+--- 3,15 ----
+  
+  #include <machine/ieeefp.h>  /* floating point macros */
+  #include <sys/features.h>	/* POSIX defs */
+  
++ #ifndef __NESTEDVM__
++ #define __NESTEDVM__
++ #endif
++ 
++ 
+  /* exceptions first */
+  #if defined(__H8500__) || defined(__W65__)
+  #define __SMALL_BITFIELDS
+  /* ???  This conditional is true for the h8500 and the w65, defining H8300

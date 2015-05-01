@@ -1,0 +1,23 @@
+*** newlib/libc/include/sys/config.h~	2014-10-17 15:48:33.000000000 -0500
+--- newlib/libc/include/sys/config.h	2014-10-17 16:53:22.342853277 -0500
+***************
+*** 131,139 ****
+  #endif
+  #endif
+  
+  #if defined(__mips__) && !defined(__rtems__)
+! #define __ATTRIBUTE_IMPURE_PTR__ __attribute__((__section__(".sdata")))
+  #endif
+  
+  #ifdef __xstormy16__
+  #define __SMALL_BITFIELDS
+--- 131,139 ----
+  #endif
+  #endif
+  
+  #if defined(__mips__) && !defined(__rtems__)
+! /*#define __ATTRIBUTE_IMPURE_PTR__ __attribute__((__section__(".sdata")))*/
+  #endif
+  
+  #ifdef __xstormy16__
+  #define __SMALL_BITFIELDS

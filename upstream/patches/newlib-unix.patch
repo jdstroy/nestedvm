@@ -1,38 +1,81 @@
---- newlib/libc/unix/Makefile.in~	2004-06-29 00:33:42.000000000 -0400
-+++ newlib/libc/unix/Makefile.in	2004-06-29 00:33:42.000000000 -0400
-@@ -111,7 +111,6 @@
- INCLUDES = $(NEWLIB_CFLAGS) $(CROSS_CFLAGS) $(TARGET_CFLAGS)
- 
- GENERAL_SOURCES = \
--	getcwd.c 	\
- 	pread.c 	\
- 	pwrite.c 	\
- 	sigset.c
---- newlib/libc/unix/Makefile.in.orig	2004-06-29 01:21:23.000000000 -0400
-+++ newlib/libc/unix/Makefile.in	2004-06-29 02:28:37.000000000 -0400
-@@ -126,10 +126,7 @@
- 	getpwent.$(oext) 	\
- 	getut.$(oext)
- 
--@ELIX_LEVEL_1_TRUE@LIB_OBJS = 
--@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_TRUE@LIB_OBJS = @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_TRUE@$(ELIX_2_OBJS)
--@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_TRUE@LIB_OBJS = @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_TRUE@$(ELIX_2_OBJS)
--@ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@@ELIX_LEVEL_4_TRUE@LIB_OBJS = @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@@ELIX_LEVEL_4_TRUE@$(ELIX_2_OBJS) $(ELIX_4_OBJS)
-+LIB_OBJS = 
- 
- libunix_la_LDFLAGS = -Xcompiler -nostdlib
- 
-@@ -161,11 +158,11 @@
- DEFS = @DEFS@ -I. -I$(srcdir) 
- CPPFLAGS = @CPPFLAGS@
- LIBS = @LIBS@
--@USE_LIBTOOL_FALSE@lib_a_OBJECTS =  getcwd.$(OBJEXT) pread.$(OBJEXT) \
-+@USE_LIBTOOL_FALSE@lib_a_OBJECTS =  pread.$(OBJEXT) \
- @USE_LIBTOOL_FALSE@pwrite.$(OBJEXT) sigset.$(OBJEXT)
- LTLIBRARIES =  $(noinst_LTLIBRARIES)
- 
--@USE_LIBTOOL_TRUE@libunix_la_OBJECTS =  getcwd.lo pread.lo pwrite.lo \
-+@USE_LIBTOOL_TRUE@libunix_la_OBJECTS =  pread.lo pwrite.lo \
- @USE_LIBTOOL_TRUE@sigset.lo
- CFLAGS = @CFLAGS@
- COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+*** newlib/libc/unix/Makefile.in~	2011-12-19 16:03:49.000000000 -0600
+--- newlib/libc/unix/Makefile.in	2014-10-14 17:04:04.477355230 -0500
+***************
+*** 54,62 ****
+  LIBRARIES = $(noinst_LIBRARIES)
+  ARFLAGS = cru
+  lib_a_AR = $(AR) $(ARFLAGS)
+  lib_a_LIBADD =
+! am__objects_1 = lib_a-getcwd.$(OBJEXT) lib_a-pread.$(OBJEXT) \
+  	lib_a-pwrite.$(OBJEXT) lib_a-sigset.$(OBJEXT)
+  am__objects_2 = lib_a-ttyname.$(OBJEXT) lib_a-ttyname_r.$(OBJEXT)
+  am__objects_3 = lib_a-basename.$(OBJEXT) lib_a-dirname.$(OBJEXT) \
+  	lib_a-getlogin.$(OBJEXT) lib_a-getpass.$(OBJEXT) \
+--- 54,62 ----
+  LIBRARIES = $(noinst_LIBRARIES)
+  ARFLAGS = cru
+  lib_a_AR = $(AR) $(ARFLAGS)
+  lib_a_LIBADD =
+! am__objects_1 = lib_a-pread.$(OBJEXT) \
+  	lib_a-pwrite.$(OBJEXT) lib_a-sigset.$(OBJEXT)
+  am__objects_2 = lib_a-ttyname.$(OBJEXT) lib_a-ttyname_r.$(OBJEXT)
+  am__objects_3 = lib_a-basename.$(OBJEXT) lib_a-dirname.$(OBJEXT) \
+  	lib_a-getlogin.$(OBJEXT) lib_a-getpass.$(OBJEXT) \
+***************
+*** 70,78 ****
+  @USE_LIBTOOL_FALSE@	$(am__objects_4)
+  lib_a_OBJECTS = $(am_lib_a_OBJECTS)
+  LTLIBRARIES = $(noinst_LTLIBRARIES)
+  libunix_la_LIBADD =
+! am__objects_5 = getcwd.lo pread.lo pwrite.lo sigset.lo
+  am__objects_6 = ttyname.lo ttyname_r.lo
+  am__objects_7 = basename.lo dirname.lo getlogin.lo getpass.lo \
+  	getpwent.lo getut.lo
+  @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@am__objects_8 = $(am__objects_6) \
+--- 70,78 ----
+  @USE_LIBTOOL_FALSE@	$(am__objects_4)
+  lib_a_OBJECTS = $(am_lib_a_OBJECTS)
+  LTLIBRARIES = $(noinst_LTLIBRARIES)
+  libunix_la_LIBADD =
+! am__objects_5 = pread.lo pwrite.lo sigset.lo
+  am__objects_6 = ttyname.lo ttyname_r.lo
+  am__objects_7 = basename.lo dirname.lo getlogin.lo getpass.lo \
+  	getpwent.lo getut.lo
+  @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@am__objects_8 = $(am__objects_6) \
+***************
+*** 249,257 ****
+  top_srcdir = @top_srcdir@
+  AUTOMAKE_OPTIONS = cygnus
+  INCLUDES = $(NEWLIB_CFLAGS) $(CROSS_CFLAGS) $(TARGET_CFLAGS)
+  GENERAL_SOURCES = \
+- 	getcwd.c 	\
+  	pread.c 	\
+  	pwrite.c 	\
+  	sigset.c
+  
+--- 249,256 ----
+***************
+*** 266,277 ****
+  	getpass.c 	\
+  	getpwent.c 	\
+  	getut.c
+  
+! @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_FALSE@ELIX_SOURCES = $(ELIX_2_SOURCES) $(ELIX_4_SOURCES)
+! @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_FALSE@@ELIX_LEVEL_3_TRUE@ELIX_SOURCES = $(ELIX_2_SOURCES)
+! @ELIX_LEVEL_1_FALSE@@ELIX_LEVEL_2_TRUE@ELIX_SOURCES = $(ELIX_2_SOURCES)
+! @ELIX_LEVEL_1_TRUE@ELIX_SOURCES = 
+  libunix_la_LDFLAGS = -Xcompiler -nostdlib
+  @USE_LIBTOOL_TRUE@noinst_LTLIBRARIES = libunix.la
+  @USE_LIBTOOL_TRUE@libunix_la_SOURCES = $(GENERAL_SOURCES) $(ELIX_SOURCES)
+  @USE_LIBTOOL_FALSE@noinst_DATA = 
+--- 265,274 ----
+  	getpass.c 	\
+  	getpwent.c 	\
+  	getut.c
+  
+! ELIX_SOURCES =
+! 
+  libunix_la_LDFLAGS = -Xcompiler -nostdlib
+  @USE_LIBTOOL_TRUE@noinst_LTLIBRARIES = libunix.la
+  @USE_LIBTOOL_TRUE@libunix_la_SOURCES = $(GENERAL_SOURCES) $(ELIX_SOURCES)
+  @USE_LIBTOOL_FALSE@noinst_DATA = 

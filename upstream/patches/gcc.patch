@@ -1,0 +1,25 @@
+*** gcc/config.gcc~	2013-10-02 19:47:24.000000000 -0500
+--- gcc/config.gcc	2014-09-19 23:05:47.878447819 -0500
+***************
+*** 1916,1923 ****
+--- 1916,1927 ----
+  	tmake_file="mips/t-elf mips/t-sb1"
+  	target_cpu_default="MASK_64BIT|MASK_FLOAT64"
+  	tm_defines="${tm_defines} MIPS_ISA_DEFAULT=64 MIPS_CPU_STRING_DEFAULT=\\\"sb1\\\" MIPS_ABI_DEFAULT=ABI_O64"
+  	;;
++ mips*-unknown-elf*)
++        tm_file="elfos.h newlib-stdint.h ${tm_file} mips/elf.h"
++        tmake_file="mips/t-elf mips/t-unknown"
++         ;;
+  mips-*-elf* | mipsel-*-elf*)
+  	tm_file="elfos.h newlib-stdint.h ${tm_file} mips/elf.h"
+  	tmake_file="mips/t-elf"
+  	;;
+*** gcc/config/mips/t-unknown~	2014-09-19 23:07:48.767047085 -0500
+--- gcc/config/mips/t-unknown	2014-09-19 23:04:35.686089598 -0500
+***************
+*** 0 ****
+--- 1,3 ----
++ MULTILIB_OPTIONS = msingle-float
++ MULTILIB_DIRNAMES = single-float
++ MULTILIB_MATCHES = msingle-float=m4650

@@ -950,3 +950,8 @@ gid_t agroup;
     getgrouplist(uname, agroup, groups, &ngroups);
     return (setgroups(ngroups, groups));
 }
+
+int
+_isatty_r(struct _reent *ptr, int fd)
+{ return isatty(fd);
+}

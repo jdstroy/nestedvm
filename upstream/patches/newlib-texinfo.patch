@@ -1,0 +1,23 @@
+*** missing~	2009-08-22 06:48:33.000000000 -0500
+--- missing	2014-10-17 14:55:17.991723886 -0500
+***************
+*** 313,321 ****
+        test -z "$file" && file=`echo "$infile" | sed 's,.*/,,;s,.[^.]*$,,'`.info
+      fi
+      # If the file does not exist, the user really needs makeinfo;
+      # let's fail without touching anything.
+!     test -f $file || exit 1
+      touch $file
+      ;;
+  
+    tar*)
+--- 313,321 ----
+        test -z "$file" && file=`echo "$infile" | sed 's,.*/,,;s,.[^.]*$,,'`.info
+      fi
+      # If the file does not exist, the user really needs makeinfo;
+      # let's fail without touching anything.
+! #    test -f $file || exit 1
+      touch $file
+      ;;
+  
+    tar*)

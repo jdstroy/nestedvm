@@ -1,21 +1,42 @@
---- newlib/libc/stdlib/mallocr.c.old	Sun Nov 23 18:41:21 2003
-+++ newlib/libc/stdlib/mallocr.c	Sun Nov 23 18:43:03 2003
-@@ -301,7 +301,8 @@
- #define SEPARATE_OBJECTS
- #define HAVE_MMAP 0
- #define MORECORE(size) _sbrk_r(reent_ptr, (size))
--#define MORECORE_CLEARS 0
-+#define MORECORE_CLEARS 1
-+#define malloc_getpagesize getpagesize()
- #define MALLOC_LOCK __malloc_lock(reent_ptr)
- #define MALLOC_UNLOCK __malloc_unlock(reent_ptr)
- 
-@@ -310,7 +311,7 @@
- # undef WIN32
- #endif
- 
--#ifndef _WIN32
-+#if !defined(_WIN32) && !defined(malloc_getpagesize)
- #ifdef SMALL_MEMORY
- #define malloc_getpagesize (128)
- #else
+*** newlib/libc/stdlib/mallocr.c~	2010-05-31 14:15:41.000000000 -0500
+--- newlib/libc/stdlib/mallocr.c	2014-10-03 23:25:33.240503853 -0500
+***************
+*** 306,323 ****
+  #define POINTER_UINT unsigned _POINTER_INT
+  #define SEPARATE_OBJECTS
+  #define HAVE_MMAP 0
+  #define MORECORE(size) _sbrk_r(reent_ptr, (size))
+! #define MORECORE_CLEARS 0
+  #define MALLOC_LOCK __malloc_lock(reent_ptr)
+  #define MALLOC_UNLOCK __malloc_unlock(reent_ptr)
+  
+  #ifdef __CYGWIN__
+  # undef _WIN32
+  # undef WIN32
+  #endif
+  
+! #ifndef _WIN32
+  #ifdef SMALL_MEMORY
+  #define malloc_getpagesize (128)
+  #else
+  #define malloc_getpagesize (4096)
+--- 306,324 ----
+  #define POINTER_UINT unsigned _POINTER_INT
+  #define SEPARATE_OBJECTS
+  #define HAVE_MMAP 0
+  #define MORECORE(size) _sbrk_r(reent_ptr, (size))
+! #define MORECORE_CLEARS 1
+! #define malloc_getpagesize getpagesize()
+  #define MALLOC_LOCK __malloc_lock(reent_ptr)
+  #define MALLOC_UNLOCK __malloc_unlock(reent_ptr)
+  
+  #ifdef __CYGWIN__
+  # undef _WIN32
+  # undef WIN32
+  #endif
+  
+! #if !defined(_WIN32) && !defined(malloc_getpagesize)
+  #ifdef SMALL_MEMORY
+  #define malloc_getpagesize (128)
+  #else
+  #define malloc_getpagesize (4096)
