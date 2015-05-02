@@ -155,35 +155,23 @@ tasks/build_%: tasks/patch_%
 
 ## gcc ##############################################################################
 
-#version_gcc = 3.3.6
 version_gcc = 4.8.3
 
 url_gcc-all = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-$(version_gcc).tar.gz
 
-url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(version_gcc).tar.gz
-url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
-url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
-
-#patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-with-newer-version.patch
 patches_gcc = gcc.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --disable-libssp --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
-configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
+configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,fortran"
 
 tasks/build_gcc: tasks/build_linker
 
 tasks/download_gcc: tasks/download_gcc-all
 	touch $@
 	
-#tasks/download_gcc: tasks/download_gcc-core tasks/download_gcc-c++ tasks/download_gcc-g77
-#	touch $@
-
 tasks/extract_gcc: tasks/download_gcc
 	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
 	mkdir -p build
-#	cd build && gzip -dc ../download/gcc-core-$(version_gcc).tar.gz | $(TAR) -xf -
-#	cd build && gzip -dc ../download/gcc-g++-$(version_gcc).tar.gz | $(TAR) -xf -
-#	cd build && gzip -dc ../download/gcc-g77-$(version_gcc).tar.gz | $(TAR) -xf -
 	cd build && gzip -dc ../download/gcc-$(version_gcc).tar.gz | $(TAR) -xf -
 	touch $@
 
