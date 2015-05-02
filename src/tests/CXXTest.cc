@@ -1,4 +1,6 @@
 #include <iostream>
+#include <stdio.h>
+#include <typeinfo>
 
 using namespace std;
 
