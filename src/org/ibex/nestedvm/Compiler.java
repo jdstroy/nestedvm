@@ -251,6 +251,10 @@ public abstract class Compiler implements Registers {
         
         for(int i=0;i<elf.sheaders.length;i++) {
             String name = elf.sheaders[i].name;
+            // Allow .rel.dyn if it's empty
+            if(name.equals(".rel.dyn") && isSectionEmpty(elf, i))
+                continue;
+
             if((elf.sheaders[i].flags & ELF.SHF_ALLOC) !=0 && !(
                 name.equals(".text")|| name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") ||
                 name.equals(".ctors") || name.equals(".dtors") || name.equals(".bss") || name.equals(".sbss")))
@@ -258,7 +262,23 @@ public abstract class Compiler implements Registers {
         }
         _go();
     }
-    
+
+    protected boolean isSectionEmpty(ELF elf, int sectionIndex) throws IOException {
+        InputStream in = elf.sheaders[sectionIndex].getInputStream();
+        try {
+            int read;
+            while ((read = in.read()) >= 0) {
+                // Empty sections contain only 0x00000000 (R_MIPS_NONE)
+                if (read != 0) {
+                    return false;
+                }
+            }
+            return true;
+        } finally {
+            in.close();
+        }
+    }
+
     private void findBranchesInSymtab(ELF.Symtab symtab, Hashtable jumps) {
         ELF.Symbol[] symbols = symtab.symbols;
         int n=0;
