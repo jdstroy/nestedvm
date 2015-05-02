@@ -95,6 +95,7 @@ public class JavaSourceCompiler extends Compiler {
                 emitData(sheader.addr, new DataInputStream(sheader.getInputStream()), sheader.size,name.equals(".rodata")); 
             else if(name.equals(".bss") || name.equals(".sbss"))                
                 emitBSS(sheader.addr,sheader.size);
+            else if(name.equals(".rel.dyn") && isSectionEmpty(elf, i)) { }
             else
                 throw new Exn("Unknown segment: " + name);
         }
