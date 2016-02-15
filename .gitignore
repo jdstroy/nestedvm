@@ -2,4 +2,6 @@ upstream/tasks/*
 upstream/build/*
 upstream/download
 upstream/install
-
+build
+nestedvm.jar
+.manifest
