@@ -137,7 +137,7 @@ tasks/patch_%: tasks/extract_%
 	if [ -e $@ ]; then echo "Error: $@ exists. something isn't right"; false; else true; fi
 	cd build/$*-$(version_$*) &&  \
 	for p in $(patches_$*) end; do \
-		[ "$$p" = "end" ] || $(PATCH) -p0 -l < ../../patches/$$p || exit 1; \
+		echo $$p; [ "$$p" = "end" ] || $(PATCH) -p0 -l < ../../patches/$$p || exit 1; \
 	done
 	touch $@
 ks/build_binutils: tasks/patch_binutils
@@ -168,7 +168,7 @@ url_gcc-core = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-core-$(v
 url_gcc-c++ = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g++-$(version_gcc).tar.gz
 url_gcc-g77 = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-g77-$(version_gcc).tar.gz
 
-patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-with-newer-version.patch gcc-ffeinfoKindtype.patch
+patches_gcc = gcc-fixes.patch gcc-fdata-sections-bss.patch gcc-64bitclean.patch gcc-with-newer-version.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
 configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,f77"
@@ -231,9 +231,9 @@ tasks/build_gpc: tasks/patch_gpc tasks/build_libc
 
 ## binutils ##############################################################################
 
-version_binutils = 2.14
+version_binutils = 2.22
 url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
-patches_binutils = binutils-no64.patch binutils-nocompilein.patch
+patches_binutils = binutils-no64.patch #binutils-nocompilein.patch
 configure_binutils = --target=mips-unknown-elf
 
 ## newlib ##############################################################################
