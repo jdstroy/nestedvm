@@ -15,7 +15,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
     // Registers
     private int[] registers = new int[32];
     private int hi,lo;
-    
+
     // Floating Point Registers
     private int[] fpregs = new int[32];
     // 24-31 - unused
@@ -26,13 +26,13 @@ public class Interpreter extends UnixRuntime implements Cloneable {
     // 2-6   - flags (unimplemented)
     // 0-1   - rounding mode (only implemented for fixed point conversions)
     private int fcsr;
-    
+
     private int pc;
-    
+
     // The filename if the binary we're running
     public String image;
     private ELF.Symtab symtab;
-    
+
     // Register Operations
     private final void setFC(boolean b) { fcsr = (fcsr&~0x800000) | (b ? 0x800000 : 0x000000); }
     private final int roundingMode() { return fcsr & 3; /* bits 0-1 */ }
@@ -45,7 +45,8 @@ public class Interpreter extends UnixRuntime implements Cloneable {
     }
     private final float getFloat(int r) { return Float.intBitsToFloat(fpregs[r]); }
     private final void setFloat(int r, float f) { fpregs[r] = Float.floatToRawIntBits(f); }
-    
+
+    @Override
     protected void _execute() throws ExecutionException {
         try {
             runSome();
@@ -54,14 +55,15 @@ public class Interpreter extends UnixRuntime implements Cloneable {
             throw e;
         }
     }
-    
+
+    @Override
     protected Object clone() throws CloneNotSupportedException {
         Interpreter r = (Interpreter) super.clone();
-        r.registers = (int[]) registers.clone();
-        r.fpregs = (int[]) fpregs.clone();
+        r.registers = registers.clone();
+        r.fpregs = fpregs.clone();
         return r;
     }
-    
+
     // Main interpretor
     // the return value is meaningless, its just to catch people typing "return" by accident
     private final int runSome() throws FaultException,ExecutionException {
@@ -82,13 +84,13 @@ public class Interpreter extends UnixRuntime implements Cloneable {
 
         int op = (insn >>> 26) & 0xff;                 // bits 26-31
         int rs = (insn >>> 21) & 0x1f;                 // bits 21-25
-        int rt = (insn >>> 16) & 0x1f;                 // bits 16-20 
+        int rt = (insn >>> 16) & 0x1f;                 // bits 16-20
         int ft = (insn >>> 16) & 0x1f;
         int rd = (insn >>> 11) & 0x1f;                 // bits 11-15
         int fs = (insn >>> 11) & 0x1f;
         int shamt = (insn >>> 6) & 0x1f;               // bits 6-10
         int fd = (insn >>> 6) & 0x1f;
-        int subcode = insn & 0x3f;                     // bits 0-5  
+        int subcode = insn & 0x3f;                     // bits 0-5
 
         int jumpTarget = (insn & 0x03ffffff);          // bits 0-25
         int unsignedImmediate = insn & 0xffff;
@@ -96,9 +98,9 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         int branchTarget = signedImmediate;
 
         int tmp, addr; // temporaries
-        
+
         r[ZERO] = 0;
-        
+
         switch(op) {
             case 0: {
                 switch(subcode) {
@@ -211,7 +213,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                 switch(rt) {
                     case 0: // BLTZ
                         if(r[rs] < 0) {
-                            pc += 4; tmp = pc + branchTarget*4; nextPC = tmp;                   
+                            pc += 4; tmp = pc + branchTarget*4; nextPC = tmp;
                             continue OUTER;
                         }
                         break;
@@ -229,7 +231,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                         break;
                     case 17: // BGEZAL
                         if(r[rs] >= 0) {
-                            pc += 4; r[RA] = pc+4; tmp = pc + branchTarget*4; nextPC = tmp;  
+                            pc += 4; r[RA] = pc+4; tmp = pc + branchTarget*4; nextPC = tmp;
                             continue OUTER;
                         }
                         break;
@@ -254,9 +256,9 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                     continue OUTER;
                 }
                 break;
-            case 5: // BNE                
+            case 5: // BNE
                 if(r[rs] != r[rt]) {
-                    pc += 4; tmp = pc + branchTarget*4; nextPC = tmp; 
+                    pc += 4; tmp = pc + branchTarget*4; nextPC = tmp;
                     continue OUTER;
                 }
                 break;
@@ -319,7 +321,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                         break;
                     case 6: // CTC.1
                         if(fs != 31) throw new ExecutionException("FCR " + fs + " unavailable");
-                        fcsr = r[rt];   
+                        fcsr = r[rt];
                         break;
                     case 8: // BC1F, BC1T
                         if(((fcsr&0x800000)!=0) == (((insn>>>16)&1)!=0)) {
@@ -369,7 +371,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                                 break;
                             case 62: // C.LE.S
                                 setFC(getFloat(fs) <= getFloat(ft));
-                                break;   
+                                break;
                             default: throw new ExecutionException("Invalid Instruction 17/" + rs + "/" + subcode + " at " + sourceLine(pc));
                         }
                         break;
@@ -422,7 +424,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                                 break;
                             case 62: // C.LE.D
                                 setFC(getDouble(fs) <= getDouble(ft));
-                                break;                                
+                                break;
                             default: throw new ExecutionException("Invalid Instruction 17/" + rs + "/" + subcode + " at " + sourceLine(pc));
                         }
                         break;
@@ -477,7 +479,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
                 }
                 if((tmp&0x8000)!=0) tmp |= 0xffff0000; // sign extend
                 r[rt] = tmp;
-                break;              
+                break;
             }
             case 34: { // LWL;
                 addr = r[rs] + signedImmediate;
@@ -648,46 +650,51 @@ public class Interpreter extends UnixRuntime implements Cloneable {
     }
         return 0;
     }
-    
+
+    @Override
     public int lookupSymbol(String name) {
         ELF.Symbol sym = symtab.getSymbol(name);
         return sym == null ? -1 : sym.addr;
     }
-    
+
     private int gp;
+    @Override
     protected int gp() { return gp; }
-    
+
     private ELF.Symbol userInfo;
     protected int userInfoBae() { return userInfo == null ? 0 : userInfo.addr; }
+    @Override
     protected int userInfoSize() { return userInfo == null ? 0 : userInfo.size; }
-    
+
     private int entryPoint;
+    @Override
     protected int entryPoint() { return entryPoint; }
-    
+
     private int heapStart;
+    @Override
     protected int heapStart() { return heapStart; }
-    
+
     // Image loading function
     private void loadImage(Seekable data) throws IOException {
         ELF elf = new ELF(data);
         symtab = elf.getSymtab();
-        
+
         if(elf.header.type != ELF.ET_EXEC) throw new IOException("Binary is not an executable");
         if(elf.header.machine != ELF.EM_MIPS) throw new IOException("Binary is not for the MIPS I Architecture");
         if(elf.ident.data != ELF.ELFDATA2MSB) throw new IOException("Binary is not big endian");
-        
+
         entryPoint = elf.header.entry;
-        
+
         ELF.Symtab symtab = elf.getSymtab();
         if(symtab == null) throw new IOException("No symtab in binary (did you strip it?)");
         userInfo = symtab.getSymbol("user_info");
         ELF.Symbol gpsym = symtab.getSymbol("_gp");
-        
+
         if(gpsym == null) throw new IOException("NO _gp symbol!");
         gp = gpsym.addr;
-        
+
         entryPoint = elf.header.entry;
-        
+
         ELF.PHeader[] pheaders = elf.pheaders;
         int brk = 0;
         int pageSize = (1<<pageShift);
@@ -702,7 +709,7 @@ public class Interpreter extends UnixRuntime implements Cloneable {
             int addr = ph.vaddr;
             if(addr == 0x0) throw new IOException("pheader vaddr == 0x0");
             brk = max(addr+memsize,brk);
-            
+
             for(int j=0;j<memsize+pageSize-1;j+=pageSize) {
                 int page = (j+addr) >>> pageShift;
                 if(readPages[page] == null)
@@ -722,21 +729,23 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         }
         heapStart = (brk+pageSize-1)&~(pageSize-1);
     }
-    
+
+    @Override
     protected void setCPUState(CPUState state) {
         for(int i=1;i<32;i++) registers[i] = state.r[i];
         for(int i=0;i<32;i++) fpregs[i] = state.f[i];
         hi=state.hi; lo=state.lo; fcsr=state.fcsr;
         pc=state.pc;
     }
-    
+
+    @Override
     protected void getCPUState(CPUState state) {
         for(int i=1;i<32;i++) state.r[i] = registers[i];
         for(int i=0;i<32;i++) state.f[i] = fpregs[i];
         state.hi=hi; state.lo=lo; state.fcsr=fcsr;
         state.pc=pc;
     }
-    
+
     public Interpreter(Seekable data) throws IOException {
         super(4096,65536);
         loadImage(data);
@@ -746,13 +755,13 @@ public class Interpreter extends UnixRuntime implements Cloneable {
         image = filename;
     }
     public Interpreter(InputStream is) throws IOException { this(new Seekable.InputStream(is)); }
-    
+
     // Debug functions
     // NOTE: This probably requires a jdk > 1.1, however, it is only used for debugging
-    private java.util.HashMap sourceLineCache;
+    private java.util.HashMap<Integer,String> sourceLineCache;
     public String sourceLine(int pc) {
         final String addr2line = "mips-unknown-elf-addr2line";
-        String line = (String) (sourceLineCache == null ? null : sourceLineCache.get(new Integer(pc)));
+        String line = sourceLineCache == null ? null : sourceLineCache.get(new Integer(pc));
         if(line != null) return line;
         if(image==null) return null;
         try {
@@ -760,15 +769,16 @@ public class Interpreter extends UnixRuntime implements Cloneable {
             line = new BufferedReader(new InputStreamReader(p.getInputStream())).readLine();
             if(line == null) return null;
             while(line.startsWith("../")) line = line.substring(3);
-            if(sourceLineCache == null) sourceLineCache = new java.util.HashMap();
+            if(sourceLineCache == null) sourceLineCache = new java.util.HashMap<>();
             sourceLineCache.put(new Integer(pc),line);
             return line;
         } catch(IOException e) {
             return null;
         }
     }
-    
+
     public class DebugShutdownHook implements Runnable {
+        @Override
         public void run() {
             int pc = Interpreter.this.pc;
             if(getState() == RUNNING)

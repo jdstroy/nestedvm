@@ -15,27 +15,28 @@ public class JavaSourceCompiler extends Compiler {
     private StringBuffer inits = new StringBuffer();
     /** Stores lines to go in the class scope */
     private StringBuffer classLevel = new StringBuffer();
-    
+
     /** The stream to write the compiled output to */
     private PrintWriter out;
 
     /** Prints a blank line to the output stream */
     private void p() { out.println(); }
-    /** prints the given string (indented by <i>indent</i>*4 spaces) to the output stream */ 
+    /** prints the given string (indented by <i>indent</i>*4 spaces) to the output stream */
     private void p(String s) { out.println(indents[indent] + s); }
     private void pblock(StringBuffer sb) { out.print(sb.toString()); }
-    
+
     /** Used by the p() method to add indentation */
     private int indent;
-    
+
     private static String indents[] = new String[16];
     static { String s=""; for(int i=0;i<indents.length;i++,s=s+"    ") indents[i] = s; }
-    
+
     public JavaSourceCompiler(Seekable binary, String className, Writer w)  throws IOException {
         super(binary,className);
         out = new PrintWriter(w);
     }
-    
+
+    @Override
     protected void _go() throws Exn, IOException {
         if(singleFloat) throw new Exn("JavaSourceCompiler doesn't support singleFloat");
         String packageName;
@@ -47,14 +48,14 @@ public class JavaSourceCompiler extends Compiler {
             className = fullClassName;
             packageName = null;
         }
-        
+
         p("/* This file was generated from " + source + " by Mips2Java on " + dateTime() + " */");
         if (packageName != null) p("package " + packageName + ";");
         if(runtimeStats) p("import java.util.*;");
         p();
         p("public final class " + className + " extends " + runtimeClass + " {");
         indent++;
-        
+
         p("/* program counter */");
         p("private int pc = 0;");
         if(debugCompiler)
@@ -75,35 +76,35 @@ public class JavaSourceCompiler extends Compiler {
         p("/* FP Control Register */");
         p("private int fcsr = 0;");
         p();
-        
+
         if(onePage) p("private final int[] page = readPages[0];");
-                
-        // Generate main body functions (run_XXXX() blocks, _data[] arrays, etc) 
+
+        // Generate main body functions (run_XXXX() blocks, _data[] arrays, etc)
         int highestAddr = 0;
-        
+
         for(int i=0;i<elf.sheaders.length;i++) {
             ELF.SHeader sheader = elf.sheaders[i];
             String name = sheader.name;
             // if this section doesn't get loaded into our address space don't worry about it
             if(sheader.addr == 0x0) continue;
-            
+
             highestAddr = Math.max(highestAddr, sheader.addr + sheader.size);
-            
+
             if(name.equals(".text"))
                 emitText(sheader.addr, new DataInputStream(sheader.getInputStream()),sheader.size);
             else if(name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") || name.equals(".ctors") || name.equals(".dtors"))
-                emitData(sheader.addr, new DataInputStream(sheader.getInputStream()), sheader.size,name.equals(".rodata")); 
-            else if(name.equals(".bss") || name.equals(".sbss"))                
+                emitData(sheader.addr, new DataInputStream(sheader.getInputStream()), sheader.size,name.equals(".rodata"));
+            else if(name.equals(".bss") || name.equals(".sbss"))
                 emitBSS(sheader.addr,sheader.size);
             else if(name.equals(".rel.dyn") && isSectionEmpty(elf, i)) { }
             else
                 throw new Exn("Unknown segment: " + name);
         }
         p();
-        
+
         pblock(classLevel);
         p();
-        
+
         // Trampoline (dispatch calls to the appropriate run_XXX() methods
         p("private final void trampoline() throws ExecutionException {");
         indent++;
@@ -118,7 +119,7 @@ public class JavaSourceCompiler extends Compiler {
         indent--; p("}");
         indent--; p("}");
         p();
-        
+
         // Constructor
         p("public " + className + "() {");
         indent++;
@@ -127,15 +128,15 @@ public class JavaSourceCompiler extends Compiler {
         indent--;
         p("}");
         p();
-        
+
         p("protected int entryPoint() { return " + toHex(elf.header.entry) + "; }");
         p("protected int heapStart() { return " + toHex(highestAddr) + "; }");
         p("protected int gp() { return " + toHex(gp.addr) + "; }");
         if(userInfo != null) {
-            p("protected int userInfoBase() { return " + toHex(userInfo.addr) + "; }");            
-            p("protected int userInfoSize() { return " + toHex(userInfo.size) + "; }");            
+            p("protected int userInfoBase() { return " + toHex(userInfo.addr) + "; }");
+            p("protected int userInfoSize() { return " + toHex(userInfo.size) + "; }");
         }
-        
+
         // main() function
         p("public static void main(String[] args) throws Exception {");
         indent++;
@@ -146,11 +147,11 @@ public class JavaSourceCompiler extends Compiler {
         indent--;
         p("}");
         p();
-        
+
         // Runtime abstract methods
         p("protected void _execute() throws ExecutionException { trampoline(); }");
         p();
-        
+
         p("protected void setCPUState(CPUState state) {");
         indent++;
         for(int i=1;i<32;i++) p("r" + i + "=state.r[" + i + "];");
@@ -168,7 +169,7 @@ public class JavaSourceCompiler extends Compiler {
         indent--;
         p("}");
         p();
-        
+
         if(supportCall) {
             p("private static final " + hashClass + " symbols = new " + hashClass + "();");
             p("static {");
@@ -184,7 +185,7 @@ public class JavaSourceCompiler extends Compiler {
             p("public int lookupSymbol(String symbol) { Integer i = (Integer) symbols.get(symbol); return i==null ? -1 : i.intValue(); }");
             p();
         }
-        
+
         // Runtime stats
         if(runtimeStats) {
             p("private HashMap counters = new HashMap();");
@@ -195,14 +196,14 @@ public class JavaSourceCompiler extends Compiler {
             p("}");
             p();
         }
-        
+
         indent--;
         p("}");
     }
-    
+
     private int startOfMethod = 0;
     private int endOfMethod = 0;
-    
+
     private void startMethod(int addr) {
         addr &= ~(maxBytesPerMethod-1);
         startOfMethod = addr;
@@ -210,7 +211,7 @@ public class JavaSourceCompiler extends Compiler {
         String methodName = "run_" + Long.toString(addr & 0xffffffffL, 16);
         runs.append(indents[4] + "case " + toHex(addr>>>methodShift) + ": " + methodName + "(); break; \n");
         //runs.append(indents[4] + "case " + toHex(addr&methodMask) + ": " + methodName + "(); break; \n");
-        
+
         p("private final void " + methodName + "() throws ExecutionException { /"+"* " + toHex(addr) + " - " + toHex(endOfMethod) + " *" + "/");
         indent++;
         p("int addr, tmp;");
@@ -219,7 +220,7 @@ public class JavaSourceCompiler extends Compiler {
         p("switch(pc) {");
         indent++;
     }
-    
+
     private void endMethod() { endMethod(endOfMethod); }
     private void endMethod(int lastAddr) {
         if(startOfMethod == 0) return;
@@ -243,8 +244,8 @@ public class JavaSourceCompiler extends Compiler {
         p("}"); // end method
         endOfMethod = startOfMethod = 0;
     }
-    
-    private HashMap relativeAddrs = new HashMap();  
+
+    private HashMap<Integer,Boolean> relativeAddrs = new HashMap<>();
     private String constant(int target) {
         if(target >= 4096 && lessConstants) {
             int n = target & ~1023;
@@ -258,7 +259,7 @@ public class JavaSourceCompiler extends Compiler {
             return toHex(target);
         }
     }
-    
+
     private void branch(int pc, int target) {
         if(debugCompiler) p("lastPC = " + toHex(pc) + ";");
         p("pc=" + constant(target) + ";");
@@ -271,22 +272,22 @@ public class JavaSourceCompiler extends Compiler {
         else
             leaveMethod();
     }
-    
+
     private void leaveMethod() {
         p("return;");
     }
-    
+
     private boolean textDone;
     private void emitText(int addr, DataInputStream dis, int size) throws Exn,IOException {
         if(textDone) throw new Exn("Multiple text segments");
         textDone = true;
-        
+
         if((addr&3)!=0 || (size&3)!=0) throw new Exn("Section on weird boundaries");
         int count = size/4;
         int nextInsn = dis.readInt();
         if(nextInsn == -1) throw new Error("Actually read -1 at " + toHex(addr));
         int insn;
-        
+
         for(int i=0;i<count;i++,addr+=4) {
             insn = nextInsn;
             nextInsn = (i == count-1) ? -1 : dis.readInt();
@@ -307,7 +308,7 @@ public class JavaSourceCompiler extends Compiler {
         p();
         dis.close();
     }
-    
+
     private int initDataCount = 0;
     private void emitData(int addr, DataInputStream dis, int size, boolean readOnly) throws Exn,IOException {
         if((addr&3)!=0 || (size&3)!=0) throw new Exn("Data section on weird boundaries");
@@ -324,7 +325,7 @@ public class JavaSourceCompiler extends Compiler {
                 }
                 for(int j=0;j<8;j++) {
                     char c = (char) ((l>>>(7*(7-j)))&0x7f);
-                    if(c=='\n') sb.append("\\n"); 
+                    if(c=='\n') sb.append("\\n");
                     else if(c=='\r') sb.append("\\r");
                     else if(c=='\\') sb.append("\\\\");
                     else if(c=='"') sb.append("\\\"");
@@ -350,19 +351,19 @@ public class JavaSourceCompiler extends Compiler {
 
     // True if the current code path is unreachable (any instruction with a case statement is reachable)
     private boolean unreachable = false;
-    
+
     private void emitInstruction(int pc, int insn, int nextInsn) throws IOException,Exn {
         if(insn == -1) throw new Error("insn is -1");
-        
+
         int op = (insn >>> 26) & 0xff;                 // bits 26-31
         int rs = (insn >>> 21) & 0x1f;                 // bits 21-25
-        int rt = (insn >>> 16) & 0x1f;                 // bits 16-20 
+        int rt = (insn >>> 16) & 0x1f;                 // bits 16-20
         int ft = (insn >>> 16) & 0x1f;
         int rd = (insn >>> 11) & 0x1f;                 // bits 11-15
         int fs = (insn >>> 11) & 0x1f;
         int shamt = (insn >>> 6) & 0x1f;               // bits 6-10
         int fd = (insn >>> 6) & 0x1f;
-        int subcode = insn & 0x3f;                     // bits 0-5  
+        int subcode = insn & 0x3f;                     // bits 0-5
 
         int jumpTarget = (insn & 0x03ffffff);          // bits 0-25
         int unsignedImmediate = insn & 0xffff;
@@ -370,18 +371,18 @@ public class JavaSourceCompiler extends Compiler {
         int branchTarget = signedImmediate;
 
         int tmp; // temporaries
-        
+
         //if(pc%64==0) p("System.err.println(\"Executing: " + toHex(pc) + "\");");
         //p("/" + "*" + (pc == -1 ? "Delay Slot"  : toHex(pc)) + " *" + "/ ");
         if(pc==-1) p("/" + "* Next insn is delay slot *" + "/ ");
-        
+
         if(runtimeStats && op != 0) p("inc(\"opcode: " + op + "\");");
         switch(op) {
             case 0: {
                 if(runtimeStats && insn != 0) p("inc(\"opcode: 0/" + subcode + "\");");
                 switch(subcode) {
                     case 0: // SLL
-                        if(insn != 0) 
+                        if(insn != 0)
                             p( "r"+rd+" = r"+rt+" << "+shamt+";");
                         break;
                     case 2: // SRL
@@ -570,7 +571,7 @@ public class JavaSourceCompiler extends Compiler {
                     indent--;
                 p("}");
                 break;
-            case 5: // BNE       
+            case 5: // BNE
                 if(pc == -1) throw new Error("pc modifying insn in delay slot");
                 p("if(r" + rs + " != r" + rt + ") {");
                     indent++;
@@ -649,7 +650,7 @@ public class JavaSourceCompiler extends Compiler {
                         p("}");
                         break;
                     }
-                    case 16: {  // Single 
+                    case 16: {  // Single
                         switch(subcode) {
                             case 0: // ADD.S
                                 p(setFloat(fd,getFloat(fs)+"+"+getFloat(ft)));
@@ -693,7 +694,7 @@ public class JavaSourceCompiler extends Compiler {
                                 break;
                             case 62: // C.LE.S
                                 p("fcsr = (fcsr&~0x800000) | (("+getFloat(fs)+"<="+getFloat(ft)+") ? 0x800000 : 0x000000);");
-                                break;                                
+                                break;
                             default: throw new Exn("Invalid Instruction 17/" + rs + "/" + subcode);
                         }
                         break;
@@ -736,14 +737,14 @@ public class JavaSourceCompiler extends Compiler {
                                 p("}");
                                 break;
                             case 50: // C.EQ.D
-                                p("fcsr = (fcsr&~0x800000) | (("+getDouble(fs)+"=="+getDouble(ft)+") ? 0x800000 : 0x000000);");                                
+                                p("fcsr = (fcsr&~0x800000) | (("+getDouble(fs)+"=="+getDouble(ft)+") ? 0x800000 : 0x000000);");
                                 break;
                             case 60: // C.LT.D
-                                p("fcsr = (fcsr&~0x800000) | (("+getDouble(fs)+"<"+getDouble(ft)+") ? 0x800000 : 0x000000);");                                
+                                p("fcsr = (fcsr&~0x800000) | (("+getDouble(fs)+"<"+getDouble(ft)+") ? 0x800000 : 0x000000);");
                                 break;
                             case 62: // C.LE.D
-                                p("fcsr = (fcsr&~0x800000) | (("+getDouble(fs)+"<="+getDouble(ft)+") ? 0x800000 : 0x000000);");                                
-                                break;                                
+                                p("fcsr = (fcsr&~0x800000) | (("+getDouble(fs)+"<="+getDouble(ft)+") ? 0x800000 : 0x000000);");
+                                break;
                             default: throw new Exn("Invalid Instruction 17/" + rs + "/" + subcode);
                         }
                         break;
@@ -759,7 +760,7 @@ public class JavaSourceCompiler extends Compiler {
                                 break;
                             default: throw new Exn("Invalid Instruction 17/" + rs + "/" + subcode);
                         }
-                        break; 
+                        break;
                     }
                     default:
                         throw new Exn("Invalid Instruction 17/" + rs);
@@ -775,7 +776,7 @@ public class JavaSourceCompiler extends Compiler {
                 p("tmp = (tmp>>>(((~addr)&3)<<3)) & 0xff;");
                 p("if((tmp&0x80)!=0) tmp |= 0xffffff00; /* sign extend */");
                 p("r"+rt+" = tmp;");
-                break; 
+                break;
             }
             case 33: { // LH
                 if(runtimeStats) p("inc(\"LH\");");
@@ -784,7 +785,7 @@ public class JavaSourceCompiler extends Compiler {
                 p("tmp = (tmp>>>(((~addr)&2)<<3)) & 0xffff;");
                 p("if((tmp&0x8000)!=0) tmp |= 0xffff0000; /* sign extend */");
                 p("r"+rt+" = tmp;");
-                break; 
+                break;
             }
             case 34: { // LWL;
                 p("addr=r" + rs +"+"+signedImmediate + ";");
@@ -812,21 +813,21 @@ public class JavaSourceCompiler extends Compiler {
                 memRead("addr","tmp");
                 p("tmp = (tmp>>>(((~addr)&3)<<3)) & 0xff;");
                 p("r"+rt+" = tmp;");
-                break; 
+                break;
             }
             case 37: { // LHU
                 p("addr=r" + rs +"+"+signedImmediate + ";");
                 memRead("addr","tmp");
                 p("tmp = (tmp>>>(((~addr)&2)<<3)) & 0xffff;");
                 p("r"+rt+" = tmp;");
-                break; 
+                break;
             }
             case 38: { // LWR
                 p("addr=r" + rs +"+"+signedImmediate + ";");
                 memRead("addr","tmp");
                 p("r" + rt + " = (r"+rt+"&(0xffffff00<<((addr&3)<<3)))|(tmp>>>(((~addr)&3)<<3));");
                 break;
-                
+
                 /*p("addr=r" + rs +"+"+signedImmediate + ";");
                 memRead("addr&~3","tmp");
                 p("switch(addr&3) {");
@@ -838,7 +839,7 @@ public class JavaSourceCompiler extends Compiler {
                 indent--;
                 p("}");
                 break;*/
-                
+
             }
             case 40: { // SB
                 if(runtimeStats) p("inc(\"SB\");");
@@ -895,7 +896,7 @@ public class JavaSourceCompiler extends Compiler {
                 throw new Exn("Invalid Instruction: " + op + " at " + toHex(pc));
         }
     }
-    
+
     // Helper functions for emitText
     // NOTE: memWrite and memRead MUST discard the last two bits of addr
     private void memWrite(String addr, String target) {
@@ -926,4 +927,4 @@ public class JavaSourceCompiler extends Compiler {
             "f"+(r+1)+" = (int)(l >>> 32); f"+r+" = (int)l; }";
     }
 }
-    
+

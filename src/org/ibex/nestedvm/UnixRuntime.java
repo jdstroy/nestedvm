@@ -17,6 +17,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     /** The pid of this "process" */
     private int pid;
     private UnixRuntime parent;
+    @Override
     public final int getPid() {
         return pid;
     }
@@ -37,8 +38,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private UnixRuntime execedRuntime;
 
     private Object children; // used only for synchronizatin
-    private Vector activeChildren;
-    private Vector exitedChildren;
+    private Vector<UnixRuntime> activeChildren;
+    private Vector<UnixRuntime> exitedChildren;
 
     protected UnixRuntime(int pageSize, int totalPages) {
         this(pageSize,totalPages,false);
@@ -78,6 +79,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return false;
     }
 
+    @Override
     String[] createEnv(String[] extra) {
         String[] defaults = new String[7];
         int n=0;
@@ -99,8 +101,10 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return env;
     }
 
+    @SuppressWarnings("serial")
     private static class ProcessTableFullExn extends RuntimeException { }
 
+    @Override
     void _started() {
         UnixRuntime[] tasks = gs.tasks;
         synchronized(gs) {
@@ -131,7 +135,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             tasks[pid] = this;
         }
     }
- 
+
+    @Override
     protected int _syscall(int syscall, int a, int b, int c, int d, int e, int f) throws ErrnoException, FaultException {
         switch(syscall) {
         case SYS_kill:
@@ -203,7 +208,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         case SYS_chown:
             return sys_chown(a,b,c);
         case SYS_lchown:
-            return sys_chown(a,b,c);
+            return sys_lchown(a,b,c);
         case SYS_fchown:
             return sys_fchown(a,b,c);
         case SYS_chmod:
@@ -251,6 +256,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
 
         return 0;
     }
+    @Override
     FD _open(String path, int flags, int mode) throws ErrnoException {
         path = normalizePath(path);
         FD fd = gs.open(this,path,flags,mode);
@@ -288,7 +294,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         // FEATURE: sys_access
         return gs.stat(this,normalizePath(cstring(cstring))) == null ? -ENOENT : 0;
     }
-    
+
     private int sys_realpath(int fileName, int resolvedName) throws FaultException, ErrnoException {
         if(fileName == 0) throw new ErrnoException(EINVAL);
         String path = cstring(fileName);
@@ -319,7 +325,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     private int sys_kill(int pid, int signal) {
         // This will only be called by raise() in newlib to invoke the default handler
         // We don't have to worry about actually delivering the signal
-        if(pid != pid) return -ESRCH;
+        if(pid != this.pid) return -ESRCH;
         if(signal < 0 || signal >= 32) return -EINVAL;
         switch(signal) {
         case 0:
@@ -357,7 +363,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             for(;;) {
                 if(pid == -1) {
                     if(exitedChildren.size() > 0) {
-                        done = (UnixRuntime)exitedChildren.elementAt(exitedChildren.size() - 1);
+                        done = exitedChildren.elementAt(exitedChildren.size() - 1);
                         exitedChildren.removeElementAt(exitedChildren.size() - 1);
                     }
                 } else if(pid > 0) {
@@ -390,15 +396,16 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
 
 
+    @Override
     void _exited() {
         if(children != null) synchronized(children) {
-                for(Enumeration e = exitedChildren.elements(); e.hasMoreElements(); ) {
-                    UnixRuntime child = (UnixRuntime) e.nextElement();
+                for(Enumeration<UnixRuntime> e = exitedChildren.elements(); e.hasMoreElements(); ) {
+                    UnixRuntime child = e.nextElement();
                     gs.tasks[child.pid] = null;
                 }
                 exitedChildren.removeAllElements();
-                for(Enumeration e = activeChildren.elements(); e.hasMoreElements(); ) {
-                    UnixRuntime child = (UnixRuntime) e.nextElement();
+                for(Enumeration<UnixRuntime> e = activeChildren.elements(); e.hasMoreElements(); ) {
+                    UnixRuntime child = e.nextElement();
                     child.parent = null;
                 }
                 activeChildren.removeAllElements();
@@ -420,6 +427,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
     }
 
+    @Override
     protected Object clone() throws CloneNotSupportedException {
         UnixRuntime r = (UnixRuntime) super.clone();
         r.pid = 0;
@@ -450,8 +458,8 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         //System.err.println("fork " + pid + " -> " + r.pid + " tasks[" + r.pid + "] = " + gd.tasks[r.pid]);
         if(children == null) {
             children = new Object();
-            activeChildren = new Vector();
-            exitedChildren = new Vector();
+            activeChildren = new Vector<>();
+            exitedChildren = new Vector<>();
         }
         activeChildren.addElement(r);
 
@@ -473,6 +481,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             this.initial = initial;
             start();
         }
+        @Override
         public void run() {
             UnixRuntime.executeAndExec(initial);
         }
@@ -513,7 +522,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     static {
         Method m;
         try {
-            m = Class.forName("org.ibex.nestedvm.RuntimeCompiler").getMethod("compile",new Class[] {Seekable.class,String.class,String.class});
+            m = Class.forName("org.ibex.nestedvm.RuntimeCompiler").getMethod("compile",new Class<?>[] {Seekable.class,String.class,String.class});
         } catch(NoSuchMethodException e) {
             m = null;
         } catch(ClassNotFoundException e) {
@@ -522,14 +531,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         runtimeCompilerCompile = m;
     }
 
-    public Class runtimeCompile(Seekable s, String sourceName) throws IOException {
+    public Class<?> runtimeCompile(Seekable s, String sourceName) throws IOException {
         if(runtimeCompilerCompile == null) {
             if(STDERR_DIAG) System.err.println("WARNING: Exec attempted but RuntimeCompiler not found!");
             return null;
         }
 
         try {
-            return (Class) runtimeCompilerCompile.invoke(null,new Object[] {s,"unixruntime,maxinsnpermethod=256,lessconstants",sourceName});
+            return (Class<?>) runtimeCompilerCompile.invoke(null,new Object[] {s,"unixruntime,maxinsnpermethod=256,lessconstants",sourceName});
         } catch(IllegalAccessException e) {
             e.printStackTrace();
             return null;
@@ -557,14 +566,14 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
 
         FStat fstat = gs.stat(this,path);
         if(fstat == null) return -ENOENT;
-        GlobalState.CacheEnt ent = (GlobalState.CacheEnt) gs.execCache.get(path);
+        GlobalState.CacheEnt ent = gs.execCache.get(path);
         long mtime = fstat.mtime();
         long size = fstat.size();
         if(ent != null) {
             //System.err.println("Found cached entry for " + path);
             if(ent.time ==mtime && ent.size == size) {
                 if(ent.o instanceof Class)
-                    return execClass((Class) ent.o,argv,envp);
+                    return execClass((Class<?>) ent.o,argv,envp);
                 if(ent.o instanceof String[])
                     return execScript(path,(String[]) ent.o,argv,envp);
                 throw new Error("should never happen");
@@ -590,7 +599,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 if(buf[1] != 'E' || buf[2] != 'L' || buf[3] != 'F') return -ENOEXEC;
                 s.seek(0);
                 if(STDERR_DIAG) System.err.println("Running RuntimeCompiler for " + path);
-                Class c = runtimeCompile(s,path);
+                Class<?> c = runtimeCompile(s,path);
                 if(STDERR_DIAG) System.err.println("RuntimeCompiler finished for " + path);
                 if(c == null) throw new ErrnoException(ENOEXEC);
                 gs.execCache.put(path,new GlobalState.CacheEnt(mtime,size,c));
@@ -650,9 +659,9 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return exec(command[0],newArgv,envp);
     }
 
-    public int execClass(Class c,String[] argv, String[] envp) {
+    public int execClass(Class<?> c,String[] argv, String[] envp) {
         try {
-            UnixRuntime r = (UnixRuntime) c.getDeclaredConstructor(new Class[] {Boolean.TYPE}).newInstance(new Object[] {Boolean.TRUE});
+            UnixRuntime r = (UnixRuntime) c.getDeclaredConstructor(new Class<?>[] {Boolean.TYPE}).newInstance(new Object[] {Boolean.TRUE});
             return exec(r,argv,envp);
         } catch(Exception e) {
             e.printStackTrace();
@@ -691,9 +700,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         public final FD writer = new Writer();
 
         public class Reader extends FD {
+            @Override
             protected FStat _fstat() {
                 return new SocketFStat();
             }
+            @Override
             public int read(byte[] buf, int off, int len) throws ErrnoException {
                 if(len == 0) return 0;
                 synchronized(Pipe.this) {
@@ -713,9 +724,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     return len;
                 }
             }
+            @Override
             public int flags() {
                 return O_RDONLY;
             }
+            @Override
             public void _close() {
                 synchronized(Pipe.this) {
                     readPos = -1;
@@ -725,9 +738,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
 
         public class Writer extends FD {
+            @Override
             protected FStat _fstat() {
                 return new SocketFStat();
             }
+            @Override
             public int write(byte[] buf, int off, int len) throws ErrnoException {
                 if(len == 0) return 0;
                 synchronized(Pipe.this) {
@@ -752,9 +767,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                     return len;
                 }
             }
+            @Override
             public int flags() {
                 return O_WRONLY;
             }
+            @Override
             public void _close() {
                 synchronized(Pipe.this) {
                     writePos = -1;
@@ -785,7 +802,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
         return 0;
     }
-    
+
     public int sys_dup2(int oldd, int newd) {
         if(oldd == newd) return 0;
         if(oldd < 0 || oldd >= OPEN_MAX) return -EBADFD;
@@ -882,6 +899,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         return n;
     }
 
+    @Override
     void _preCloseFD(FD fd) {
         // release all fcntl locks on this file
         Seekable s = fd.seekable();
@@ -901,6 +919,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         }
     }
 
+    @Override
     void _postCloseFD(FD fd) {
         if (fd.isMarkedForDeleteOnClose()) {
             try {
@@ -1114,6 +1133,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
 
+        @Override
         public void _close() {
             try {
                 if(s != null) s.close();
@@ -1124,6 +1144,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
 
+        @Override
         public int read(byte[] a, int off, int length) throws ErrnoException {
             if(type() == TYPE_DGRAM) return recvfrom(a,off,length,null,null);
             if(is == null) throw new ErrnoException(EPIPE);
@@ -1155,6 +1176,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return dp.getLength();
         }
 
+        @Override
         public int write(byte[] a, int off, int length) throws ErrnoException {
             if(type() == TYPE_DGRAM) return  sendto(a,off,length,null,-1);
 
@@ -1194,9 +1216,11 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return dp.getLength();
         }
 
+        @Override
         public int flags() {
             return O_RDWR;
         }
+        @Override
         public FStat _fstat() {
             return new SocketFStat();
         }
@@ -1238,6 +1262,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         try {
             switch(fd.type()) {
             case SocketFD.TYPE_STREAM: {
+                @SuppressWarnings("resource")
                 Socket s = new Socket(inetAddr,port);
                 fd.s = s;
                 fd.setOptions();
@@ -1602,7 +1627,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     }
 
     public static final class GlobalState {
-        Hashtable execCache = new Hashtable();
+        Hashtable<String, CacheEnt> execCache = new Hashtable<>();
 
         final UnixRuntime[] tasks;
         int nextPID = 1;
@@ -1654,10 +1679,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return mapHostPath(new File(s));
         }
         public String mapHostPath(File f) {
-            MP[] list;
+// bcg: can remove? seems to only use the instance variable below
+//            MP[] list;
             FS root;
             synchronized(this) {
-                mps = this.mps;
+// bcg: can remove? this variable is being assigned to itself
+//                mps = this.mps;
                 root = this.root;
             }
             if(!f.isAbsolute()) f = new File(f.getAbsolutePath());
@@ -1692,6 +1719,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
             public String path;
             public FS fs;
+            @Override
             public int compareTo(Object o) {
                 if(!(o instanceof MP)) return 1;
                 return -path.compareTo(((MP)o).path);
@@ -2013,15 +2041,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         final int inode = fs.inodes.get(f.getAbsolutePath());
         final int devno = fs.devno;
         return new HostFStat(f,e) {
+            @Override
             public int inode() {
                 return inode;
             }
+            @Override
             public int dev() {
                 return devno;
             }
         };
     }
 
+    @Override
     FD hostFSDirFD(File f, Object _fs) {
         HostFS fs = (HostFS) _fs;
         return fs.new HostDirFD(f);
@@ -2055,15 +2086,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             this.root = root;
         }
 
+        @Override
         public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
             final File f = hostFile(path);
             return r.hostFSOpen(f,flags,mode,this);
         }
 
+        @Override
         public void rmdir(UnixRuntime r, String path) throws ErrnoException {
             unlink(r, path);
         }
 
+        @Override
         public void unlink(UnixRuntime r, String path) throws ErrnoException {
             File f = hostFile(path);
             if(r.sm != null && !r.sm.allowUnlink(f)) throw new ErrnoException(EPERM);
@@ -2085,6 +2119,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
 
+        @Override
         public void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
             try {
                 Files.createLink(hostFile(newpath).toPath(), hostFile(oldpath).toPath());
@@ -2093,6 +2128,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
 
+        @Override
         public FStat stat(UnixRuntime r, String path) throws ErrnoException {
             File f = hostFile(path);
             if(r.sm != null && !r.sm.allowStat(f)) throw new ErrnoException(EACCES);
@@ -2100,6 +2136,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return r.hostFStat(f,this);
         }
 
+        @Override
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException {
             File f = hostFile(path);
             if(r.sm != null && !r.sm.allowWrite(f)) throw new ErrnoException(EACCES);
@@ -2124,23 +2161,29 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 children = new File[l.length];
                 for(int i=0; i<l.length; i++) children[i] = new File(f,l[i]);
             }
+            @Override
             public int size() {
                 return children.length;
             }
+            @Override
             public String name(int n) {
                 return children[n].getName();
             }
+            @Override
             public int inode(int n) {
                 return inodes.get(children[n].getAbsolutePath());
             }
+            @Override
             public int parentInode() {
                 File parent = getParentFile(f);
                 // HACK: myInode() isn't really correct  if we're not the root
                 return parent == null ? myInode() : inodes.get(parent.getAbsolutePath());
             }
+            @Override
             public int myInode() {
                 return inodes.get(f.getAbsolutePath());
             }
+            @Override
             public int myDev() {
                 return devno;
             }
@@ -2151,6 +2194,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
      * in a unix path. The path /cygdrive/c/myfile is converted to C:\file.
      * As there is no POSIX standard for this, little checking is done. */
     public static class CygdriveFS extends HostFS {
+        @Override
         protected File hostFile(String path) {
             java.util.logging.Logger.getLogger(CygdriveFS.class.getName()).fine("path = " + path);
             final char drive = path.charAt(0);
@@ -2187,10 +2231,12 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         protected abstract int myDev();
         protected abstract int parentInode();
         protected abstract int myInode();
+        @Override
         public int flags() {
             return O_RDONLY;
         }
 
+        @Override
         public int getdents(byte[] buf, int off, int len) {
             int ooff = off;
             int ino;
@@ -2225,14 +2271,18 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return off-ooff;
         }
 
+        @Override
         protected FStat _fstat() {
             return new FStat() {
+                @Override
                 public int type() {
                     return S_IFDIR;
                 }
+                @Override
                 public int inode() {
                     return myInode();
                 }
+                @Override
                 public int dev() {
                     return myDev();
                 }
@@ -2248,72 +2298,91 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
         private static final int FD_INODES = 32;
 
         private abstract class DevFStat extends FStat {
+            @Override
             public int dev() {
                 return devno;
             }
+            @Override
             public int mode() {
                 return 0666;
             }
+            @Override
             public int type() {
                 return S_IFCHR;
             }
+            @Override
             public int nlink() {
                 return 1;
             }
+            @Override
             public abstract int inode();
         }
 
         private abstract class DevDirFD extends DirFD {
+            @Override
             public int myDev() {
                 return devno;
             }
         }
 
         private FD devZeroFD = new FD() {
+            @Override
             public int read(byte[] a, int off, int length) {
                 /*Arrays.fill(a,off,off+length,(byte)0);*/
                 for(int i=off; i<off+length; i++) a[i] = 0;
                 return length;
             }
+            @Override
             public int write(byte[] a, int off, int length) {
                 return length;
             }
+            @Override
             public int seek(int n, int whence) {
                 return 0;
             }
+            @Override
             public FStat _fstat() {
                 return new DevFStat() {
+                    @Override
                     public int inode() {
                         return ZERO_INODE;
                     }
                 };
             }
+            @Override
             public int flags() {
                 return O_RDWR;
             }
         };
         private FD devNullFD = new FD() {
+            @Override
             public int read(byte[] a, int off, int length) {
                 return 0;
             }
+            @Override
             public int write(byte[] a, int off, int length) {
                 return length;
             }
+            @Override
             public int seek(int n, int whence) {
                 return 0;
             }
+            @Override
             public FStat _fstat() {
                 return new DevFStat() {
+                    @Override
                     public int inode() {
                         return NULL_INODE;
                     }
                 };
             }
+            @Override
             public int flags() {
                 return O_RDWR;
             }
         };
 
+        @Override
         public FD open(UnixRuntime r, String path, int mode, int flags) throws ErrnoException {
             if(path.equals("null")) return devNullFD;
             if(path.equals("zero")) return devZeroFD;
@@ -2337,18 +2406,23 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 count = 0;
                 for(int i=0; i<OPEN_MAX; i++) if(r.fds[i] != null) files[count++] = i;
                 return new DevDirFD() {
+                    @Override
                     public int myInode() {
                         return FD_INODE;
                     }
+                    @Override
                     public int parentInode() {
                         return ROOT_INODE;
                     }
+                    @Override
                     public int inode(int n) {
                         return FD_INODES + n;
                     }
+                    @Override
                     public String name(int n) {
                         return Integer.toString(files[n]);
                     }
+                    @Override
                     public int size() {
                         return files.length;
                     }
@@ -2356,13 +2430,16 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
             if(path.equals("")) {
                 return new DevDirFD() {
+                    @Override
                     public int myInode() {
                         return ROOT_INODE;
                     }
                     // HACK: We don't have any clean way to get the parent inode
+                    @Override
                     public int parentInode() {
                         return ROOT_INODE;
                     }
+                    @Override
                     public int inode(int n) {
                         switch(n) {
                         case 0:
@@ -2376,6 +2453,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                         }
                     }
 
+                    @Override
                     public String name(int n) {
                         switch(n) {
                         case 0:
@@ -2388,6 +2466,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                             return null;
                         }
                     }
+                    @Override
                     public int size() {
                         return 3;
                     }
@@ -2396,6 +2475,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return null;
         }
 
+        @Override
         public FStat stat(UnixRuntime r,String path) throws ErrnoException {
             if(path.equals("null")) return devNullFD.fstat();
             if(path.equals("zero")) return devZeroFD.fstat();
@@ -2411,29 +2491,37 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 return r.fds[n].fstat();
             }
             if(path.equals("fd")) return new FStat() {
+                @Override
                 public int inode() {
                     return FD_INODE;
                 }
+                @Override
                 public int dev() {
                     return devno;
                 }
+                @Override
                 public int type() {
                     return S_IFDIR;
                 }
+                @Override
                 public int mode() {
                     return 0444;
                 }
             };
             if(path.equals(""))   return new FStat() {
+                @Override
                 public int inode() {
                     return ROOT_INODE;
                 }
+                @Override
                 public int dev() {
                     return devno;
                 }
+                @Override
                 public int type() {
                     return S_IFDIR;
                 }
+                @Override
                 public int mode() {
                     return 0444;
                 }
@@ -2441,15 +2529,19 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             return null;
         }
 
+        @Override
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        @Override
         public void rmdir(UnixRuntime r, String path) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        @Override
         public void unlink(UnixRuntime r, String path) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        @Override
         public void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
@@ -2459,48 +2551,61 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
     public static class ResourceFS extends FS {
         final InodeCache inodes = new InodeCache(500);
 
+        @Override
         public FStat lstat(UnixRuntime r, String path) throws ErrnoException {
             return stat(r,path);
         }
+        @Override
         public void mkdir(UnixRuntime r, String path, int mode) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        @Override
         public void unlink(UnixRuntime r, String path) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        @Override
         public void rmdir(UnixRuntime r, String path) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
+        @Override
         public void link(UnixRuntime r, String oldpath, String newpath) throws ErrnoException {
             throw new ErrnoException(EROFS);
         }
 
         FStat connFStat(final URLConnection conn) {
             return new FStat() {
+                @Override
                 public int type() {
                     return S_IFREG;
                 }
+                @Override
                 public int nlink() {
                     return 1;
                 }
+                @Override
                 public int mode() {
                     return 0444;
                 }
+                @Override
                 public int size() {
                     return conn.getContentLength();
                 }
+                @Override
                 public int mtime() {
                     return (int)(conn.getDate() / 1000);
                 }
+                @Override
                 public int inode() {
                     return inodes.get(conn.getURL().toString());
                 }
+                @Override
                 public int dev() {
                     return devno;
                 }
             };
         }
 
+        @Override
         public FStat stat(UnixRuntime r, String path) throws ErrnoException {
             URL url = r.getClass().getResource("/" + path);
             if(url == null) return null;
@@ -2511,6 +2616,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
             }
         }
 
+        @Override
         public FD open(UnixRuntime r, String path, int flags, int mode) throws ErrnoException {
             if((flags & ~3) != 0) {
                 if(STDERR_DIAG)
@@ -2524,6 +2630,7 @@ public abstract class UnixRuntime extends Runtime implements Cloneable {
                 final URLConnection conn = url.openConnection();
                 Seekable.InputStream si = new Seekable.InputStream(conn.getInputStream());
                 return new SeekableFD(si,flags) {
+                    @Override
                     protected FStat _fstat() {
                         return connFStat(conn);
                     }

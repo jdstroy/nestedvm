@@ -103,6 +103,9 @@ public abstract class Seekable {
             return o != null && o instanceof File
                    && file.equals(((File)o).file);
         }
+        public int hashCode() {
+          return file.hashCode();
+        }
         public Lock lock(long pos, long size, boolean shared)
                 throws IOException {
             return Platform.lockFile(this, raf, pos, size, shared);

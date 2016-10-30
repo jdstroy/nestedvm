@@ -15,38 +15,38 @@ public class ELF {
 
     public static final int ELFDATANONE = 0;
     public static final int ELFDATA2LSB = 1;
-    public static final int ELFDATA2MSB = 2;     
-    
+    public static final int ELFDATA2MSB = 2;
+
     public static final int SHT_SYMTAB = 2;
     public static final int SHT_STRTAB = 3;
     public static final int SHT_NOBITS = 8;
-    
+
     public static final int SHF_WRITE = 1;
     public static final int SHF_ALLOC = 2;
     public static final int SHF_EXECINSTR = 4;
-    
+
     public static final int PF_X = 0x1;
     public static final int PF_W = 0x2;
     public static final int PF_R = 0x4;
-    
+
     public static final int PT_LOAD = 1;
 
     public static final short ET_EXEC = 2;
     public static final short EM_MIPS = 8;
 
-    
+
     private Seekable data;
-    
+
     public ELFIdent ident;
     public ELFHeader header;
     public PHeader[] pheaders;
     public SHeader[] sheaders;
-    
+
     private byte[] stringTable;
-    
+
     private boolean sectionReaderActive;
-    
-    
+
+
     private void readFully(byte[] buf) throws IOException {
         int len = buf.length;
         int pos = 0;
@@ -57,7 +57,7 @@ public class ELF {
             len -= n;
         }
     }
-    
+
     private int readIntBE() throws IOException {
         byte[] buf = new byte[4];
         readFully(buf);
@@ -65,11 +65,11 @@ public class ELF {
     }
     private int readInt() throws IOException {
         int x = readIntBE();
-        if(ident!=null && ident.data == ELFDATA2LSB) 
+        if(ident!=null && ident.data == ELFDATA2LSB)
             x = ((x<<24)&0xff000000) | ((x<<8)&0xff0000) | ((x>>>8)&0xff00) | ((x>>24)&0xff);
         return x;
     }
-    
+
     private short readShortBE() throws IOException {
         byte[] buf = new byte[2];
         readFully(buf);
@@ -77,41 +77,41 @@ public class ELF {
     }
     private short readShort() throws IOException {
         short x = readShortBE();
-        if(ident!=null && ident.data == ELFDATA2LSB) 
+        if(ident!=null && ident.data == ELFDATA2LSB)
             x = (short)((((x<<8)&0xff00) | ((x>>8)&0xff))&0xffff);
         return x;
     }
-    
+
     private byte readByte() throws IOException {
         byte[] buf = new byte[1];
         readFully(buf);
         return buf[0];
     }
-        
+
     public class ELFIdent {
-        public byte klass;   
+        public byte klass;
         public byte data;
         public byte osabi;
         public byte abiversion;
-                
+
         ELFIdent() throws IOException {
             if(readIntBE() != ELF_MAGIC) throw new ELFException("Bad Magic");
-            
+
             klass = readByte();
             if(klass != ELFCLASS32) throw new ELFException("org.ibex.nestedvm.util.ELF does not suport 64-bit binaries");
-            
+
             data = readByte();
             if(data != ELFDATA2LSB && data != ELFDATA2MSB) throw new ELFException("Unknown byte order");
-            
+
             readByte(); // version
             osabi = readByte();
             abiversion = readByte();
             for(int i=0;i<7;i++) readByte(); // padding
         }
     }
-    
+
     public class ELFHeader {
-        public short type;        
+        public short type;
         public short machine;
         public int version;
         public int entry;
@@ -142,7 +142,7 @@ public class ELF {
             shstrndx = readShort();
         }
     }
-    
+
     public class PHeader {
         public int type;
         public int offset;
@@ -152,7 +152,7 @@ public class ELF {
         public int memsz;
         public int flags;
         public int align;
-        
+
         PHeader() throws IOException {
             type = readInt();
             offset = readInt();
@@ -164,15 +164,15 @@ public class ELF {
             align = readInt();
             if(filesz > memsz) throw new ELFException("ELF inconsistency: filesz > memsz (" + toHex(filesz) + " > " + toHex(memsz) + ")");
         }
-        
+
         public boolean writable() { return (flags & PF_W) != 0; }
-        
+
         public InputStream getInputStream() throws IOException {
             return new BufferedInputStream(new SectionInputStream(
                 offset,offset+filesz));
         }
     }
-    
+
     public class SHeader {
         int nameidx;
         public String name;
@@ -185,7 +185,7 @@ public class ELF {
         public int info;
         public int addralign;
         public int entsize;
-        
+
         SHeader() throws IOException {
             nameidx = readInt();
             type = readInt();
@@ -198,17 +198,17 @@ public class ELF {
             addralign = readInt();
             entsize = readInt();
         }
-        
+
         public InputStream getInputStream() throws IOException {
             return new BufferedInputStream(new SectionInputStream(
                 offset, type == SHT_NOBITS ? 0 : offset+size));
         }
-        
+
         public boolean isText() { return name.equals(".text"); }
         public boolean isData() { return name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") || name.equals(".ctors") || name.equals(".dtors"); }
         public boolean isBSS() { return name.equals(".bss") || name.equals(".sbss"); }
     }
-    
+
     public ELF(String file) throws IOException, ELFException { this(new Seekable.File(file,false)); }
     public ELF(Seekable data) throws IOException, ELFException {
         this.data = data;
@@ -228,13 +228,13 @@ public class ELF {
         data.seek(sheaders[header.shstrndx].offset);
         stringTable = new byte[sheaders[header.shstrndx].size];
         readFully(stringTable);
-        
+
         for(int i=0;i<header.shnum;i++) {
             SHeader s = sheaders[i];
             s.name = getString(s.nameidx);
         }
     }
-    
+
     private String getString(int off) { return getString(off,stringTable); }
     private String getString(int off,byte[] strtab) {
         StringBuffer sb = new StringBuffer();
@@ -242,16 +242,17 @@ public class ELF {
         while(off >= 0 && off < strtab.length && strtab[off] != 0) sb.append((char)strtab[off++]);
         return sb.toString();
     }
-    
+
     public SHeader sectionWithName(String name) {
         for(int i=0;i<sheaders.length;i++)
             if(sheaders[i].name.equals(name))
                 return sheaders[i];
         return null;
     }
-    
+
+    @SuppressWarnings("serial")
     public class ELFException extends IOException { ELFException(String s) { super(s); } }
-    
+
     private class SectionInputStream extends InputStream {
         private int pos;
         private int maxpos;
@@ -263,48 +264,51 @@ public class ELF {
             data.seek(pos);
             maxpos = end;
         }
-        
+
         private int bytesLeft() { return maxpos - pos; }
+        @Override
         public int read() throws IOException {
             byte[] buf = new byte[1];
             return read(buf,0,1) == -1 ? -1 : (buf[0]&0xff);
         }
+        @Override
         public int read(byte[] b, int off, int len) throws IOException {
             int n = data.read(b,off,Math.min(len,bytesLeft())); if(n > 0) pos += n; return n;
         }
+        @Override
         public void close() { sectionReaderActive = false; }
     }
-    
+
     private Symtab _symtab;
     public Symtab getSymtab() throws IOException {
         if(_symtab != null) return _symtab;
-        
+
         if(sectionReaderActive) throw new ELFException("Can't read the symtab while a section reader is active");
-        
+
         SHeader sh = sectionWithName(".symtab");
         if(sh == null || sh.type != SHT_SYMTAB) return null;
-        
+
         SHeader sth = sectionWithName(".strtab");
         if(sth == null || sth.type != SHT_STRTAB) return null;
-        
+
         byte[] strtab = new byte[sth.size];
         DataInputStream dis = new DataInputStream(sth.getInputStream());
         dis.readFully(strtab);
         dis.close();
-        
+
         return _symtab = new Symtab(sh.offset, sh.size,strtab);
     }
-    
+
     public class  Symtab {
         public Symbol[] symbols;
-        
+
         Symtab(int off, int size, byte[] strtab) throws IOException {
             data.seek(off);
             int count = size/16;
             symbols = new Symbol[count];
             for(int i=0;i<count;i++) symbols[i] = new Symbol(strtab);
         }
-        
+
         public Symbol getSymbol(String name) {
             Symbol sym = null;
             for(int i=0;i<symbols.length;i++) {
@@ -317,15 +321,15 @@ public class ELF {
             }
             return sym;
         }
-        
+
         public Symbol getGlobalSymbol(String name) {
-            for(int i=0;i<symbols.length;i++) 
+            for(int i=0;i<symbols.length;i++)
                 if(symbols[i].binding == Symbol.STB_GLOBAL && symbols[i].name.equals(name))
                     return symbols[i];
             return null;
         }
     }
-    
+
     public class Symbol {
         public String name;
         public int addr;
@@ -336,10 +340,10 @@ public class ELF {
         public byte other;
         public short shndx;
         public SHeader sheader;
-        
+
         public final static int STT_FUNC = 2;
         public final static int STB_GLOBAL = 1;
-        
+
         Symbol(byte[] strtab) throws IOException {
             name = getString(readInt(),strtab);
             addr = readInt();
@@ -351,9 +355,9 @@ public class ELF {
             shndx = readShort();
         }
     }
-    
+
     private static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
-    
+
     /*public static void main(String[] args) throws IOException {
         ELF elf = new ELF(new Seekable.InputStream(new FileInputStream(args[0])));
         System.out.println("Type: " + toHex(elf.header.type));

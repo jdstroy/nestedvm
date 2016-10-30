@@ -9,31 +9,32 @@ import java.io.*;
 
 import org.ibex.nestedvm.util.*;
 
-public abstract class Compiler implements Registers {    
+public abstract class Compiler implements Registers {
     /** The ELF binary being read */
     ELF elf;
-    
+
     /** The name of the class beging generated */
     final String fullClassName;
-    
+
     /** The name of the binary this class is begin generated from */
     String source = "unknown.mips.binary";
     public void setSource(String source) { this.source = source; }
-        
+
     /** Thrown when the compilation fails for some reason */
+    @SuppressWarnings("serial")
     static class Exn extends Exception { public Exn(String s) { super(s); } }
-    
-    // Set this to true to enable fast memory access 
+
+    // Set this to true to enable fast memory access
     // When this is enabled a Java RuntimeException will be thrown when a page fault occures. When it is disabled
     // a FaultException will be throw which is easier to catch and deal with, however. as the name implies, this is slower
     boolean fastMem = true;
-    
+
     // This MUST be a power of two. If it is not horrible things will happen
-    // NOTE: This value can be much higher without breaking the classfile 
+    // NOTE: This value can be much higher without breaking the classfile
     // specs (around 1024) but Hotstop seems to do much better with smaller
-    // methods. 
+    // methods.
     int maxInsnPerMethod = 128;
-    
+
     // non-configurable
     int maxBytesPerMethod;
     int methodMask;
@@ -44,52 +45,52 @@ public abstract class Compiler implements Registers {
         methodMask = ~(maxBytesPerMethod-1);
         while(maxBytesPerMethod>>>methodShift != 1) methodShift++;
     }
-    
+
     // True to try to determine which case statement are needed and only include them
     boolean pruneCases = true;
-    
+
     boolean assumeTailCalls = true;
-    
+
     // True to insert some code in the output to help diagnore compiler problems
     boolean debugCompiler = false;
-    
+
     // True to print various statistics about the compilation
     boolean printStats = false;
-    
+
     // True to generate runtime statistics that slow execution down significantly
     boolean runtimeStats = false;
-    
+
     boolean supportCall = true;
-    
+
     boolean nullPointerCheck = false;
-    
+
     String runtimeClass = "org.ibex.nestedvm.Runtime";
-    
+
     String hashClass = "java.util.Hashtable";
-    
+
     boolean unixRuntime;
-    
+
     boolean lessConstants;
-    
+
     boolean singleFloat;
-            
+
     int pageSize = 4096;
     int totalPages = 65536;
     int pageShift;
     boolean onePage;
-    
+
     void pageSizeInit() throws Exn {
         if((pageSize&(pageSize-1)) != 0) throw new Exn("pageSize not a multiple of two");
         if((totalPages&(totalPages-1)) != 0) throw new Exn("totalPages not a multiple of two");
         while(pageSize>>>pageShift != 1) pageShift++;
     }
-    
+
     /** A set of all addresses that can be jumped too (only available if pruneCases == true) */
-    Hashtable jumpableAddresses;
-    
+    Hashtable<Integer,Boolean> jumpableAddresses;
+
     /** Some important symbols */
     ELF.Symbol userInfo, gp;
-    
+
     private static void usage() {
         System.err.println("Usage: java Compiler [-outfile output.java] [-o options] [-dumpoptions] <classname> <binary.mips>");
         System.err.println("-o takes mount(8) like options and can be specified multiple times");
@@ -98,7 +99,7 @@ public abstract class Compiler implements Registers {
             System.err.print(options[i] + ": " + wrapAndIndent(options[i+1],18-2-options[i].length(),18,62));
         System.exit(1);
     }
-    
+
     public static void main(String[] args) throws IOException {
         String outfile = null;
         String outdir = null;
@@ -140,9 +141,9 @@ public abstract class Compiler implements Registers {
             arg++;
         }
         if(className == null || mipsBinaryFileName == null) usage();
-        
+
         Seekable mipsBinary = new Seekable.File(mipsBinaryFileName);
-        
+
         Writer w = null;
         OutputStream os = null;
         Compiler comp = null;
@@ -168,17 +169,17 @@ public abstract class Compiler implements Registers {
             System.err.println("Unknown output format: " + outformat);
             System.exit(1);
         }
-        
+
         comp.parseOptions(o);
         comp.setSource(mipsBinaryFileName);
-        
+
         if(dumpOptions) {
             System.err.println("== Options ==");
             for(int i=0;i<options.length;i+=2)
                 System.err.println(options[i] + ": " + comp.getOption(options[i]).get());
             System.err.println("== End Options ==");
         }
-            
+
         try {
             comp.go();
         } catch(Exn e) {
@@ -189,23 +190,23 @@ public abstract class Compiler implements Registers {
             if(os != null) os.close();
         }
     }
-        
+
     public Compiler(Seekable binary, String fullClassName) throws IOException {
         this.fullClassName = fullClassName;
         elf = new ELF(binary);
-        
+
         if(elf.header.type != ELF.ET_EXEC) throw new IOException("Binary is not an executable");
         if(elf.header.machine != ELF.EM_MIPS) throw new IOException("Binary is not for the MIPS I Architecture");
         if(elf.ident.data != ELF.ELFDATA2MSB) throw new IOException("Binary is not big endian");
     }
 
     abstract void _go() throws Exn, IOException;
-    
+
     private boolean used;
     public void go() throws Exn, IOException {
         if(used) throw new RuntimeException("Compiler instances are good for one shot only");
         used = true;
-        
+
         if(onePage && pageSize <= 4096) pageSize = 4*1024*1024;
         if(nullPointerCheck && !fastMem) throw new Exn("fastMem must be enabled for nullPointerCheck to be of any use");
         if(onePage && !fastMem) throw new Exn("fastMem must be enabled for onePage to be of any use");
@@ -214,27 +215,26 @@ public abstract class Compiler implements Registers {
 
         maxInsnPerMethodInit();
         pageSizeInit();
-        
+
         // Get a copy of the symbol table in the elf binary
         ELF.Symtab symtab = elf.getSymtab();
         if(symtab == null) throw new Exn("Binary has no symtab (did you strip it?)");
-        ELF.Symbol sym;
-        
+
         userInfo = symtab.getSymbol("user_info");
         gp = symtab.getSymbol("_gp");
-        if(gp == null) throw new Exn("no _gp symbol (did you strip the binary?)");   
-        
+        if(gp == null) throw new Exn("no _gp symbol (did you strip the binary?)");
+
         if(pruneCases) {
             // Find all possible branches
-            jumpableAddresses = new Hashtable();
-            
+            jumpableAddresses = new Hashtable<>();
+
             jumpableAddresses.put(new Integer(elf.header.entry),Boolean.TRUE);
-            
+
             ELF.SHeader text = elf.sectionWithName(".text");
             if(text == null) throw new Exn("No .text segment");
-            
+
             findBranchesInSymtab(symtab,jumpableAddresses);
-            
+
             for(int i=0;i<elf.sheaders.length;i++) {
                 ELF.SHeader sheader = elf.sheaders[i];
                 String name = sheader.name;
@@ -243,12 +243,12 @@ public abstract class Compiler implements Registers {
                 if(name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") || name.equals(".ctors") || name.equals(".dtors"))
                     findBranchesInData(new DataInputStream(sheader.getInputStream()),sheader.size,jumpableAddresses,text.addr,text.addr+text.size);
             }
-            
-            findBranchesInText(text.addr,new DataInputStream(text.getInputStream()),text.size,jumpableAddresses);            
+
+            findBranchesInText(text.addr,new DataInputStream(text.getInputStream()),text.size,jumpableAddresses);
         }
 
         if(unixRuntime && runtimeClass.startsWith("org.ibex.nestedvm.")) runtimeClass = "org.ibex.nestedvm.UnixRuntime";
-        
+
         for(int i=0;i<elf.sheaders.length;i++) {
             String name = elf.sheaders[i].name;
             // Allow .rel.dyn if it's empty
@@ -279,7 +279,7 @@ public abstract class Compiler implements Registers {
         }
     }
 
-    private void findBranchesInSymtab(ELF.Symtab symtab, Hashtable jumps) {
+    private void findBranchesInSymtab(ELF.Symtab symtab, Hashtable<Integer,Boolean> jumps) {
         ELF.Symbol[] symbols = symtab.symbols;
         int n=0;
         for(int i=0;i<symbols.length;i++) {
@@ -293,18 +293,19 @@ public abstract class Compiler implements Registers {
         }
         if(printStats) System.err.println("Found " + n + " additional possible branch targets in Symtab");
     }
-    
-    private void findBranchesInText(int base, DataInputStream dis, int size, Hashtable jumps) throws IOException {
+
+    @SuppressWarnings("fallthrough")
+    private void findBranchesInText(int base, DataInputStream dis, int size, Hashtable<Integer,Boolean> jumps) throws IOException {
         int count = size/4;
         int pc = base;
         int n=0;
         int[] lui_val = new int[32];
         int[] lui_pc = new int[32];
         //Interpreter inter = new Interpreter(source);
-        
+
         for(int i=0;i<count;i++,pc+=4) {
             int insn = dis.readInt();
-            int op = (insn >>> 26) & 0xff; 
+            int op = (insn >>> 26) & 0xff;
             int rs = (insn >>> 21) & 0x1f;
             int rt = (insn >>> 16) & 0x1f;
             int signedImmediate = (insn << 16) >> 16;
@@ -312,7 +313,7 @@ public abstract class Compiler implements Registers {
             int branchTarget = signedImmediate;
             int jumpTarget = (insn & 0x03ffffff);
             int subcode = insn & 0x3f;
-            
+
             switch(op) {
                 case 0:
                     switch(subcode) {
@@ -320,7 +321,7 @@ public abstract class Compiler implements Registers {
                             if(jumps.put(new Integer(pc+8),Boolean.TRUE) == null) n++; // return address
                             break;
                         case 12: // SYSCALL
-                            if(jumps.put(new Integer(pc+4),Boolean.TRUE) == null) n++; 
+                            if(jumps.put(new Integer(pc+4),Boolean.TRUE) == null) n++;
                             break;
                     }
                     break;
@@ -367,7 +368,7 @@ public abstract class Compiler implements Registers {
                     lui_pc[rt] = pc;
                     break;
                 }
-                    
+
                 case 17: // FPU Instructions
                     switch(rs) {
                         case 8: // BC1F, BC1T
@@ -380,8 +381,8 @@ public abstract class Compiler implements Registers {
         dis.close();
         if(printStats) System.err.println("Found " + n + " additional possible branch targets in Text segment");
     }
-    
-    private void findBranchesInData(DataInputStream dis, int size, Hashtable jumps, int textStart, int textEnd) throws IOException {
+
+    private void findBranchesInData(DataInputStream dis, int size, Hashtable<Integer,Boolean> jumps, int textStart, int textEnd) throws IOException {
         int count = size/4;
         int n=0;
         for(int i=0;i<count;i++) {
@@ -396,7 +397,7 @@ public abstract class Compiler implements Registers {
         dis.close();
         if(n>0 && printStats) System.err.println("Found " + n + " additional possible branch targets in Data segment");
     }
-    
+
     // Helper functions for pretty output
     final static String toHex(int n) { return "0x" + Long.toString(n & 0xffffffffL, 16); }
     final static String toHex8(int n) {
@@ -438,9 +439,9 @@ public abstract class Compiler implements Registers {
                 System.err.println(e); return null;
             }
         }
-        public Class getType() { return field == null ? null : field.getType(); }
+        public Class<?> getType() { return field == null ? null : field.getType(); }
     }
-    
+
     private static String[] options = {
         "fastMem",          "Enable fast memory access - RuntimeExceptions will be thrown on faults",
         "nullPointerCheck", "Enables checking at runtime for null pointer accessses (slows things down a bit, only applicable with fastMem)",
@@ -461,7 +462,7 @@ public abstract class Compiler implements Registers {
         "lessConstants",    "Use less constants at the cost of speed (FIXME: document this better)",
         "singleFloat",      "Support single precision (32-bit) FP ops only"
     };
-        
+
     private Option getOption(String name) {
         name = name.toLowerCase();
         try {
@@ -473,7 +474,7 @@ public abstract class Compiler implements Registers {
             return null;
         }
     }
-    
+
     public void parseOptions(String opts) {
         if(opts == null || opts.length() == 0) return;
         StringTokenizer st = new StringTokenizer(opts,",");
@@ -496,7 +497,7 @@ public abstract class Compiler implements Registers {
                 System.err.println("WARNING: No such option: " + key);
                 continue;
             }
-            
+
             if(opt.getType() == String.class)
                 opt.set(val);
             else if(opt.getType() == Integer.TYPE)
@@ -511,7 +512,7 @@ public abstract class Compiler implements Registers {
                 throw new Error("Unknown type: " + opt.getType());
         }
     }
-        
+
     private static Integer parseInt(String s) {
         int mult = 1;
         s = s.toLowerCase();
@@ -522,7 +523,7 @@ public abstract class Compiler implements Registers {
         else n = Integer.parseInt(s);
         return new Integer(n*mult);
     }
-    
+
     private static String wrapAndIndent(String s, int firstindent, int indent, int width) {
         StringTokenizer st = new StringTokenizer(s," ");
         StringBuffer sb = new StringBuffer();
@@ -545,7 +546,7 @@ public abstract class Compiler implements Registers {
         sb.append('\n');
         return sb.toString();
     }
-    
+
     // This ugliness is to work around a gcj static linking bug (Bug 12908)
     // The best solution is to force gnu.java.locale.Calendar to be linked in but this'll do
     static String dateTime() {

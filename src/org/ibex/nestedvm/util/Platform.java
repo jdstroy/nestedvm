@@ -21,7 +21,7 @@ import java.text.DateFormatSymbols;
 public abstract class Platform {
     Platform() { }
     private static final Platform p;
-    
+
     static {
         float version;
         try {
@@ -39,7 +39,7 @@ public abstract class Platform {
         else if(version >= 1.2f) platformClass = "Jdk12";
         else if(version >= 1.1f) platformClass = "Jdk11";
         else throw new Error("JVM Specification version: " + version + " is too old. (see org.ibex.util.Platform to add support)");
-        
+
         try {
             p = (Platform) Class.forName(Platform.class.getName() + "$" + platformClass).newInstance();
         } catch(Exception e) {
@@ -47,7 +47,7 @@ public abstract class Platform {
             throw new Error("Error instansiating platform class");
         }
     }
-    
+
     public static String getProperty(String key) {
         try {
             return System.getProperty(key);
@@ -55,24 +55,24 @@ public abstract class Platform {
             return null;
         }
     }
-    
-    
+
+
     abstract boolean _atomicCreateFile(File f) throws IOException;
     public static boolean atomicCreateFile(File f) throws IOException { return p._atomicCreateFile(f); }
 
     abstract Seekable.Lock _lockFile(Seekable s, RandomAccessFile raf, long pos, long size, boolean shared) throws IOException;
     public static Seekable.Lock lockFile(Seekable s, RandomAccessFile raf, long pos, long size, boolean shared) throws IOException {
         return p._lockFile(s, raf, pos, size, shared); }
-    
+
     abstract void _socketHalfClose(Socket s, boolean output) throws IOException;
     public static void socketHalfClose(Socket s, boolean output) throws IOException { p._socketHalfClose(s,output); }
-    
+
     abstract void _socketSetKeepAlive(Socket s, boolean on) throws SocketException;
     public static void socketSetKeepAlive(Socket s, boolean on) throws SocketException { p._socketSetKeepAlive(s,on); }
-    
+
     abstract InetAddress _inetAddressFromBytes(byte[] a) throws UnknownHostException;
     public static InetAddress inetAddressFromBytes(byte[] a) throws UnknownHostException { return p._inetAddressFromBytes(a); }
-    
+
     abstract String _timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l);
     public static String timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) { return p._timeZoneGetDisplayName(tz,dst,showlong,l); }
     public static String timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong) { return timeZoneGetDisplayName(tz,dst,showlong,Locale.getDefault()); }
@@ -81,33 +81,39 @@ public abstract class Platform {
         throws IOException;
     public static void setFileLength(RandomAccessFile f, int length)
         throws IOException { p._setFileLength(f, length); }
-    
+
     abstract File[] _listRoots();
     public static File[] listRoots() { return p._listRoots(); }
-    
+
     abstract File _getRoot(File f);
     public static File getRoot(File f) { return p._getRoot(f); }
-    
+
     static class Jdk11 extends Platform {
+        @Override
         boolean _atomicCreateFile(File f) throws IOException {
             // This is not atomic, but its the best we can do on jdk 1.1
             if(f.exists()) return false;
             new FileOutputStream(f).close();
             return true;
         }
+        @Override
         Seekable.Lock _lockFile(Seekable s, RandomAccessFile raf, long p, long size, boolean shared) throws IOException {
             throw new IOException("file locking requires jdk 1.4+");
         }
+        @Override
         void _socketHalfClose(Socket s, boolean output) throws IOException {
             throw new IOException("half closing sockets not supported");
         }
+        @Override
         InetAddress _inetAddressFromBytes(byte[] a) throws UnknownHostException {
             if(a.length != 4) throw new UnknownHostException("only ipv4 addrs supported");
             return InetAddress.getByName(""+(a[0]&0xff)+"."+(a[1]&0xff)+"."+(a[2]&0xff)+"."+(a[3]&0xff));
         }
+        @Override
         void _socketSetKeepAlive(Socket s, boolean on) throws SocketException {
             if(on) throw new SocketException("keepalive not supported");
         }
+        @Override
         String _timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) {
             String[][] zs  = new DateFormatSymbols(l).getZoneStrings();
             String id = tz.getID();
@@ -124,23 +130,25 @@ public abstract class Platform {
             return sb.toString();
         }
 
+        @Override
         void _setFileLength(RandomAccessFile f, int length) throws IOException{
-            InputStream in = new FileInputStream(f.getFD());
-            OutputStream out = new FileOutputStream(f.getFD());
+            try (InputStream in = new FileInputStream(f.getFD())) {
+              try (OutputStream out = new FileOutputStream(f.getFD())) {
+                byte[] buf = new byte[1024];
+                for (int len; length > 0; length -= len) {
+                    len = in.read(buf, 0, Math.min(length, buf.length));
+                    if (len == -1) break;
+                    out.write(buf, 0, len);
+                }
+                if (length == 0) return;
 
-            byte[] buf = new byte[1024];
-            for (int len; length > 0; length -= len) {
-                len = in.read(buf, 0, Math.min(length, buf.length));
-                if (len == -1) break;
-                out.write(buf, 0, len);
-            }
-            if (length == 0) return;
-
-            // fill the rest of the space with zeros
-            for (int i=0; i < buf.length; i++) buf[i] = 0;
-            while (length > 0) {
-                out.write(buf, 0, Math.min(length, buf.length));
-                length -= buf.length;
+                // fill the rest of the space with zeros
+                for (int i=0; i < buf.length; i++) buf[i] = 0;
+                while (length > 0) {
+                    out.write(buf, 0, Math.min(length, buf.length));
+                    length -= buf.length;
+                }
+              }
             }
         }
 
@@ -148,10 +156,11 @@ public abstract class Platform {
             new FileOutputStream(f).close();
             return new RandomAccessFile(f,mode);
         }
-        
+
+        @Override
         File[] _listRoots() {
             String[] rootProps = new String[]{"java.home","java.class.path","java.library.path","java.io.tmpdir","java.ext.dirs","user.home","user.dir" };
-            Hashtable known = new Hashtable();
+            Hashtable<File,Boolean> known = new Hashtable<>();
             for(int i=0;i<rootProps.length;i++) {
                 String prop = getProperty(rootProps[i]);
                 if(prop == null) continue;
@@ -170,11 +179,12 @@ public abstract class Platform {
             }
             File[] ret = new File[known.size()];
             int i=0;
-            for(Enumeration e = known.keys();e.hasMoreElements();)
-                ret[i++] = (File) e.nextElement();
+            for(Enumeration<File> e = known.keys();e.hasMoreElements();)
+                ret[i++] = e.nextElement();
             return ret;
         }
-        
+
+        @Override
         File _getRoot(File f) {
             if(!f.isAbsolute()) f = new File(f.getAbsolutePath());
             String p;
@@ -183,37 +193,45 @@ public abstract class Platform {
             return f;
         }
     }
-    
+
     static class Jdk12 extends Jdk11 {
+        @Override
         boolean _atomicCreateFile(File f) throws IOException {
             return f.createNewFile();
         }
-        
+
+        @Override
         String _timeZoneGetDisplayName(TimeZone tz, boolean dst, boolean showlong, Locale l) {
             return tz.getDisplayName(dst,showlong ? TimeZone.LONG : TimeZone.SHORT, l);
         }
 
+        @Override
         void _setFileLength(RandomAccessFile f, int length) throws IOException {
             f.setLength(length);
         }
 
+        @Override
         File[] _listRoots() { return File.listRoots(); }
     }
-    
+
     static class Jdk13 extends Jdk12 {
+        @Override
         void _socketHalfClose(Socket s, boolean output) throws IOException {
             if(output) s.shutdownOutput();
             else s.shutdownInput();
         }
-        
+
+        @Override
         void _socketSetKeepAlive(Socket s, boolean on) throws SocketException {
             s.setKeepAlive(on);
         }
     }
-    
-    static class Jdk14 extends Jdk13 {
-        InetAddress _inetAddressFromBytes(byte[] a) throws UnknownHostException { return InetAddress.getByAddress(a); } 
 
+    static class Jdk14 extends Jdk13 {
+        @Override
+        InetAddress _inetAddressFromBytes(byte[] a) throws UnknownHostException { return InetAddress.getByAddress(a); }
+
+        @Override
         Seekable.Lock _lockFile(Seekable s, RandomAccessFile r, long pos, long size, boolean shared) throws IOException {
             FileLock flock;
             try {
@@ -230,12 +248,19 @@ public abstract class Platform {
         private final FileLock l;
 
         Jdk14FileLock(Seekable sk, FileLock flock) { s = sk; l = flock; }
+        @Override
         public Seekable seekable() { return s; }
+        @Override
         public boolean isShared() { return l.isShared(); }
+        @Override
         public boolean isValid() { return l.isValid(); }
+        @Override
         public void release() throws IOException { l.release(); }
+        @Override
         public long position() { return l.position(); }
+        @Override
         public long size() { return l.size(); }
+        @Override
         public String toString() { return l.toString(); }
     }
 }
