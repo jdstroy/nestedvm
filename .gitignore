@@ -5,3 +5,6 @@ upstream/install
 build
 nestedvm.jar
 .manifest
+.project
+.classpath
+.settings
