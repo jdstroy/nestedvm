@@ -442,7 +442,7 @@ build/tests/SpeedTest.class: build/org/ibex/nestedvm/Runtime.class
 
 tmp/thebride_1280.jpg:
 	@mkdir -p tmp
-	cd tmp && curl -O http://www.brianweb.net/misc/thebride_1280.jpg
+	cd tmp && cp ../upstream/img/25331-night4.jpg thebride_1280.jpg
 
 oldspeedtest: build/tests/DJpeg.class tmp/thebride_1280.jpg
 	bash -c "time $(JAVA) -cp build tests.DJpeg -targa -outfile tmp/thebride_1280.tga tmp/thebride_1280.jpg"

@@ -162,7 +162,7 @@ url_gcc-all = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-$(version
 patches_gcc = gcc.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --disable-libssp --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
-configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,fortran"
+configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,g77,go"
 
 tasks/build_gcc: tasks/build_linker
 

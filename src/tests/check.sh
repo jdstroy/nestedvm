@@ -28,7 +28,7 @@ for f in \
     andale32.exe arial32.exe arialb32.exe comic32.exe courie32.exe georgi32.exe \
     impact32.exe times32.exe trebuc32.exe verdan32.exe webdin32.exe; \
 do
-	[ -e "$f" ] || wget "http://dist.xwt.org/corefonts/$f" || rm -f "$f"
+	[ -e "$f" ] || wget "http://beebo.org/corefonts/$f" || rm -f "$f"
 	[ -e "$f" ] ||  exit 1
 done
 
