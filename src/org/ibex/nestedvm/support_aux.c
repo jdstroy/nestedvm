@@ -428,7 +428,7 @@ void endgrent() {
     if(group_fp != NULL) fclose(group_fp);
     group_fp = NULL;
 }
-
+/* bcg: need to check if this are now implemented in newlib
 struct passwd *getpwnam(const char *name) {
     FILE *fp;
     char buf[1024];
@@ -487,7 +487,7 @@ void endpwent() {
     if(passwd_fp != NULL) fclose(passwd_fp);
     passwd_fp = NULL;
 }
-
+*/
 char *getpass(const char *prompt) {
     static char buf[1024];
     int len = 0;
