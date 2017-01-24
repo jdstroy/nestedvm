@@ -3,6 +3,8 @@ upstream/build/*
 upstream/download
 upstream/install
 build
+env.sh
+compiler.jar
 nestedvm.jar
 .manifest
 .project

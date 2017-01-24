@@ -155,14 +155,14 @@ tasks/build_%: tasks/patch_%
 
 ## gcc ##############################################################################
 
-version_gcc = 4.8.3
+version_gcc = 4.8.5
 
 url_gcc-all = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-$(version_gcc).tar.gz
 
 patches_gcc = gcc.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --disable-libssp --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
-configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,g77,go"
+configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,fortran"
 
 tasks/build_gcc: tasks/build_linker
 
