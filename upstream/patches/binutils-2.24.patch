@@ -1,0 +1,40 @@
+--- bfd/config.bfd~	2013-11-04 09:33:37.000000000 -0600
++++ bfd/config.bfd	2014-09-19 22:37:33.244376936 -0500
+@@ -1032,6 +1032,10 @@
+     targ_defvec=bfd_elf32_littlemips_vec
+     targ_selvecs="bfd_elf32_bigmips_vec bfd_elf64_bigmips_vec bfd_elf64_littlemips_vec"
+     ;;
++  mips*-unknown-elf*)
++    targ_defvec=bfd_elf32_bigmips_vec
++    targ_selvecs=bfd_elf32_littlemips_vec
++    ;;
+   mips*-*-elf* | mips*-*-rtems* | mips*-*-vxworks | mips*-*-windiss)
+     targ_defvec=bfd_elf32_bigmips_vec
+     targ_selvecs="bfd_elf32_littlemips_vec bfd_elf64_bigmips_vec bfd_elf64_littlemips_vec"
+--- ld/configure.tgt~	2013-11-26 05:37:33.000000000 -0600
++++ ld/configure.tgt	2014-09-19 22:40:46.857337004 -0500
+@@ -464,6 +464,7 @@
+ 			targ_extra_emuls="elf32lr5900n32"
+ 			targ_extra_libpath=$targ_extra_emuls ;;
+ mips*el-*-elf*)		targ_emul=elf32elmip ;;
++mips*-unknown-elf*)     targ_emul=elf32ebmip ;;
+ mips*-*-elf*)		targ_emul=elf32ebmip ;;
+ mips*-*-rtems*)		targ_emul=elf32ebmip ;;
+ mips*el-*-vxworks*)	targ_emul=elf32elmipvxworks
+*** ld/genscripts.sh~	2013-11-08 04:13:48.000000000 -0600
+--- ld/genscripts.sh	2014-09-19 22:42:49.401944653 -0500
+***************
+*** 419,430 ****
+      . ${srcdir}/scripttempl/${SCRIPT_NAME}.sc
+    ) | sed -e '/^ *$/d;s/[ 	]*$//' > ldscripts/${EMULATION_NAME}.xa
+  fi
+  
+- case " $EMULATION_LIBPATH " in
+-     *" ${EMULATION_NAME} "*) COMPILE_IN=true;;
+- esac
+- 
+  # PR ld/5652:
+  # Determine if the shell has support for the variable BASH_LINENO.
+  # When it is the case, it is only available inside functions.
+  has_lineno()
+--- 419,426 ----

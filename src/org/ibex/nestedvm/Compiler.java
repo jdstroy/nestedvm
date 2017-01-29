@@ -240,6 +240,7 @@ public abstract class Compiler implements Registers {
                 String name = sheader.name;
                 // if this section doesn't get loaded into our address space don't worry about it
                 if(sheader.addr == 0x0) continue;
+                if(name.equals(".MIPS.abiflags")) continue;
                 if(name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") || name.equals(".ctors") || name.equals(".dtors"))
                     findBranchesInData(new DataInputStream(sheader.getInputStream()),sheader.size,jumpableAddresses,text.addr,text.addr+text.size);
             }
@@ -254,6 +255,9 @@ public abstract class Compiler implements Registers {
             // Allow .rel.dyn if it's empty
             if(name.equals(".rel.dyn") && isSectionEmpty(elf, i))
                 continue;
+
+            // ignore .MIPS.abiflags
+            if(name.equals(".MIPS.abiflags")) continue;
 
             if((elf.sheaders[i].flags & ELF.SHF_ALLOC) !=0 && !(
                 name.equals(".text")|| name.equals(".data") || name.equals(".sdata") || name.equals(".rodata") ||

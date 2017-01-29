@@ -97,6 +97,7 @@ public class JavaSourceCompiler extends Compiler {
             else if(name.equals(".bss") || name.equals(".sbss"))
                 emitBSS(sheader.addr,sheader.size);
             else if(name.equals(".rel.dyn") && isSectionEmpty(elf, i)) { }
+            else if(name.equals(".MIPS.abiflags")) {}
             else
                 throw new Exn("Unknown segment: " + name);
         }

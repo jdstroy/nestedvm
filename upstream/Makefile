@@ -162,7 +162,7 @@ url_gcc-all = http://mirrors.kernel.org/gnu/gcc/gcc-$(version_gcc)/gcc-$(version
 patches_gcc = gcc.patch
 
 configure_gcc = --target=mips-unknown-elf --disable-threads --disable-libssp --with-gnu-ld --with-gnu-as --with-newlib=yes --enable-sjlj-exceptions --enable-languages="c"
-configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++,fortran"
+configure_gcc_step2 = $(configure_gcc) --enable-languages="c,c++"
 
 tasks/build_gcc: tasks/build_linker
 
@@ -220,10 +220,10 @@ tasks/build_gpc: tasks/patch_gpc tasks/build_libc
 
 ## binutils ##############################################################################
 
-version_binutils = 2.24
+version_binutils = 2.27
 url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
 #patches_binutils = binutils-no64.patch binutils-nocompilein.patch
-patches_binutils = binutils.patch
+patches_binutils = binutils-$(version_binutils).patch
 configure_binutils = --target=mips-unknown-elf
 
 ## newlib ##############################################################################

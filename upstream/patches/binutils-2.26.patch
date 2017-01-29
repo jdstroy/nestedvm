@@ -1,0 +1,43 @@
+diff -aur ../binutils-2.26-original/bfd/config.bfd ./bfd/config.bfd
+--- ../binutils-2.26-original/bfd/config.bfd	2015-11-13 03:27:40.000000000 -0500
++++ ./bfd/config.bfd	2017-01-29 15:14:12.397347153 -0500
+@@ -1066,6 +1066,10 @@
+     targ_defvec=mips_elf32_le_vec
+     targ_selvecs="mips_elf32_be_vec mips_elf64_be_vec mips_elf64_le_vec"
+     ;;
++  mips*-unknown-elf*)
++    targ_defvec=mips_elf32_be_vec
++    targ_selvecs="mips_elf32_le_vec"
++    ;;
+   mips*-*-elf* | mips*-*-rtems* | mips*-*-vxworks | mips*-*-windiss)
+     targ_defvec=mips_elf32_be_vec
+     targ_selvecs="mips_elf32_le_vec mips_elf64_be_vec mips_elf64_le_vec"
+diff -aur ../binutils-2.26-original/ld/configure.tgt ./ld/configure.tgt
+--- ../binutils-2.26-original/ld/configure.tgt	2015-11-13 03:27:42.000000000 -0500
++++ ./ld/configure.tgt	2017-01-29 15:11:26.647679654 -0500
+@@ -502,6 +502,7 @@
+ 			targ_extra_emuls="elf32lr5900n32"
+ 			targ_extra_libpath=$targ_extra_emuls ;;
+ mips*el-*-elf*)		targ_emul=elf32elmip ;;
++mips*-unknown-elf*)     targ_emul=elf32ebmip ;;
+ mips*-*-elf*)		targ_emul=elf32ebmip ;;
+ mips*-*-rtems*)		targ_emul=elf32ebmip ;;
+ mips*el-*-vxworks*)	targ_emul=elf32elmipvxworks
+Only in ./ld: configure.tgt.orig
+diff -aur ../binutils-2.26-original/ld/genscripts.sh ./ld/genscripts.sh
+--- ../binutils-2.26-original/ld/genscripts.sh	2015-11-13 03:27:42.000000000 -0500
++++ ./ld/genscripts.sh	2017-01-29 15:11:26.647679654 -0500
+@@ -407,9 +407,10 @@
+   ) | sed -e '/^ *$/d;s/[ 	]*$//' > ldscripts/${EMULATION_NAME}.xa
+ fi
+ 
+-case "$COMPILE_IN: $EMULATION_LIBPATH " in
+-    :*" ${EMULATION_NAME} "*) COMPILE_IN=yes;;
+-esac
++# case "$COMPILE_IN: $EMULATION_LIBPATH " in
++#    :*" ${EMULATION_NAME} "*) COMPILE_IN=yes;;
++#esac
++COMPILE_IN=
+ 
+ # PR ld/5652:
+ # Determine if the shell has support for the variable BASH_LINENO.

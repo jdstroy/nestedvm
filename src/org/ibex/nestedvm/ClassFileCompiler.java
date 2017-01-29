@@ -153,6 +153,9 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
             // if this section doesn't get loaded into our address space don't worry about it
             if(sheader.addr == 0x0) continue;
 
+            // added in binutils 2.25+... don't know if this has useful info - bcg
+            if(name.equals(".MIPS.abiflags")) continue;
+
             highestAddr = Math.max(highestAddr, sheader.addr + sheader.size);
 
             if(name.equals(".text"))
@@ -1803,7 +1806,7 @@ public class ClassFileCompiler extends Compiler implements CGConst  {
     private int pushRegWZ(int reg) {
         if(reg == R+0) {
             warn.println("Warning: Pushing r0!");
-            new Exception().printStackTrace(warn);
+            //new Exception().printStackTrace(warn);
         }
         return pushRegZ(reg);
     }
