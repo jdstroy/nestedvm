@@ -220,7 +220,7 @@ tasks/build_gpc: tasks/patch_gpc tasks/build_libc
 
 ## binutils ##############################################################################
 
-version_binutils = 2.27
+version_binutils = 2.24
 url_binutils = ftp://ftp.gnu.org/gnu/binutils/binutils-$(version_binutils).tar.gz
 #patches_binutils = binutils-no64.patch binutils-nocompilein.patch
 patches_binutils = binutils-$(version_binutils).patch
