@@ -39,6 +39,9 @@ upstream = $(shell pwd)/upstream
 root = $(shell dirname "`pwd`")
 usr = $(upstream)/install
 
+#this is where `make install` will create a directory named `nestedvm`
+prefix=/usr/local
+
 cross_root := $(usr)/mips-unknown-elf
 
 #MIPS_CFLAGS = $(mips_optflags) $(flags) -I. -Wall -Wno-unused -Werror
@@ -182,6 +185,36 @@ build/%.class: src/%.java
 
 clean:
 	rm -rf build/tests build/org/ibex/nestedvm *.jar build/mips2java$(EXE_EXT)
+
+install: dist
+	cp -R upstream/install/ $(prefix)/nestedvm
+
+uninstall:
+	rm -rf $(prefix)/nestedvm
+
+dist: cxxtest nestedvm.jar compiler.jar runtime.jar unix_runtime.jar \
+			$(usr)/src/nestedvm $(usr)/src/classgen $(usr)/share/doc/nestedvm
+	@mkdir -p $(usr)/share/java
+	@cp nestedvm.jar $(usr)/share/java/nestedvm-all.jar
+	@cp compiler.jar $(usr)/share/java/nestedvm-compiler.jar
+	@cp nestedvm.jar $(usr)/share/java/nestedvm-runtime.jar
+	@cp nestedvm.jar $(usr)/share/java/nestedvm-unix_runtime.jar
+
+$(usr)/share/doc/nestedvm:
+	@mkdir -p $(usr)/share/doc
+	@cd $(usr)/share/doc && ln -s ../../src/nestedvm/doc nestedvm
+
+$(usr)/src/nestedvm: | $(usr)/src
+	@git archive HEAD . --prefix=nestedvm/ | tar -x -C $(usr)/src
+	@rm -rf $(usr)/src/nestedvm/src $(usr)/src/nestedvm/upstream/Makefile
+	@cp -R src $(usr)/src/nestedvm
+	@cp upstream/Makefile $(usr)/src/nestedvm/upstream/Makefile
+
+$(usr)/src/classgen: $(tasks)/extract_git_classgen | $(usr)/src
+	@(cd upstream/build/classgen && git archive HEAD . --prefix=classgen/) | tar -x -C $(usr)/src
+
+$(usr)/src:
+	@mkdir -p $(usr)/src
 
 #
 # env.sh

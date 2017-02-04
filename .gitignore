@@ -4,9 +4,9 @@ upstream/download
 upstream/install
 build
 env.sh
-compiler.jar
-nestedvm.jar
+*.jar
 .manifest
 .project
 .classpath
 .settings
+tmp
